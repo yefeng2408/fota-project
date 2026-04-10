@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yef.fota.mapper.FirmwarePackageMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.yef.fota.entity.FirmwarePackageEntity">
+        <id column="id" property="id" />
+        <result column="version" property="version" />
+        <result column="device_type" property="deviceType" />
+        <result column="file_name" property="fileName" />
+        <result column="file_url" property="fileUrl" />
+        <result column="file_size" property="fileSize" />
+        <result column="chunk_size" property="chunkSize" />
+        <result column="md5" property="md5" />
+        <result column="force_upgrade" property="forceUpgrade" />
+        <result column="status" property="status" />
+        <result column="remark" property="remark" />
+        <result column="created_at" property="createdAt" />
+        <result column="updated_at" property="updatedAt" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, version, device_type, file_name, file_url, file_size, chunk_size, md5, force_upgrade, status, remark, created_at, updated_at
+    </sql>
+
+</mapper>

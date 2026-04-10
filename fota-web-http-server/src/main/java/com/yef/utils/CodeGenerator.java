@@ -3,7 +3,6 @@ package com.yef.utils;
 import com.baomidou.mybatisplus.generator.FastAutoGenerator;
 import com.baomidou.mybatisplus.generator.config.OutputFile;
 import com.baomidou.mybatisplus.generator.engine.FreemarkerTemplateEngine;
-
 import java.util.Collections;
 
 public class CodeGenerator {
@@ -54,7 +53,8 @@ public class CodeGenerator {
                                     "device_group_relation",
                                     "user",
                                     "user_device_group",
-                                    "operate_log"
+                                    "operate_log",
+                                    "firmware_package"
                             )
 
                             // 👉 去掉表前缀（如果有）
