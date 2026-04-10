@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yef.fota.mapper.DeviceUpgradeLogMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.yef.fota.entity.DeviceUpgradeLogEntity">
+        <id column="id" property="id" />
+        <result column="task_id" property="taskId" />
+        <result column="device_id" property="deviceId" />
+        <result column="packet_no" property="packetNo" />
+        <result column="status" property="status" />
+        <result column="retry_count" property="retryCount" />
+        <result column="message" property="message" />
+        <result column="created_at" property="createdAt" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, task_id, device_id, packet_no, status, retry_count, message, created_at
+    </sql>
+
+</mapper>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yef.fota.mapper.UpgradeTaskMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.yef.fota.entity.UpgradeTaskEntity">
+        <id column="id" property="id" />
+        <result column="task_id" property="taskId" />
+        <result column="device_id" property="deviceId" />
+        <result column="imei" property="imei" />
+        <result column="firmware_id" property="firmwareId" />
+        <result column="batch_id" property="batchId" />
+        <result column="status" property="status" />
+        <result column="progress" property="progress" />
+        <result column="current_packet" property="currentPacket" />
+        <result column="total_packet" property="totalPacket" />
+        <result column="operator_id" property="operatorId" />
+        <result column="created_at" property="createdAt" />
+        <result column="updated_at" property="updatedAt" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, task_id, device_id, imei, firmware_id, batch_id, status, progress, current_packet, total_packet, operator_id, created_at, updated_at
+    </sql>
+
+</mapper>
