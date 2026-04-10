@@ -1,0 +1,13 @@
+package com.yef.ota;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class FotaGatewayTcpServerApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(FotaGatewayTcpServerApplication.class, args);
+    }
+
+}
