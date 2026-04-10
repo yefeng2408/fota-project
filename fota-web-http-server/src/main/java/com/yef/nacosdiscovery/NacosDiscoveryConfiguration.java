@@ -13,16 +13,20 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
+ *//*
+
 package com.yef.nacosdiscovery;
 
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Configuration;
 
+*/
 /**
  * @author <a href="mailto:chenxilzx1@gmail.com">theonefx</a>
- */
+ *//*
+
 @EnableDiscoveryClient
 @Configuration
 public class NacosDiscoveryConfiguration {
 }
+*/
