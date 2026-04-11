@@ -7,6 +7,7 @@
         <option value="$PROJECT_DIR$/pom.xml" />
         <option value="$PROJECT_DIR$/fota-gateway-tcp-server/pom.xml" />
         <option value="$PROJECT_DIR$/fota-web-http-server/pom.xml" />
+        <option value="$PROJECT_DIR$/fota-mock-device-client/pom.xml" />
       </list>
     </option>
   </component>

@@ -1,0 +1,48 @@
+平台主动下发分包数据给设备的协议：
+
+| head (1B)        | 0x5B
+| version (1B)     | 协议版本号
+| length (4B)      | body长度
+| messageType (1B) | 消息类型
+| body (N)         | 数据体
+| crc16 (2B)       | 校验
+| tail (1B)        | 0x5D
+
+messageType类型：
+    0x01 = 升级请求（平台 → 设备）
+    0x02 = 分包数据（平台 → 设备）
+    0x03 = ACK确认（设备 → 平台）
+    0x04 = FAIL失败（设备 → 平台）
+
+
+body结构：
+🟢 1️⃣ 升级请求（messageType = 0x01）
+    imei          (8B)  设备imei
+    taskId        (8B)  升级任务ID
+    firmwareId    (8B)  固件ID
+    totalPacket   (4B)  总包数
+    chunkSize     (4B)  每包大小
+    fileSize      (8B)  文件总大小
+    md5           (16B) 文件MD5（二进制）
+
+🟢 2️⃣ 分包数据（messageType = 0x02）🔥核心
+    imei          (8B)  设备imei
+    taskId        (8B)
+    packetNo      (4B)
+    totalPacket   (4B)
+    chunkLength   (4B)
+    chunkData     (N)
+
+
+🟢 3️⃣ ACK确认（messageType = 0x03）
+    imei          (8B)  设备imei
+    taskId        (8B)
+    packetNo      (4B)
+    status        (1B)   0=成功 1=失败
+
+🔴 4️⃣ FAIL失败（messageType = 0x04）
+    imei          (8B)  设备imei
+    taskId        (8B)
+    packetNo      (4B)
+    errorCode     (2B)
+

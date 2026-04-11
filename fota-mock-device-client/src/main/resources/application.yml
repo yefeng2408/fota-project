@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: fota-mock-device-client
+
+server:
+  port: 8082
+

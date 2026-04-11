@@ -12,6 +12,7 @@
         <module>fota-common</module>
         <module>fota-gateway-tcp-server</module>
         <module>fota-web-http-server</module>
+        <module>fota-mock-device-client</module>
     </modules>
     <properties>
         <maven.compiler.source>17</maven.compiler.source>

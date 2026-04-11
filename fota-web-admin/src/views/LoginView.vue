@@ -31,7 +31,7 @@ import request from '../api/request'
 const router = useRouter()
 const form = reactive({
   phone: 'admin',
-  password: '123456'
+  password: 'admin'
 })
 
 async function handleLogin() {

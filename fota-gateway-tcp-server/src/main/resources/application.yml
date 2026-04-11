@@ -1,5 +1,9 @@
 server:
-  port: 8082
+  port: 8081
+
+netty:
+  server:
+    port: 7611
 
 spring:
   application:
@@ -7,3 +11,7 @@ spring:
   cloud:
     nacos:
       server-addr: localhost:8848
+  redis:
+    host: localhost
+    port: 6379
+    database: 0

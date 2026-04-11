@@ -20,6 +20,7 @@
         <spring-boot.version>2.6.13</spring-boot.version>
         <spring-cloud.version>2021.0.5</spring-cloud.version>
         <spring-cloud-alibaba.version>2021.0.5.0</spring-cloud-alibaba.version>
+        <netty.sersion>4.2.7.Final</netty.sersion>
     </properties>
     <dependencies>
         <!-- nacos -->
@@ -44,6 +45,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
+            <version>${netty.sersion}</version>
         </dependency>
 
         <!-- common -->
@@ -120,7 +122,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <version>${spring-boot.version}</version>
                 <configuration>
-                    <mainClass>com.yef.ota.FotaGatewayTcpServerApplication</mainClass>
+                    <mainClass>com.yef.FotaGatewayTcpServerApplication</mainClass>
                     <skip>true</skip>
                 </configuration>
                 <executions>
