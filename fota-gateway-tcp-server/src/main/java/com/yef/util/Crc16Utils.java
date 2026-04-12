@@ -7,6 +7,11 @@ public final class Crc16Utils {
     private Crc16Utils() {
     }
 
+    /**
+     * 计算crc16
+     * @param data
+     * @return 返回crc16值
+     */
     public static int calculate(byte[] data) {
         int crc = 0xFFFF;
         if (data == null) {

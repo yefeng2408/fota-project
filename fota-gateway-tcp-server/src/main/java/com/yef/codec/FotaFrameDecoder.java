@@ -6,7 +6,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import java.util.List;
-
+/**
+ * @description: 只做一件事，找出一个完整的协议包格式数据
+ * @author: 叶丰
+ * @date: 2026/4/11 22:46
+ */
 public class FotaFrameDecoder extends ByteToMessageDecoder {
 
     @Override
@@ -20,6 +24,7 @@ public class FotaFrameDecoder extends ByteToMessageDecoder {
             if (headIndex > in.readerIndex()) {
                 in.skipBytes(headIndex - in.readerIndex());
             }
+            //如果可读字节小于最小长度 则直接返回，等待下次进来有足够满足一帧的长度
             if (in.readableBytes() < FotaProtocolConstants.FRAME_MIN_LENGTH) {
                 return;
             }
@@ -56,6 +61,11 @@ public class FotaFrameDecoder extends ByteToMessageDecoder {
         }
     }
 
+    /**
+     * 找包头标识符，找不到就返回-1
+     * @param in
+     * @return
+     */
     private int findHead(ByteBuf in) {
         for (int i = in.readerIndex(); i < in.writerIndex(); i++) {
             if (in.getByte(i) == FotaProtocolConstants.HEAD) {

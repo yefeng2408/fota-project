@@ -16,10 +16,16 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import java.util.List;
 
+/**
+ * @description:
+ * @author: 叶丰
+ * @date: 2026/4/11 22:48
+ */
 public class FotaMessageDecoder extends MessageToMessageDecoder<FotaPacketFrame> {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, FotaPacketFrame frame, List<Object> out) {
+
         byte[] crcPayload = ProtocolBodyUtils.buildCrcPayload(frame.getVersion(), frame.getMessageType(), frame.getBody());
         int calculatedCrc16 = Crc16Utils.calculate(crcPayload);
         if (calculatedCrc16 != frame.getCrc16()) {

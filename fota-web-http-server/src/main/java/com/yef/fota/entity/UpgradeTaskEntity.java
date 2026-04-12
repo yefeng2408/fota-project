@@ -61,7 +61,7 @@ public class UpgradeTaskEntity implements Serializable {
     private Long batchId;
 
     /**
-     * 状态：INIT/PENDING/UPGRADING/SUCCESS/FAIL/TIMEOUT
+     * 状态：IDLE/READY/UPGRADE_REQUESTED/UPGRADING/WAIT_CONFIRM/SUCCESS/FAIL/TIMEOUT/PAUSED
      */
     @TableField("status")
     private String status;

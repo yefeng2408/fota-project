@@ -1,29 +1,37 @@
-平台主动下发分包数据给设备的协议：
+平台主动下发分包数据给设备的协议格式如下：
+----------------protocol description start-------------------------
 
-| head (1B)        | 0x5B
-| version (1B)     | 协议版本号
-| length (4B)      | body长度
-| messageType (1B) | 消息类型
-| body (N)         | 数据体
-| crc16 (2B)       | 校验
-| tail (1B)        | 0x5D
+| head (1 byte)        | 0x5B
+| version (1 byte)     | 协议版本号（默认给1）。预留字段，方便后续拓展协议类型
+| length (4 byte)      | body长度
+| messageType (1 byte) | 消息类型
+| body (N byte)        | 数据体
+| crc16 (2 byte)       | 校验
+| tail (1 byte)        | 0x5D
 
 messageType类型：
-    0x01 = 升级请求（平台 → 设备）
-    0x02 = 分包数据（平台 → 设备）
-    0x03 = ACK确认（设备 → 平台）
-    0x04 = FAIL失败（设备 → 平台）
+    0x10 DeviceBootUpMessage   （设备上线）上行消息：终端连接上nettyServer 就发送上线通知包，只发送一次。
+    0x01 UpgradeRequest        （开始升级）下行消息：用户平台点击‘开始升级’按钮，主动给设备发升级请求消息,平台发送 0x01 UpgradeRequest 后，必须等待设备响应这次0x01 的 ACK。
+                                                 只有在收到 ACK 后，平台才允许将 upgrade_task表的 status字段 由从 UPGRADE_REQUESTED 推进为 UPGRADING，
+                                                 并开始发送 0x02 UpgradePacket 分包数据。如果未收到 ACK，则不得进入分包阶段。
+
+    0x02 UpgradePacket         （分包数据）
+    0x03 ACK                   （分包确认）
+    0x04 FAIL                  （分包失败）
+    0x06 UpgradeResult         （最终结果🔥）
+    0x07 CancelUpgrade         （取消升级🔥）
+    0x05 Heartbeat             （维持设备在线，防止被IdleStatusHandler误踢下线）
 
 
 body结构：
 🟢 1️⃣ 升级请求（messageType = 0x01）
-    imei          (8B)  设备imei
-    taskId        (8B)  升级任务ID
-    firmwareId    (8B)  固件ID
-    totalPacket   (4B)  总包数
-    chunkSize     (4B)  每包大小
-    fileSize      (8B)  文件总大小
-    md5           (16B) 文件MD5（二进制）
+    imei          (8 byte)  string 设备imei，纯数字字符串组成
+    taskId        (8 byte)  long 升级任务ID
+    firmwareId    (8 byte)  long 固件ID
+    totalPacket   (4 byte)  int 总包数
+    chunkSize     (4 byte)  int 分包大小（最后一次分包可能小于分包大小）
+    fileSize      (8 byte)  long 文件总大小
+    md5           (16 byte) string 文件MD5（二进制）
 
 🟢 2️⃣ 分包数据（messageType = 0x02）🔥核心
     imei          (8B)  设备imei
@@ -33,16 +41,103 @@ body结构：
     chunkLength   (4B)
     chunkData     (N)
 
+🟢 3️⃣ ACK确认（messageType = 0x03） 多语义 ACK（Multi-semantic ACK）
+    imei          (8 byte)  设备imei
+    taskId        (8 byte)
+    packetNo      (4 byte)
+    ackType       (1 byte)
 
-🟢 3️⃣ ACK确认（messageType = 0x03）
-    imei          (8B)  设备imei
-    taskId        (8B)
-    packetNo      (4B)
-    status        (1B)   0=成功 1=失败
+                  ackType 类型说明：
+                      ackType =1        UPGRADE_REQUEST_ACK      （对0x01升级请求的ACK）
+                      ackType =2        PACKET_ACK               （普通分包ACK，对0x02每一包确认）
+                    //ackType =3  待定   PACKET_LAST_ACK          （最后一包ACK，表示已收齐所有分包）
+                      ackType =4        CANCEL_ACK               （对0x07取消升级的ACK）
+                      ackType =5        HEARTBEAT_ACK（可选）     （心跳响应ACK，可选实现）
+                  说明：
+                      - packetNo 在 ackType=1（升级请求ACK）时可为0
+                      - packetNo 在分包ACK时必须对应具体分包序号
+                      - PACKET_LAST_ACK 用于通知平台“分包已全部接收完成”，但不代表升级成功
 
 🔴 4️⃣ FAIL失败（messageType = 0x04）
-    imei          (8B)  设备imei
-    taskId        (8B)
-    packetNo      (4B)
-    errorCode     (2B)
+    imei          (8 byte)  设备imei
+    taskId        (8 byte)
+    packetNo      (4 byte)
+    errorCode     (2 byte)
 
+🟡 5️⃣ Heartbeat（messageType = 0x05）
+    imei          (8 byte)  设备imei
+    timestamp     (8 byte)  long 时间戳（毫秒）
+    status        (1 byte)  设备状态（0=空闲 1=升级中）
+
+🟢 6️⃣ UpgradeResult（messageType = 0x06）🔥最终结果
+    imei          (8 byte)  设备imei
+    taskId        (8 byte)
+    result        (1 byte)  升级结果（0=成功 1=失败）
+    errorCode     (2 byte)  失败原因（成功时为0）
+    costTime      (4 byte)  升级耗时（秒，可选）
+
+🟠 7️⃣ CancelUpgrade（messageType = 0x07）
+    imei          (8 byte)  设备imei
+    taskId        (8 byte)
+    reason        (1 byte)  取消原因（0=用户取消。目前就只有用户手动点击取消。因为0x07是用户在平台主动点击下发的取消升级指令）
+-----------------protocol description end------------------------------------
+
+
+
+
+
+设备升级状态(upgrade_task表的status字段）状态流转过程如下：
+    目前设备升级状态分为以下类型：
+    IDLE（设备未绑定固件）设备未绑定固件，平台首次添加的设备。status=FIREWARE_BIND
+    ↓
+    FIREWARE_BIND（已绑定固件）用户在平台操作，选择设备绑定某个固件。此时更新 status=FIREWARE_BIND
+    ↓
+    UPGRADE_REQUESTED（已下发升级指令）平台已下发0x01升级指令，并且等待0x01的ACK。此时更新 status=UPGRADE_REQUESTED
+    ↓
+    UPGRADE_READY（升级就绪）设备收到0x01消息【此时设备最好将收到的0x01 body结构里面有关固件分包信息给保存下来，方便后续收到平台下发的所有分包后，设备端将所有分包按PacketNo升序排序后，合并成一个文件，然后与0x01消息体里面的md5值做比较，相同则表示固件无误。
+                            我打算给fota-mock-device-client 模拟工程单独分配一个数据库环境。创建2张设备表。设备表(devive)，该表有如下字段：主键id、设备imei、当前版本号、固件md5值、总分包数totalPacket、文件大小fileSize。固件分包表(fireware_packet)，该有:主键id、设备imei、task_id、分包数据packet_data,created_at】，
+                           并且给平台ACK响应。此时更新 status=UPGRADE_READY
+    ↓
+    UPGRADING（升级中）//TODO：平台开始下发固件分包消息（messageType=0x02），并且设备给平台ACK应答。此时更新 status=UPGRADING。这个过程往返多次，持续时间一般是在30s至1分钟左右
+                                    🔥 设备收到完整的分包（设备收到0x02的个数等于协议包totalPacket的个数）。并且对总包数按照packetNo升序排序，
+                                    然后合并文件、计算md5值（与之前收到的0x01消息体body里面的md5值做比较，相同就）
+                                    平台收到设备0x06类型的消息就将升级中状态更新为等待设备最终确认，
+    ↓
+    SUCCESS（成功） 设备上报 0x06类型的消息，result=0表示成功
+    ↓
+    FAIL（失败）  设备上报 0x06类型的消息，result=1表示失败
+    ↓
+    TIMEOUT（超时）平台等不到设备消息
+
+    PAUSED（升级暂停） 如果设备突然掉线 就更新，升级暂停状态只会出现在upgrading过程中 设备断线的时候，才会产生这个状态。
+
+
+三、TIMEOUT 正确实现方式（🔥面试杀器）
+
+你这个可以这么设计：
+
+1️⃣ 在 upgrade_task 表增加字段
+    last_packet_at   datetime   -- 最后一次交互时间
+    start_time       datetime   -- 开始升级时间
+    timeout_seconds  int        -- 超时时间（比如60秒）
+
+2️⃣ 每次交互更新 last_packet_at
+例如：
+    事件	                    更新
+    收到 ACK	            更新 last_packet_at
+    发包成功	                更新
+    收到 FAIL	            更新
+
+3️⃣ 定时任务扫描（核心）
+    select * from upgrade_task
+    where status = 'UPGRADING'
+    and now() - last_packet_at > timeout_seconds（超时时间应该大于IdleStatusHandler的超时时间，这里给150s）
+
+👉 命中后：
+    update upgrade_task
+    set status = 'TIMEOUT'
+
+
+四、PAUSED vs TIMEOUT 的区别（你这个设计很好 👍）
+
+你已经有这两个状态了，我帮你升维解释一下（非常适合面试）：

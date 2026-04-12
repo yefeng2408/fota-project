@@ -39,6 +39,13 @@ public final class ProtocolBodyUtils {
         return bytes;
     }
 
+    /**
+     *
+     * @param version
+     * @param messageType
+     * @param body
+     * @return
+     */
     public static byte[] buildCrcPayload(byte version, byte messageType, byte[] body) {
         ByteBuf buf = Unpooled.buffer(1 + 4 + 1 + body.length);
         try {
