@@ -17,7 +17,7 @@ class FotaWebHttpServerApplicationTests {
 
     @Test
     void readFirewareAndChunk() {
-        minioClient.
+       // minioClient.
 
     }
 
