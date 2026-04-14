@@ -37,3 +37,13 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### minio
+docker/data/minio/
+docker/data/
+logs/
+tmp/
+*.log
+# MinIO
+docker/data/minio/*
+!docker/data/minio/.gitkeep
