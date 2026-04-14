@@ -16,30 +16,29 @@ public final class FotaProtocolConstants {
      */
     public static final byte VERSION = 0x01;
 
-    /**
-     * 收到平台下发的升级请求指令
-     */
-    public static final byte MSG_UPGRADE_REQUEST = 0x01;
-
-    /**
-     * 平台下发带有固件分包的数据
-     */
-    public static final byte MSG_UPGRADE_PACKET = 0x02;
-
-    /**
-     *  TODO ========
-     */
     public static final byte MSG_ACK = 0x03;
 
-    /**
-     *
-     */
     public static final byte MSG_FAIL = 0x04;
 
-    /**
-     * 设备开机后注册
-     */
-    public static final byte MSG_DEVICE_REGISTER = 0x10;
+    public static final byte MSG_HEARTBEAT = 0x05;
+
+    public static final byte MSG_UPGRADE_RESULT = 0x06;
+
+    public static final byte MSG_DEVICE_BOOT_UP = 0x10;
+
+    public static final byte MSG_UPGRADE_REQUEST = (byte) 0x81;
+
+    public static final byte MSG_UPGRADE_PACKET = (byte) 0x82;
+
+    public static final byte MSG_CANCEL_UPGRADE = (byte) 0x87;
+
+    public static final byte ACK_TYPE_UPGRADE_REQUEST = 1;
+
+    public static final byte ACK_TYPE_PACKET = 2;
+
+    public static final byte ACK_TYPE_CANCEL = 4;
+
+    public static final byte ACK_TYPE_HEARTBEAT = 5;
 
     /**
      * 最大包长度限制
@@ -49,7 +48,7 @@ public final class FotaProtocolConstants {
     /**
      * 最小包长度限制
      */
-    public static final int FRAME_MIN_LENGTH = 10;
+    public static final int FRAME_MIN_LENGTH = 28;
 
     private FotaProtocolConstants() {
     }

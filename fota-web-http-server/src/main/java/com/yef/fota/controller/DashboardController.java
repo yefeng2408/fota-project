@@ -33,8 +33,8 @@ public class DashboardController {
         DashboardOverviewVO vo = new DashboardOverviewVO();
         vo.setTotalDevices(deviceService.count());
         vo.setOnlineDevices(0L);
-        vo.setSuccessTasks(upgradeTaskService.lambdaQuery().eq(UpgradeTaskEntity::getStatus, "SUCCESS").count());
-        vo.setFailedTasks(upgradeTaskService.lambdaQuery().in(UpgradeTaskEntity::getStatus, List.of("FAIL", "TIMEOUT")).count());
+        vo.setSuccessTasks(upgradeTaskService.lambdaQuery().eq(UpgradeTaskEntity::getTaskStatus, "SUCCESS").count());
+        vo.setFailedTasks(upgradeTaskService.lambdaQuery().in(UpgradeTaskEntity::getTaskStatus, List.of("FAIL", "TIMEOUT")).count());
         vo.setRecentTasks(upgradeTaskService.lambdaQuery()
                 .orderByDesc(UpgradeTaskEntity::getCreatedAt)
                 .last("limit 5")
@@ -44,7 +44,7 @@ public class DashboardController {
                     Map<String, Object> item = new LinkedHashMap<>();
                     item.put("taskId", task.getTaskId());
                     item.put("imei", task.getImei());
-                    item.put("status", task.getStatus());
+                    item.put("taskStatus", task.getTaskStatus());
                     item.put("progress", task.getProgress());
                     item.put("createdAt", task.getCreatedAt());
                     return item;

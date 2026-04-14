@@ -43,7 +43,7 @@ public class UpgradeTaskEntity implements Serializable {
     private Long deviceId;
 
     /**
-     * 设备IMEI（冗余字段）
+     * 设备IMEI
      */
     @TableField("imei")
     private String imei;
@@ -61,10 +61,10 @@ public class UpgradeTaskEntity implements Serializable {
     private Long batchId;
 
     /**
-     * 状态：IDLE/READY/UPGRADE_REQUESTED/UPGRADING/WAIT_CONFIRM/SUCCESS/FAIL/TIMEOUT/PAUSED
+     * 任务状态：INIT/PENDING/UPGRADE_REQUESTED/UPGRADING/SUCCESS/FAIL/TIMEOUT/CANCELLED
      */
-    @TableField("status")
-    private String status;
+    @TableField("task_status")
+    private String taskStatus;
 
     /**
      * 升级进度（百分比）
@@ -85,10 +85,28 @@ public class UpgradeTaskEntity implements Serializable {
     private Integer totalPacket;
 
     /**
+     * 失败原因
+     */
+    @TableField("fail_reason")
+    private String failReason;
+
+    /**
      * 操作人
      */
     @TableField("operator_id")
     private Long operatorId;
+
+    /**
+     * 升级开始时间
+     */
+    @TableField("start_time")
+    private LocalDateTime startTime;
+
+    /**
+     * 升级结束时间
+     */
+    @TableField("end_time")
+    private LocalDateTime endTime;
 
     /**
      * 创建时间

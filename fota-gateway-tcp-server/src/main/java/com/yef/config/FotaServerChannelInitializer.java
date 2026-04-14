@@ -9,7 +9,6 @@ import com.yef.handler.UpgradeDispatchHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import org.springframework.stereotype.Component;
 
@@ -33,7 +32,6 @@ public class FotaServerChannelInitializer extends ChannelInitializer<SocketChann
         ChannelPipeline pipeline = ch.pipeline();
         pipeline.addLast("idleStateHandler", new IdleStateHandler(90, 0, 0));
         pipeline.addLast("fotaFrameDecoder", new FotaFrameDecoder());
-        //pipeline.addLast("fotaFrameDecoder", new LengthFieldBasedFrameDecoder());
         pipeline.addLast("fotaMessageDecoder", new FotaMessageDecoder());
         pipeline.addLast("fotaMessageEncoder", new FotaMessageEncoder());
         pipeline.addLast("deviceIdentityHandler", deviceIdentityHandler);

@@ -25,13 +25,13 @@ public class DeviceEntity implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 设备ID
+     * 主键ID
      */
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
     /**
-     * 设备唯一IMEI号
+     * 设备IMEI
      */
     @TableField("imei")
     private String imei;
@@ -43,14 +43,44 @@ public class DeviceEntity implements Serializable {
     private String deviceName;
 
     /**
+     * 设备类型
+     */
+    @TableField("device_type")
+    private String deviceType;
+
+    /**
      * 当前固件版本
      */
-    @TableField("firmware_version")
-    private String firmwareVersion;
+    @TableField("current_firmware_version")
+    private String currentFirmwareVersion;
+
+    /**
+     * 设备当前升级状态
+     */
+    @TableField("device_upgrade_status")
+    private String deviceUpgradeStatus;
+
+    /**
+     * 当前绑定的目标固件ID
+     */
+    @TableField("target_firmware_id")
+    private Long targetFirmwareId;
+
+    /**
+     * 最近一次升级任务ID
+     */
+    @TableField("last_upgrade_task_id")
+    private Long lastUpgradeTaskId;
 
     /**
      * 创建时间
      */
     @TableField("created_at")
     private LocalDateTime createdAt;
+
+    /**
+     * 更新时间
+     */
+    @TableField("updated_at")
+    private LocalDateTime updatedAt;
 }

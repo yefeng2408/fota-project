@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yef.fota.mapper.DeviceFirmwareBindingMapper">
+
+    <resultMap id="BaseResultMap" type="com.yef.fota.entity.DeviceFirmwareBindingEntity">
+        <id column="id" property="id" />
+        <result column="device_id" property="deviceId" />
+        <result column="firmware_id" property="firmwareId" />
+        <result column="bind_status" property="bindStatus" />
+        <result column="triggered" property="triggered" />
+        <result column="operator_id" property="operatorId" />
+        <result column="bound_at" property="boundAt" />
+        <result column="triggered_at" property="triggeredAt" />
+        <result column="unbound_at" property="unboundAt" />
+        <result column="created_at" property="createdAt" />
+        <result column="updated_at" property="updatedAt" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, device_id, firmware_id, bind_status, triggered, operator_id, bound_at, triggered_at, unbound_at, created_at, updated_at
+    </sql>
+
+</mapper>

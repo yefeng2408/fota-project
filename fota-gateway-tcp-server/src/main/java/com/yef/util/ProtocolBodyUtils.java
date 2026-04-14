@@ -9,12 +9,19 @@ public final class ProtocolBodyUtils {
     private ProtocolBodyUtils() {
     }
 
-    public static String readImei(ByteBuf in) {
-        return Long.toUnsignedString(in.readLong());
+
+    public static String readFixedImei(ByteBuf in) {
+        byte[] bytes = new byte[8];
+        in.readBytes(bytes);
+        return new String(bytes, StandardCharsets.US_ASCII);
     }
 
-    public static void writeImei(ByteBuf out, String imei) {
-        out.writeLong(Long.parseUnsignedLong(imei));
+    public static void writeFixedImei(ByteBuf out, String imei) {
+        String value = imei == null ? "" : imei;
+        if (value.length() != 8) {
+            throw new IllegalArgumentException("imei must be 8 ascii chars: " + value);
+        }
+        out.writeBytes(value.getBytes(StandardCharsets.US_ASCII));
     }
 
     public static String readUtf8WithShortLength(ByteBuf in) {
@@ -46,11 +53,15 @@ public final class ProtocolBodyUtils {
      * @param body
      * @return
      */
-    public static byte[] buildCrcPayload(byte version, byte messageType, byte[] body) {
-        ByteBuf buf = Unpooled.buffer(1 + 4 + 1 + body.length);
+    public static byte[] buildCrcPayload(byte version, int bodyLength, String imei, long timestamp, int seqId,
+                                         byte messageType, byte[] body) {
+        ByteBuf buf = Unpooled.buffer(1 + 4 + 8 + 8 + 2 + 1 + body.length);
         try {
             buf.writeByte(version);
-            buf.writeInt(body.length);
+            buf.writeInt(bodyLength);
+            writeFixedImei(buf, imei);
+            buf.writeLong(timestamp);
+            buf.writeShort(seqId);
             buf.writeByte(messageType);
             buf.writeBytes(body);
             return toByteArray(buf);

@@ -11,6 +11,7 @@
         <result column="file_url" property="fileUrl" />
         <result column="file_size" property="fileSize" />
         <result column="chunk_size" property="chunkSize" />
+        <result column="chunk_count" property="chunkCount" />
         <result column="md5" property="md5" />
         <result column="force_upgrade" property="forceUpgrade" />
         <result column="status" property="status" />
@@ -21,7 +22,7 @@
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, version, device_type, file_name, file_url, file_size, chunk_size, md5, force_upgrade, status, remark, created_at, updated_at
+        id, version, device_type, file_name, file_url, file_size, chunk_size, chunk_count, md5, force_upgrade, status, remark, created_at, updated_at
     </sql>
 
 </mapper>

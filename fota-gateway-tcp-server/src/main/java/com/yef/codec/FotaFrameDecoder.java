@@ -15,6 +15,7 @@ public class FotaFrameDecoder extends ByteToMessageDecoder {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
+
         while (in.readableBytes() >= FotaProtocolConstants.FRAME_MIN_LENGTH) {
             int headIndex = findHead(in);
             if (headIndex < 0) {
@@ -33,6 +34,9 @@ public class FotaFrameDecoder extends ByteToMessageDecoder {
             in.skipBytes(1);
             byte version = in.readByte();
             int bodyLength = in.readInt();
+            String imei = com.yef.util.ProtocolBodyUtils.readFixedImei(in);
+            long timestamp = in.readLong();
+            int seqId = in.readUnsignedShort();
             byte messageType = in.readByte();
 
             if (bodyLength < 0 || bodyLength > FotaProtocolConstants.MAX_BODY_LENGTH) {
@@ -57,7 +61,7 @@ public class FotaFrameDecoder extends ByteToMessageDecoder {
                 continue;
             }
 
-            out.add(new FotaPacketFrame(version, messageType, body, crc16));
+            out.add(new FotaPacketFrame(version, imei, timestamp, seqId, messageType, body, crc16));
         }
     }
 

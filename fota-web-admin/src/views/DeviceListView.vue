@@ -31,8 +31,10 @@
       <el-table :data="tableData.records">
         <el-table-column prop="imei" label="IMEI" />
         <el-table-column prop="deviceName" label="设备名称" />
+        <el-table-column prop="deviceType" label="设备类型" />
         <el-table-column prop="deviceGroupName" label="设备分组" />
-        <el-table-column prop="firmwareVersion" label="固件版本" />
+        <el-table-column prop="currentFirmwareVersion" label="当前固件版本" />
+        <el-table-column prop="deviceUpgradeStatus" label="升级状态" />
         <el-table-column prop="onlineStatus" label="在线状态" />
         <el-table-column prop="createdAt" label="创建时间" />
         <el-table-column label="操作" width="180">
@@ -58,6 +60,7 @@
     <el-form :model="form" label-position="top">
       <el-form-item label="IMEI"><el-input v-model="form.imei" /></el-form-item>
       <el-form-item label="设备名称"><el-input v-model="form.deviceName" /></el-form-item>
+      <el-form-item label="设备类型"><el-input v-model="form.deviceType" placeholder="例如 D056 / D057 / MOTOR_V1" /></el-form-item>
       <el-form-item label="设备分组">
         <el-tree-select
           v-model="form.deviceGroupId"
@@ -67,7 +70,8 @@
           :props="{ label: 'label', children: 'children', value: 'id' }"
         />
       </el-form-item>
-      <el-form-item label="固件版本"><el-input v-model="form.firmwareVersion" /></el-form-item>
+      <el-form-item label="当前固件版本"><el-input v-model="form.currentFirmwareVersion" /></el-form-item>
+      <el-form-item label="目标固件ID"><el-input-number v-model="form.targetFirmwareId" :min="1" controls-position="right" /></el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="dialogVisible = false">取消</el-button>
@@ -84,7 +88,16 @@ const groupTree = ref([])
 const dialogVisible = ref(false)
 const tableData = reactive({ total: 0, records: [] })
 const query = reactive({ current: 1, pageSize: 10, keyword: '', deviceGroupId: null })
-const form = reactive({ id: null, imei: '', deviceName: '', firmwareVersion: '', deviceGroupId: null })
+const form = reactive({
+  id: null,
+  imei: '',
+  deviceName: '',
+  deviceType: '',
+  currentFirmwareVersion: '',
+  deviceUpgradeStatus: 'IDLE',
+  targetFirmwareId: null,
+  deviceGroupId: null
+})
 
 async function loadGroups() {
   groupTree.value = await request.get('/api/device-groups/tree')
@@ -108,7 +121,16 @@ function changePage(page) {
 }
 
 function openDialog(row) {
-  Object.assign(form, row || { id: null, imei: '', deviceName: '', firmwareVersion: '', deviceGroupId: null })
+  Object.assign(form, row || {
+    id: null,
+    imei: '',
+    deviceName: '',
+    deviceType: '',
+    currentFirmwareVersion: '',
+    deviceUpgradeStatus: 'IDLE',
+    targetFirmwareId: null,
+    deviceGroupId: null
+  })
   dialogVisible.value = true
 }
 

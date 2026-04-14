@@ -17,7 +17,14 @@ public class DeviceSaveRequest {
     @NotBlank
     private String deviceName;
 
-    private String firmwareVersion;
+    @NotBlank
+    private String deviceType;
+
+    private String currentFirmwareVersion;
+
+    private String deviceUpgradeStatus;
+
+    private Long targetFirmwareId;
 
     @NotNull
     private Long deviceGroupId;

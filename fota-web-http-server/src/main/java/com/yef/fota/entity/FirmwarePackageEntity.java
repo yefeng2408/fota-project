@@ -67,6 +67,12 @@ public class FirmwarePackageEntity implements Serializable {
     private Integer chunkSize;
 
     /**
+     * chunk后的总的个数
+     */
+    @TableField("chunk_count")
+    private Integer chunkCount;
+
+    /**
      * MD5值
      */
     @TableField("md5")

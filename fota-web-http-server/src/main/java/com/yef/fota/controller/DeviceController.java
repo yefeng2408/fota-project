@@ -80,8 +80,12 @@ public class DeviceController {
         DeviceEntity entity = new DeviceEntity();
         entity.setImei(request.getImei());
         entity.setDeviceName(request.getDeviceName());
-        entity.setFirmwareVersion(request.getFirmwareVersion());
+        entity.setDeviceType(request.getDeviceType());
+        entity.setCurrentFirmwareVersion(request.getCurrentFirmwareVersion());
+        entity.setDeviceUpgradeStatus(StringUtils.hasText(request.getDeviceUpgradeStatus()) ? request.getDeviceUpgradeStatus() : "IDLE");
+        entity.setTargetFirmwareId(request.getTargetFirmwareId());
         entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
         deviceService.save(entity);
         saveRelation(entity.getId(), request.getDeviceGroupId());
         return ApiResponse.ok(toDeviceVO(entity));
@@ -96,7 +100,11 @@ public class DeviceController {
         }
         entity.setImei(request.getImei());
         entity.setDeviceName(request.getDeviceName());
-        entity.setFirmwareVersion(request.getFirmwareVersion());
+        entity.setDeviceType(request.getDeviceType());
+        entity.setCurrentFirmwareVersion(request.getCurrentFirmwareVersion());
+        entity.setDeviceUpgradeStatus(StringUtils.hasText(request.getDeviceUpgradeStatus()) ? request.getDeviceUpgradeStatus() : entity.getDeviceUpgradeStatus());
+        entity.setTargetFirmwareId(request.getTargetFirmwareId());
+        entity.setUpdatedAt(LocalDateTime.now());
         deviceService.updateById(entity);
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>().eq(DeviceGroupRelationEntity::getDeviceId, id));
         saveRelation(id, request.getDeviceGroupId());
@@ -133,8 +141,14 @@ public class DeviceController {
             vo.setId(entity.getId());
             vo.setImei(entity.getImei());
             vo.setDeviceName(entity.getDeviceName());
-            vo.setFirmwareVersion(entity.getFirmwareVersion());
+            vo.setDeviceType(entity.getDeviceType());
+            vo.setCurrentFirmwareVersion(entity.getCurrentFirmwareVersion());
+            vo.setDeviceUpgradeStatus(entity.getDeviceUpgradeStatus());
+            vo.setTargetFirmwareId(entity.getTargetFirmwareId());
+            vo.setLastUpgradeTaskId(entity.getLastUpgradeTaskId());
+            vo.setTargetFirmwareVersion(entity.getTargetFirmwareId() == null ? null : String.valueOf(entity.getTargetFirmwareId()));
             vo.setCreatedAt(entity.getCreatedAt());
+            vo.setUpdatedAt(entity.getUpdatedAt());
             vo.setOnlineStatus("UNKNOWN");
             DeviceGroupRelationEntity relation = relationMap.get(entity.getId());
             if (relation != null) {

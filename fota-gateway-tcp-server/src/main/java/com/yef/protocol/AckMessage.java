@@ -5,13 +5,13 @@ public class AckMessage implements FotaMessage {
     private final String imei;
     private final long taskId;
     private final int packetNo;
-    private final byte status;
+    private final byte ackType;
 
-    public AckMessage(String imei, long taskId, int packetNo, byte status) {
+    public AckMessage(String imei, long taskId, int packetNo, byte ackType) {
         this.imei = imei;
         this.taskId = taskId;
         this.packetNo = packetNo;
-        this.status = status;
+        this.ackType = ackType;
     }
 
     @Override
@@ -33,13 +33,13 @@ public class AckMessage implements FotaMessage {
         return packetNo;
     }
 
-    public byte getStatus() {
-        return status;
+    public byte getAckType() {
+        return ackType;
     }
 
     @Override
     public String toString() {
         return "AckMessage{imei='" + imei + "', taskId=" + taskId + ", packetNo=" + packetNo
-                + ", status=" + status + "}";
+                + ", ackType=" + ackType + "}";
     }
 }

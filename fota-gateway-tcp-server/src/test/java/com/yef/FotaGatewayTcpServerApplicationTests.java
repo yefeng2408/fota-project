@@ -6,8 +6,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest
 class FotaGatewayTcpServerApplicationTests {
 
+    private final
+
     @Test
-    void contextLoads() {
+    public void contextLoads() {
     }
+
+
 
 }

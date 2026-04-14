@@ -7,13 +7,18 @@
         <id column="id" property="id" />
         <result column="imei" property="imei" />
         <result column="device_name" property="deviceName" />
-        <result column="firmware_version" property="firmwareVersion" />
+        <result column="device_type" property="deviceType" />
+        <result column="current_firmware_version" property="currentFirmwareVersion" />
+        <result column="device_upgrade_status" property="deviceUpgradeStatus" />
+        <result column="target_firmware_id" property="targetFirmwareId" />
+        <result column="last_upgrade_task_id" property="lastUpgradeTaskId" />
         <result column="created_at" property="createdAt" />
+        <result column="updated_at" property="updatedAt" />
     </resultMap>
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, imei, device_name, firmware_version, created_at
+        id, imei, device_name, device_type, current_firmware_version, device_upgrade_status, target_firmware_id, last_upgrade_task_id, created_at, updated_at
     </sql>
 
 </mapper>

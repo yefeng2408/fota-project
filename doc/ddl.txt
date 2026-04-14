@@ -1,0 +1,28 @@
+
+CREATE TABLE upgrade_task (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    task_id BIGINT NOT NULL COMMENT '任务ID（全局唯一）',
+    device_id BIGINT NOT NULL COMMENT '设备ID',
+    imei VARCHAR(32) NOT NULL COMMENT '设备IMEI',
+    firmware_id BIGINT NOT NULL COMMENT '固件ID',
+    batch_id BIGINT NULL COMMENT '批量任务ID，单任务可为空',
+
+    status VARCHAR(20) NOT NULL COMMENT 'INIT/PENDING/UPGRADING/SUCCESS/FAIL/TIMEOUT',
+    progress INT NOT NULL DEFAULT 0 COMMENT '升级进度百分比',
+    current_packet INT NOT NULL DEFAULT 0 COMMENT '最后一次落库的已确认包号快照',
+    total_packet INT NOT NULL DEFAULT 0 COMMENT '总包数',
+
+    fail_reason VARCHAR(255) NULL COMMENT '失败原因',
+    operator_id BIGINT NULL COMMENT '操作人',
+
+    start_time DATETIME NULL COMMENT '开始升级时间',
+    end_time DATETIME NULL COMMENT '结束时间',
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+
+    UNIQUE KEY uk_task_id (task_id),
+    KEY idx_device_id (device_id),
+    KEY idx_status (status),
+    KEY idx_batch_id (batch_id)
+) COMMENT='设备升级任务主表';

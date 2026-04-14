@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDialectMappings">
+    <file url="file://$PROJECT_DIR$/ddl/batch_upgrade_task.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/ddl/device.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/ddl/device_firmware_binding.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/ddl/firmware_package.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/ddl/upgrade_task.sql" dialect="GenericSQL" />
+    <file url="file://$PROJECT_DIR$/ddl/upgrade_task_process.sql" dialect="GenericSQL" />
+  </component>
+</project>

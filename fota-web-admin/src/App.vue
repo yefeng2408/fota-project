@@ -23,6 +23,7 @@
           <template #title>设备管理</template>
           <el-menu-item index="/devices">设备列表</el-menu-item>
           <el-menu-item index="/device-groups">设备分组</el-menu-item>
+          <el-menu-item index="/device-firmware-bindings">设备绑定固件</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="firmware">
           <template #title>固件管理</template>
@@ -31,6 +32,8 @@
         <el-sub-menu index="upgrade">
           <template #title>升级管理</template>
           <el-menu-item index="/upgrade-tasks">升级任务</el-menu-item>
+          <el-menu-item index="/batch-upgrade-tasks">批量任务</el-menu-item>
+          <el-menu-item index="/upgrade-task-processes">任务进度</el-menu-item>
         </el-sub-menu>
         <el-menu-item index="/upgrade-logs">升级日志</el-menu-item>
         <el-menu-item index="/users">用户权限</el-menu-item>
@@ -67,8 +70,11 @@ const titleMap = {
   '/dashboard': '首页概览',
   '/devices': '设备列表',
   '/device-groups': '设备分组',
+  '/device-firmware-bindings': '设备绑定固件',
   '/firmwares': '固件管理',
   '/upgrade-tasks': '升级管理',
+  '/batch-upgrade-tasks': '批量任务',
+  '/upgrade-task-processes': '任务进度',
   '/upgrade-logs': '升级日志',
   '/users': '用户权限',
   '/operate-logs': '操作日志'

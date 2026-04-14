@@ -2,8 +2,10 @@ package com.yef.handler;
 
 import com.yef.protocol.AckMessage;
 import com.yef.protocol.ChannelAttributes;
-import com.yef.protocol.DeviceRegisterMessage;
+import com.yef.protocol.DeviceBootUpMessage;
 import com.yef.protocol.FailMessage;
+import com.yef.protocol.HeartbeatMessage;
+import com.yef.protocol.UpgradeResultMessage;
 import com.yef.service.UpgradeExecutor;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -25,12 +27,16 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
         Long deviceId = ctx.channel().attr(ChannelAttributes.DEVICE_ID).get();
-        if (msg instanceof DeviceRegisterMessage) {
-            upgradeExecutor.onDeviceRegistered((DeviceRegisterMessage) msg, deviceId);
+        if (msg instanceof DeviceBootUpMessage) {
+            upgradeExecutor.onDeviceBootUp((DeviceBootUpMessage) msg, deviceId);
+        } else if (msg instanceof HeartbeatMessage) {
+            upgradeExecutor.handleHeartbeat((HeartbeatMessage) msg, deviceId);
         } else if (msg instanceof AckMessage) {
             upgradeExecutor.handleAck((AckMessage) msg, deviceId);
         } else if (msg instanceof FailMessage) {
             upgradeExecutor.handleFail((FailMessage) msg, deviceId);
+        } else if (msg instanceof UpgradeResultMessage) {
+            upgradeExecutor.handleUpgradeResult((UpgradeResultMessage) msg, deviceId);
         } else {
             System.out.println("[UpgradeDispatchHandler] ignored inbound message: " + msg);
         }

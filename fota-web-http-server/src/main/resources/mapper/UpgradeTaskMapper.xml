@@ -10,18 +10,21 @@
         <result column="imei" property="imei" />
         <result column="firmware_id" property="firmwareId" />
         <result column="batch_id" property="batchId" />
-        <result column="status" property="status" />
+        <result column="task_status" property="taskStatus" />
         <result column="progress" property="progress" />
         <result column="current_packet" property="currentPacket" />
         <result column="total_packet" property="totalPacket" />
+        <result column="fail_reason" property="failReason" />
         <result column="operator_id" property="operatorId" />
+        <result column="start_time" property="startTime" />
+        <result column="end_time" property="endTime" />
         <result column="created_at" property="createdAt" />
         <result column="updated_at" property="updatedAt" />
     </resultMap>
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, task_id, device_id, imei, firmware_id, batch_id, status, progress, current_packet, total_packet, operator_id, created_at, updated_at
+        id, task_id, device_id, imei, firmware_id, batch_id, task_status, progress, current_packet, total_packet, fail_reason, operator_id, start_time, end_time, created_at, updated_at
     </sql>
 
 </mapper>

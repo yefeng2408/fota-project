@@ -5,6 +5,10 @@ netty:
   server:
     port: 7611
 
+gateway:
+  demo-upgrade:
+    enabled: true
+
 spring:
   application:
     name: fota-gateway

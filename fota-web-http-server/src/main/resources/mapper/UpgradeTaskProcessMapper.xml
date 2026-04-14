@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yef.fota.mapper.UpgradeTaskProcessMapper">
+
+    <resultMap id="BaseResultMap" type="com.yef.fota.entity.UpgradeTaskProcessEntity">
+        <id column="id" property="id" />
+        <result column="task_id" property="taskId" />
+        <result column="device_id" property="deviceId" />
+        <result column="event_type" property="eventType" />
+        <result column="packet_no" property="packetNo" />
+        <result column="retry_no" property="retryNo" />
+        <result column="event_time" property="eventTime" />
+        <result column="message" property="message" />
+        <result column="extra_json" property="extraJson" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, task_id, device_id, event_type, packet_no, retry_no, event_time, message, extra_json
+    </sql>
+
+</mapper>

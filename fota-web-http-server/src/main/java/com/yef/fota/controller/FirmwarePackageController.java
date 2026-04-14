@@ -9,11 +9,10 @@ import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.exception.BusinessException;
 import com.yef.fota.service.FirmwarePackageService;
 import com.yef.fota.util.FileDigestUtils;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import javax.validation.Valid;
@@ -39,8 +38,10 @@ public class FirmwarePackageController {
 
     private final FirmwarePackageService firmwarePackageService;
 
-    @Value("${fota.file-storage.path}")
-    private String fileStoragePath;
+    private final MinioClient minioClient;
+
+    @Value("${minio.bucket}")
+    private String minioBucket;
 
     @GetMapping
     public ApiResponse<PageResult<FirmwarePackageEntity>> page(@RequestParam(defaultValue = "1") long current,
@@ -67,26 +68,40 @@ public class FirmwarePackageController {
         if (file.isEmpty()) {
             throw new BusinessException("上传文件不能为空");
         }
-        Path uploadDir = Paths.get(fileStoragePath).toAbsolutePath().normalize();
-        Files.createDirectories(uploadDir);
         String suffix = StringUtils.getFilenameExtension(file.getOriginalFilename());
         String storedName = UUID.randomUUID() + (StringUtils.hasText(suffix) ? "." + suffix : "");
-        Path targetPath = uploadDir.resolve(storedName);
-        Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+        String objectName = "firmware/" + version + "/" + storedName;
 
         FirmwarePackageEntity entity = new FirmwarePackageEntity();
         entity.setVersion(version);
         entity.setDeviceType(deviceType);
         entity.setFileName(file.getOriginalFilename());
-        entity.setFileUrl(targetPath.toString());
+        entity.setFileUrl(objectName);
         entity.setFileSize(file.getSize());
         entity.setChunkSize(chunkSize);
+        entity.setChunkCount((int) Math.ceil(file.getSize() * 1.0 / chunkSize));
         entity.setForceUpgrade(forceUpgrade);
         entity.setStatus(status);
         entity.setRemark(remark);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
-        entity.setMd5(FileDigestUtils.md5(Files.newInputStream(targetPath)));
+
+        try (InputStream uploadInputStream = file.getInputStream()) {
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(minioBucket)
+                            .object(objectName)
+                            .stream(uploadInputStream, file.getSize(), -1)
+                            .contentType(file.getContentType())
+                            .build()
+            );
+        } catch (Exception e) {
+            throw new BusinessException("上传固件到 MinIO 失败: " + e.getMessage());
+        }
+
+        try (InputStream md5InputStream = file.getInputStream()) {
+            entity.setMd5(FileDigestUtils.md5(md5InputStream));
+        }
         firmwarePackageService.save(entity);
         return ApiResponse.ok(entity);
     }
@@ -113,12 +128,7 @@ public class FirmwarePackageController {
     @OperationLog(action = "DELETE_FIRMWARE")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         FirmwarePackageEntity entity = firmwarePackageService.getById(id);
-        if (entity != null && StringUtils.hasText(entity.getFileUrl())) {
-            try {
-                Files.deleteIfExists(Paths.get(entity.getFileUrl()));
-            } catch (IOException ignored) {
-            }
-        }
+        // MinIO 文件删除可后续补充；当前先只删除数据库记录
         firmwarePackageService.removeById(id);
         return ApiResponse.ok(null);
     }
