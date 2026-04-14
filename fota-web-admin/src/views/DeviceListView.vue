@@ -58,9 +58,26 @@
 
   <el-dialog v-model="dialogVisible" :title="form.id ? '编辑设备' : '新增设备'" width="520px">
     <el-form :model="form" label-position="top">
-      <el-form-item label="IMEI"><el-input v-model="form.imei" /></el-form-item>
+      <el-form-item label="IMEI">
+        <el-input
+          v-model="form.imei"
+          maxlength="8"
+          placeholder="请输入8位数字"
+          inputmode="numeric"
+          @input="handleImeiInput"
+        />
+      </el-form-item>
       <el-form-item label="设备名称"><el-input v-model="form.deviceName" /></el-form-item>
-      <el-form-item label="设备类型"><el-input v-model="form.deviceType" placeholder="例如 D056 / D057 / MOTOR_V1" /></el-form-item>
+      <el-form-item label="设备类型">
+        <el-select v-model="form.deviceType" placeholder="请选择设备类型" style="width: 100%">
+          <el-option
+            v-for="item in deviceTypeOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="设备分组">
         <el-tree-select
           v-model="form.deviceGroupId"
@@ -71,7 +88,22 @@
         />
       </el-form-item>
       <el-form-item label="当前固件版本"><el-input v-model="form.currentFirmwareVersion" /></el-form-item>
-      <el-form-item label="目标固件ID"><el-input-number v-model="form.targetFirmwareId" :min="1" controls-position="right" /></el-form-item>
+      <el-form-item label="目标固件">
+        <el-select
+          v-model="form.targetFirmwareId"
+          placeholder="请选择目标固件"
+          clearable
+          filterable
+          style="width: 100%"
+        >
+          <el-option
+            v-for="item in firmwareOptions"
+            :key="item.id"
+            :label="formatFirmwareLabel(item)"
+            :value="item.id"
+          />
+        </el-select>
+      </el-form-item>
     </el-form>
     <template #footer>
       <el-button @click="dialogVisible = false">取消</el-button>
@@ -82,12 +114,19 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import request from '../api/request'
 
 const groupTree = ref([])
+const firmwareOptions = ref([])
 const dialogVisible = ref(false)
 const tableData = reactive({ total: 0, records: [] })
 const query = reactive({ current: 1, pageSize: 10, keyword: '', deviceGroupId: null })
+const deviceTypeOptions = [
+  { label: 'D056', value: 'D056' },
+  { label: 'D057', value: 'D057' },
+  { label: 'MOTOR_V1', value: 'MOTOR_V1' }
+]
 const form = reactive({
   id: null,
   imei: '',
@@ -109,6 +148,19 @@ async function loadDevices() {
   tableData.records = data.records
 }
 
+async function loadFirmwares() {
+  const data = await request.get('/api/firmwares', { params: { current: 1, pageSize: 1000 } })
+  firmwareOptions.value = data.records || []
+}
+
+function formatFirmwareLabel(item) {
+  return `${item.fileName || '未命名固件'} / ${item.version || '-'}`
+}
+
+function handleImeiInput(value) {
+  form.imei = String(value || '').replace(/\D/g, '').slice(0, 8)
+}
+
 function handleGroupClick(node) {
   query.deviceGroupId = node.id
   query.current = 1
@@ -120,7 +172,10 @@ function changePage(page) {
   loadDevices()
 }
 
-function openDialog(row) {
+async function openDialog(row) {
+  if (!firmwareOptions.value.length) {
+    await loadFirmwares()
+  }
   Object.assign(form, row || {
     id: null,
     imei: '',
@@ -135,6 +190,10 @@ function openDialog(row) {
 }
 
 async function submit() {
+  if (!/^\d{8}$/.test(form.imei)) {
+    ElMessage.warning('IMEI必须是8位纯数字')
+    return
+  }
   if (form.id) {
     await request.put(`/api/devices/${form.id}`, form)
   } else {
@@ -153,6 +212,7 @@ async function remove(id) {
 
 onMounted(async () => {
   await loadGroups()
+  await loadFirmwares()
   await loadDevices()
 })
 </script>

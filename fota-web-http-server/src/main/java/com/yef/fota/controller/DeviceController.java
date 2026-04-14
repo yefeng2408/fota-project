@@ -77,6 +77,7 @@ public class DeviceController {
     @PostMapping
     @OperationLog(action = "CREATE_DEVICE")
     public ApiResponse<DeviceVO> create(@RequestBody @Valid DeviceSaveRequest request) {
+        validateImeiUnique(request.getImei(), null);
         DeviceEntity entity = new DeviceEntity();
         entity.setImei(request.getImei());
         entity.setDeviceName(request.getDeviceName());
@@ -98,6 +99,7 @@ public class DeviceController {
         if (entity == null) {
             throw new BusinessException("设备不存在");
         }
+        validateImeiUnique(request.getImei(), id);
         entity.setImei(request.getImei());
         entity.setDeviceName(request.getDeviceName());
         entity.setDeviceType(request.getDeviceType());
@@ -129,6 +131,16 @@ public class DeviceController {
         relation.setDeviceGroupId(deviceGroupId);
         relation.setCreatedAt(LocalDateTime.now());
         deviceGroupRelationService.save(relation);
+    }
+
+    private void validateImeiUnique(String imei, Long excludeDeviceId) {
+        long count = deviceService.lambdaQuery()
+                .eq(DeviceEntity::getImei, imei)
+                .ne(excludeDeviceId != null, DeviceEntity::getId, excludeDeviceId)
+                .count();
+        if (count > 0) {
+            throw new BusinessException("IMEI已存在，请检查后重新输入");
+        }
     }
 
     private List<DeviceVO> toDeviceVOs(List<DeviceEntity> entities) {

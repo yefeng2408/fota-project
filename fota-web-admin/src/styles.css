@@ -27,7 +27,7 @@ body {
 
 .shell {
   display: grid;
-  grid-template-columns: 268px 1fr;
+  grid-template-columns: 268px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -36,6 +36,7 @@ body {
   color: #fff;
   padding: 28px 18px;
   box-shadow: 24px 0 60px rgba(29, 53, 87, 0.2);
+  min-width: 0;
 }
 
 .brand {
@@ -83,6 +84,7 @@ body {
 
 .main {
   padding: 28px;
+  min-width: 0;
 }
 
 .topbar {
@@ -123,6 +125,8 @@ body {
   padding: 24px;
   backdrop-filter: blur(16px);
   min-height: calc(100vh - 132px);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .stats-grid {
@@ -138,6 +142,7 @@ body {
   border-radius: 22px;
   border: 1px solid var(--line);
   padding: 18px;
+  min-width: 0;
 }
 
 .stat-title {

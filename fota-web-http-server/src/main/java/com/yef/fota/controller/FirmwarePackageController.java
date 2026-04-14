@@ -4,17 +4,23 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yef.fota.annotation.OperationLog;
 import com.yef.fota.common.ApiResponse;
 import com.yef.fota.common.PageResult;
+import com.yef.fota.dto.firmware.FirmwarePackageVO;
 import com.yef.fota.dto.firmware.FirmwareUpdateRequest;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.exception.BusinessException;
 import com.yef.fota.service.FirmwarePackageService;
 import com.yef.fota.util.FileDigestUtils;
+import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
+import io.minio.http.Method;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,16 +50,19 @@ public class FirmwarePackageController {
     private String minioBucket;
 
     @GetMapping
-    public ApiResponse<PageResult<FirmwarePackageEntity>> page(@RequestParam(defaultValue = "1") long current,
-                                                               @RequestParam(defaultValue = "10") long pageSize,
-                                                               @RequestParam(required = false) String keyword) {
+    public ApiResponse<PageResult<FirmwarePackageVO>> page(@RequestParam(defaultValue = "1") long current,
+                                                           @RequestParam(defaultValue = "10") long pageSize,
+                                                           @RequestParam(required = false) String keyword) {
         Page<FirmwarePackageEntity> page = firmwarePackageService.lambdaQuery()
                 .and(StringUtils.hasText(keyword), wrapper -> wrapper.like(FirmwarePackageEntity::getVersion, keyword)
                         .or().like(FirmwarePackageEntity::getDeviceType, keyword)
                         .or().like(FirmwarePackageEntity::getFileName, keyword))
                 .orderByDesc(FirmwarePackageEntity::getId)
                 .page(new Page<>(current, pageSize));
-        return ApiResponse.ok(PageResult.from(page));
+        List<FirmwarePackageVO> records = page.getRecords().stream()
+                .map(this::toVO)
+                .collect(Collectors.toList());
+        return ApiResponse.ok(new PageResult<>(page.getCurrent(), page.getSize(), page.getTotal(), records));
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -128,8 +137,57 @@ public class FirmwarePackageController {
     @OperationLog(action = "DELETE_FIRMWARE")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         FirmwarePackageEntity entity = firmwarePackageService.getById(id);
-        // MinIO 文件删除可后续补充；当前先只删除数据库记录
+        if (entity != null && StringUtils.hasText(entity.getFileUrl())) {
+            try {
+                minioClient.removeObject(
+                        RemoveObjectArgs.builder()
+                                .bucket(minioBucket)
+                                .object(entity.getFileUrl())
+                                .build()
+                );
+            } catch (Exception e) {
+                throw new BusinessException("删除 MinIO 固件文件失败: " + e.getMessage());
+            }
+        }
         firmwarePackageService.removeById(id);
         return ApiResponse.ok(null);
+    }
+
+    private FirmwarePackageVO toVO(FirmwarePackageEntity entity) {
+        FirmwarePackageVO vo = new FirmwarePackageVO();
+        vo.setId(entity.getId());
+        vo.setVersion(entity.getVersion());
+        vo.setDeviceType(entity.getDeviceType());
+        vo.setFileName(entity.getFileName());
+        vo.setFileUrl(entity.getFileUrl());
+        vo.setDownloadUrl(buildDownloadUrl(entity.getFileUrl()));
+        vo.setFileSize(entity.getFileSize());
+        vo.setChunkSize(entity.getChunkSize());
+        vo.setChunkCount(entity.getChunkCount());
+        vo.setMd5(entity.getMd5());
+        vo.setForceUpgrade(entity.getForceUpgrade());
+        vo.setStatus(entity.getStatus());
+        vo.setRemark(entity.getRemark());
+        vo.setCreatedAt(entity.getCreatedAt());
+        vo.setUpdatedAt(entity.getUpdatedAt());
+        return vo;
+    }
+
+    private String buildDownloadUrl(String objectName) {
+        if (!StringUtils.hasText(objectName)) {
+            return null;
+        }
+        try {
+            return minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .method(Method.GET)
+                            .bucket(minioBucket)
+                            .object(objectName)
+                            .expiry(60 * 60)
+                            .build()
+            );
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
