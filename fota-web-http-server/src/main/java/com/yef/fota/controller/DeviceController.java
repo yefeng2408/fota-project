@@ -19,6 +19,7 @@ import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.FirmwarePackageService;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +27,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,10 +44,18 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/devices")
 public class DeviceController {
 
+    /**
+     * 设备基础信息 redis key 【低频更新】
+     */
+    private static final String DEVICE_CACHE_KEY_PREFIX = "fota:device:";
+
+
+
     private final DeviceService deviceService;
     private final DeviceGroupService deviceGroupService;
     private final DeviceGroupRelationService deviceGroupRelationService;
     private final FirmwarePackageService firmwarePackageService;
+    private final StringRedisTemplate redisTemplate;
 
     @GetMapping
     public ApiResponse<PageResult<DeviceVO>> page(@RequestParam(defaultValue = "1") long current,
@@ -78,6 +88,11 @@ public class DeviceController {
         return ApiResponse.ok(new PageResult<>(page.getCurrent(), page.getSize(), page.getTotal(), toDeviceVOs(page.getRecords())));
     }
 
+    /**
+     * 新增设备
+     * @param request
+     * @return
+     */
     @PostMapping
     @OperationLog(action = "CREATE_DEVICE")
     public ApiResponse<DeviceVO> create(@RequestBody @Valid DeviceSaveRequest request) {
@@ -92,8 +107,11 @@ public class DeviceController {
         entity.setDeviceUpgradeStatus("NO_TASK");
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
-        deviceService.save(entity);
+        boolean save = deviceService.save(entity);
         saveRelation(entity.getId(), request.getDeviceGroupId());
+        if (save){
+            upsertDeviceCache(entity);
+        }
         return ApiResponse.ok(toDeviceVO(entity));
     }
 
@@ -125,15 +143,56 @@ public class DeviceController {
                 .set(DeviceEntity::getUpdatedAt, entity.getUpdatedAt()));
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>().eq(DeviceGroupRelationEntity::getDeviceId, id));
         saveRelation(id, request.getDeviceGroupId());
+        upsertDeviceCache(entity);
         return ApiResponse.ok(toDeviceVO(entity));
     }
 
+
+    /**
+     * 删除设备
+     * @param id
+     * @return
+     */
     @DeleteMapping("/{id}")
     @OperationLog(action = "DELETE_DEVICE")
     public ApiResponse<Void> delete(@PathVariable Long id) {
-        deviceService.removeById(id);
-        deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>().eq(DeviceGroupRelationEntity::getDeviceId, id));
+        DeviceEntity entity = deviceService.getById(id);
+        if(entity==null){
+            return ApiResponse.fail("该设备部不存在.");
+        }
+        boolean deleted = deviceService.removeById(id);
+        deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>()
+                                  .eq(DeviceGroupRelationEntity::getDeviceId, id));
+        if(deleted){
+            redisTemplate.delete(deviceCacheKey(id));
+        }
         return ApiResponse.ok(null);
+    }
+
+    private void upsertDeviceCache(DeviceEntity entity) {
+        String deviceKey = deviceCacheKey(entity.getId());
+        Object currentOnline = redisTemplate.opsForHash().get(deviceKey, "isOnline");
+
+        Map<String, String> deviceCache = new HashMap<>();
+        deviceCache.put("id", nullToEmpty(entity.getId()));
+        deviceCache.put("imei", nullToEmpty(entity.getImei()));
+        deviceCache.put("deviceName", nullToEmpty(entity.getDeviceName()));
+        deviceCache.put("deviceType", nullToEmpty(entity.getDeviceType()));
+        deviceCache.put("currentFirmwareVersion", nullToEmpty(entity.getCurrentFirmwareVersion()));
+        deviceCache.put("deviceUpgradeStatus", nullToEmpty(entity.getDeviceUpgradeStatus()));
+        deviceCache.put("isOnline", currentOnline == null ? "0" : String.valueOf(currentOnline));
+        deviceCache.put("isBind", nullToEmpty(entity.getIsBind()));
+
+        //对象以hash的形式存储
+        redisTemplate.opsForHash().putAll(deviceKey, deviceCache);
+    }
+
+    private String deviceCacheKey(Long deviceId) {
+        return DEVICE_CACHE_KEY_PREFIX + deviceId;
+    }
+
+    private String nullToEmpty(Object value) {
+        return value == null ? "" : String.valueOf(value);
     }
 
     private void saveRelation(Long deviceId, Long deviceGroupId) {
