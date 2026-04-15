@@ -45,12 +45,27 @@
           </el-table-column>
           <el-table-column prop="deviceType" label="设备类型" width="120" />
           <el-table-column prop="deviceGroupName" label="设备分组" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="currentFirmwareVersion" label="当前固件版本" width="120" />
-          <el-table-column prop="targetFirmwareVersion" label="目标固件版本" width="120" />
-          <el-table-column prop="targetFirmwareName" label="目标固件名" min-width="150" show-overflow-tooltip />
-          <el-table-column label="固件绑定" width="110">
+          <el-table-column label="当前/目标版本" min-width="170">
             <template #default="{ row }">
-              {{ isFirmwareBound(row) ? '已绑定' : '未绑定' }}
+              <span class="version-flow" :title="`${row.currentFirmwareVersion || '-'} → ${row.targetFirmwareVersion || '-'}`">
+                <span>{{ row.currentFirmwareVersion || '-' }}</span>
+                <span class="version-arrow">→</span>
+                <span>{{ row.targetFirmwareVersion || '-' }}</span>
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="固件绑定" width="100">
+            <template #default="{ row }">
+              <el-tag size="small" :type="isFirmwareBound(row) ? 'success' : 'info'">
+                {{ isFirmwareBound(row) ? '已绑定' : '未绑定' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="在线状态" width="100">
+            <template #default="{ row }">
+              <el-tag size="small" :type="isDeviceOnline(row) ? 'success' : 'info'">
+                {{ isDeviceOnline(row) ? '在线' : '离线' }}
+              </el-tag>
             </template>
           </el-table-column>
           <el-table-column label="升级状态" width="120">
@@ -58,18 +73,8 @@
               <span class="status-text">{{ formatUpgradeStatus(row.deviceUpgradeStatus) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="可升级" width="100">
+          <el-table-column label="操作" width="260" fixed="right">
             <template #default="{ row }">
-              <span :class="['upgrade-flag', { 'is-enabled': isTruthy(row.isUpgradable) }]">
-                {{ isTruthy(row.isUpgradable) ? '可升级' : '不可升级' }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="createdAt" label="创建时间" width="180" />
-          <el-table-column label="操作" width="360">
-            <template #default="{ row }">
-              <el-button size="small" type="primary" plain @click="openDialog(row)">编辑</el-button>
-              <el-button size="small" type="danger" plain @click="remove(row.id)">删除</el-button>
               <el-button
                 size="small"
                 type="success"
@@ -78,14 +83,23 @@
               >
                 开始升级
               </el-button>
-              <el-button
-                size="small"
-                type="warning"
-                :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
-                @click="cancelUpgrade(row)"
-              >
-                取消升级
-              </el-button>
+              <el-dropdown @command="(command) => handleAction(command, row)">
+                <el-button size="small">
+                  更多
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                    <el-dropdown-item command="delete">删除</el-dropdown-item>
+                    <el-dropdown-item
+                      command="cancel"
+                      :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
+                    >
+                      取消升级
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </template>
           </el-table-column>
         </el-table>
@@ -272,6 +286,20 @@ function cancelUpgrade(row) {
   ElMessage.info(`设备 ${row.imei} 正在升级，等待接入取消升级接口`)
 }
 
+function handleAction(command, row) {
+  if (command === 'edit') {
+    openDialog(row)
+    return
+  }
+  if (command === 'delete') {
+    remove(row.id)
+    return
+  }
+  if (command === 'cancel') {
+    cancelUpgrade(row)
+  }
+}
+
 async function openDialog(row) {
   if (row?.deviceUpgradeStatus === 'UPGRADING') {
     ElMessage.warning('设备升级中，不可编辑！')
@@ -341,7 +369,7 @@ onMounted(async () => {
 }
 
 .device-table {
-  min-width: 1580px;
+  min-width: 1320px;
 }
 
 .status-text {
@@ -379,3 +407,14 @@ onMounted(async () => {
   font-weight: 700;
 }
 </style>
+
+.version-flow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.version-arrow {
+  color: #8a94a6;
+}
