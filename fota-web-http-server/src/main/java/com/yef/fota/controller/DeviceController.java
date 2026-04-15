@@ -45,6 +45,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class DeviceController {
 
     /**
+     * 网关级别的key，用于分包过程中的高频写操作
+     * TODO fota:upgrade:runtime:{imei}
+     * taskId=90001
+     * status=UPGRADING
+     * currentPacketNo=128
+     * ackedPacketCount=128
+     * totalPacket=3000
+     * chunkSize=1024
+     * progress=4
+     * lastPacketAt=1710000000000
+     * packetTime=1710000000000
+     * version=2
+     * startedAt=1710000000000
+     * firmwareId=5001
+     * fileSize=4500000
+     * md5=54ccbea961b3df0f19b99c8c4...
+     * seqId=208
+     */
+
+    /**
      * 设备基础信息 redis key 【低频更新】
      */
     private static final String DEVICE_CACHE_KEY_PREFIX = "fota:device:";
@@ -122,7 +142,10 @@ public class DeviceController {
         if (entity == null) {
             throw new BusinessException("设备不存在");
         }
+
+        validateDeviceEditable(entity);
         validateImeiUnique(request.getImei(), id);
+
         entity.setImei(request.getImei());
         entity.setDeviceName(request.getDeviceName());
         entity.setDeviceType(request.getDeviceType());
@@ -160,6 +183,7 @@ public class DeviceController {
         if(entity==null){
             return ApiResponse.fail("该设备部不存在.");
         }
+        validateDeviceEditable(entity);
         boolean deleted = deviceService.removeById(id);
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>()
                                   .eq(DeviceGroupRelationEntity::getDeviceId, id));
@@ -270,5 +294,33 @@ public class DeviceController {
 
     private DeviceVO toDeviceVO(DeviceEntity entity) {
         return toDeviceVOs(List.of(entity)).get(0);
+    }
+
+    /**
+     * 安全校验。处于升级环节中的设备，不可以操作
+     * @param entity
+     */
+    private void validateDeviceEditable(DeviceEntity entity) {
+        String imei = entity.getImei();
+
+        Object status = redisTemplate.opsForHash()
+                .get("fota:upgrade:runtime:" + imei, "status");
+
+        if (status != null) {
+            String runtimeStatus = String.valueOf(status);
+            if (isForbiddenEditStatus(runtimeStatus)) {
+                throw new BusinessException("设备升级中，不可编辑！");
+            }
+        }
+
+        if (isForbiddenEditStatus(entity.getDeviceUpgradeStatus())) {
+            throw new BusinessException("设备升级中，不可编辑！");
+        }
+    }
+
+    private boolean isForbiddenEditStatus(String status) {
+        return "UPGRADE_REQUESTED".equals(status)
+                || "UPGRADING".equals(status)
+                || "PAUSED".equals(status);
     }
 }

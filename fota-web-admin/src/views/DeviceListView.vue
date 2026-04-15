@@ -110,6 +110,7 @@
           maxlength="8"
           placeholder="请输入8位数字"
           inputmode="numeric"
+          :disabled="Boolean(form.id)"
           @input="handleImeiInput"
         />
       </el-form-item>
@@ -272,6 +273,10 @@ function cancelUpgrade(row) {
 }
 
 async function openDialog(row) {
+  if (row?.deviceUpgradeStatus === 'UPGRADING') {
+    ElMessage.warning('设备升级中，不可编辑！')
+    return
+  }
   if (!firmwareOptions.value.length) {
     await loadFirmwares()
   }
@@ -289,6 +294,10 @@ async function openDialog(row) {
 }
 
 async function submit() {
+  if (form.id && form.deviceUpgradeStatus === 'UPGRADING') {
+    ElMessage.warning('设备升级中，不可编辑！')
+    return
+  }
   if (!/^\d{8}$/.test(form.imei)) {
     ElMessage.warning('IMEI必须是8位纯数字')
     return
