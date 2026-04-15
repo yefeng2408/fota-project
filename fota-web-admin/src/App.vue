@@ -6,7 +6,7 @@
         <div class="brand-mark">FP</div>
         <div>
           <div class="brand-title">FOTA 管理平台</div>
-          <div class="brand-subtitle">设备升级控制台</div>
+          <div class="brand-subtitle">设备升级控制平台</div>
         </div>
       </div>
 
@@ -23,7 +23,7 @@
           <template #title>设备管理</template>
           <el-menu-item index="/devices">设备列表</el-menu-item>
           <el-menu-item index="/device-groups">设备分组</el-menu-item>
-          <el-menu-item index="/device-firmware-bindings">设备绑定固件</el-menu-item>
+          <el-menu-item index="/device-firmware-bindings">已绑定固件</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="firmware">
           <template #title>固件管理</template>

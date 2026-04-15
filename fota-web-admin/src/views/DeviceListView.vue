@@ -1,5 +1,5 @@
 <template>
-  <div class="split-layout">
+  <div class="split-layout device-list-layout">
     <div class="block-card">
       <div class="table-toolbar">
         <strong>设备分组树</strong>
@@ -31,28 +31,60 @@
       <div class="device-table-scroll">
         <el-table :data="tableData.records" class="device-table">
           <el-table-column prop="imei" label="IMEI" width="120" />
-          <el-table-column prop="deviceName" label="设备名称" min-width="140" show-overflow-tooltip />
+          <el-table-column label="设备名称" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="device-name-cell">
+                <span
+                  class="online-dot"
+                  :class="{ 'is-online': isDeviceOnline(row) }"
+                  :title="isDeviceOnline(row) ? '在线' : '离线'"
+                />
+                <span>{{ row.deviceName || '-' }}</span>
+              </span>
+            </template>
+          </el-table-column>
           <el-table-column prop="deviceType" label="设备类型" width="120" />
           <el-table-column prop="deviceGroupName" label="设备分组" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="currentFirmwareVersion" label="当前固件版本" width="140" />
-          <el-table-column label="升级状态" width="150">
+          <el-table-column prop="currentFirmwareVersion" label="当前固件版本" width="120" />
+          <el-table-column prop="targetFirmwareVersion" label="目标固件版本" width="120" />
+          <el-table-column prop="targetFirmwareName" label="目标固件名" min-width="150" show-overflow-tooltip />
+          <el-table-column label="固件绑定" width="110">
+            <template #default="{ row }">
+              {{ isFirmwareBound(row) ? '已绑定' : '未绑定' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="升级状态" width="120">
             <template #default="{ row }">
               <span class="status-text">{{ formatUpgradeStatus(row.deviceUpgradeStatus) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="onlineStatus" label="在线状态" width="110" />
+          <el-table-column label="可升级" width="100">
+            <template #default="{ row }">
+              <span :class="['upgrade-flag', { 'is-enabled': isTruthy(row.isUpgradable) }]">
+                {{ isTruthy(row.isUpgradable) ? '可升级' : '不可升级' }}
+              </span>
+            </template>
+          </el-table-column>
           <el-table-column prop="createdAt" label="创建时间" width="180" />
-          <el-table-column label="操作" width="260" fixed="right">
+          <el-table-column label="操作" width="360">
             <template #default="{ row }">
               <el-button size="small" type="primary" plain @click="openDialog(row)">编辑</el-button>
               <el-button size="small" type="danger" plain @click="remove(row.id)">删除</el-button>
               <el-button
                 size="small"
                 type="success"
-                :disabled="row.deviceUpgradeStatus !== 'READY'"
+                :disabled="!canStartUpgrade(row)"
                 @click="startUpgrade(row)"
               >
                 开始升级
+              </el-button>
+              <el-button
+                size="small"
+                type="warning"
+                :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
+                @click="cancelUpgrade(row)"
+              >
+                取消升级
               </el-button>
             </template>
           </el-table-column>
@@ -108,6 +140,8 @@
           placeholder="请选择目标固件"
           clearable
           filterable
+          :empty-values="[null, undefined, '']"
+          :value-on-clear="null"
           style="width: 100%"
         >
           <el-option
@@ -143,8 +177,7 @@ const deviceTypeOptions = [
 ]
 
 const upgradeStatusTextMap = {
-  IDLE: '未绑定固件',
-  READY: '可升级',
+  NO_TASK: '未升级',
   UPGRADE_REQUESTED: '已下发升级请求',
   UPGRADING: '升级中',
   SUCCESS: '升级成功',
@@ -159,7 +192,7 @@ const form = reactive({
   deviceName: '',
   deviceType: '',
   currentFirmwareVersion: '',
-  deviceUpgradeStatus: 'IDLE',
+  deviceUpgradeStatus: 'NO_TASK',
   targetFirmwareId: null,
   deviceGroupId: null
 })
@@ -198,26 +231,57 @@ function changePage(page) {
   loadDevices()
 }
 
-async function openDialog(row) {
-  if (!firmwareOptions.value.length) {
-    await loadFirmwares()
-  }
 function formatUpgradeStatus(status) {
   return upgradeStatusTextMap[status] || status || '-'
+}
+
+function isTruthy(value) {
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value === 'number') {
+    return value === 1
+  }
+  return ['1', 'true', 'yes', 'y', 'online', 'connected', '在线'].includes(String(value || '').toLowerCase())
+}
+
+function isDeviceOnline(row) {
+  return isTruthy(row.isOnline)
+}
+
+function isFirmwareBound(row) {
+  return isTruthy(row.isBind)
+}
+
+/**
+ * 三个条件同时满足才能是可升级
+ * is_bind = 1
+ * is_online = 1
+ * upgrade_status = NO_TASK 
+ */
+function canStartUpgrade(row) {
+  return isFirmwareBound(row) && isDeviceOnline(row) && row.deviceUpgradeStatus === 'NO_TASK'
 }
 
 function startUpgrade(row) {
   ElMessage.info(`设备 ${row.imei} 已满足开始升级条件，等待接入升级任务接口`)
 }
 
-function openDialog(row) {
+function cancelUpgrade(row) {
+  ElMessage.info(`设备 ${row.imei} 正在升级，等待接入取消升级接口`)
+}
+
+async function openDialog(row) {
+  if (!firmwareOptions.value.length) {
+    await loadFirmwares()
+  }
   Object.assign(form, row || {
     id: null,
     imei: '',
     deviceName: '',
     deviceType: '',
     currentFirmwareVersion: '',
-    deviceUpgradeStatus: 'IDLE',
+    deviceUpgradeStatus: 'NO_TASK',
     targetFirmwareId: null,
     deviceGroupId: null
   })
@@ -229,10 +293,15 @@ async function submit() {
     ElMessage.warning('IMEI必须是8位纯数字')
     return
   }
+  const payload = {
+    ...form,
+    targetFirmwareId: form.targetFirmwareId || null,
+    deviceUpgradeStatus: form.id ? form.deviceUpgradeStatus : 'NO_TASK'
+  }
   if (form.id) {
-    await request.put(`/api/devices/${form.id}`, form)
+    await request.put(`/api/devices/${form.id}`, payload)
   } else {
-    await request.post('/api/devices', form)
+    await request.post('/api/devices', payload)
   }
   dialogVisible.value = false
   loadDevices()
@@ -258,11 +327,46 @@ onMounted(async () => {
   width: 100%;
 }
 
+.device-list-layout {
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
 .device-table {
-  min-width: 1360px;
+  min-width: 1580px;
 }
 
 .status-text {
   white-space: nowrap;
+}
+
+.device-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a8b0bd;
+  box-shadow: 0 0 0 3px rgba(168, 176, 189, 0.16);
+  flex: 0 0 auto;
+}
+
+.online-dot.is-online {
+  background: #2fb344;
+  box-shadow: 0 0 0 3px rgba(47, 179, 68, 0.16);
+}
+
+.upgrade-flag {
+  color: #8a94a6;
+  white-space: nowrap;
+}
+
+.upgrade-flag.is-enabled {
+  color: #2fb344;
+  font-weight: 700;
 }
 </style>

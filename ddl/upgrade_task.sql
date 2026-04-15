@@ -11,7 +11,7 @@
  Target Server Version : 80035 (8.0.35)
  File Encoding         : 65001
 
- Date: 14/04/2026 14:27:18
+ Date: 15/04/2026 01:16:54
 */
 
 SET NAMES utf8mb4;
@@ -38,6 +38,8 @@ CREATE TABLE `upgrade_task` (
   `end_time` datetime DEFAULT NULL COMMENT '结束时间',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `status_version` bigint NOT NULL DEFAULT '0' COMMENT '任务状态版本号',
+  `status_event_time` bigint NOT NULL DEFAULT '0' COMMENT '最近一次任务状态事件时间戳(毫秒)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_task_id` (`task_id`),
   KEY `idx_device_id` (`device_id`),

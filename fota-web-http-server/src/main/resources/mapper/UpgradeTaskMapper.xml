@@ -27,4 +27,8 @@
         id, task_id, device_id, imei, firmware_id, batch_id, task_status, progress, current_packet, total_packet, fail_reason, operator_id, start_time, end_time, created_at, updated_at
     </sql>
 
+
+
+
+
 </mapper>

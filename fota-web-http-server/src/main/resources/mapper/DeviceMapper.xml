@@ -10,6 +10,7 @@
         <result column="device_type" property="deviceType" />
         <result column="current_firmware_version" property="currentFirmwareVersion" />
         <result column="device_upgrade_status" property="deviceUpgradeStatus" />
+        <result column="is_bind" property="isBind" />
         <result column="target_firmware_id" property="targetFirmwareId" />
         <result column="last_upgrade_task_id" property="lastUpgradeTaskId" />
         <result column="created_at" property="createdAt" />
@@ -18,7 +19,7 @@
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, imei, device_name, device_type, current_firmware_version, device_upgrade_status, target_firmware_id, last_upgrade_task_id, created_at, updated_at
+        id, imei, device_name, device_type, current_firmware_version, device_upgrade_status, is_bind, target_firmware_id, last_upgrade_task_id, created_at, updated_at
     </sql>
 
 </mapper>

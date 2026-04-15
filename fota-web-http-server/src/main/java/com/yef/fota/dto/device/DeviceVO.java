@@ -14,22 +14,34 @@ public class DeviceVO {
     private String deviceType;
     private String currentFirmwareVersion;
     private String deviceUpgradeStatus;
+    /**
+     * 0：未绑定固件  1:已绑定固件
+     */
+    private Integer isBind;
+    /**
+     * 是否可升级，N：不可升级  Y：可升级
+     */
+    private String isUpgradable="N";
     private Long targetFirmwareId;
     private Long lastUpgradeTaskId;
     private Long deviceGroupId;
     private String deviceGroupName;
     /**
-     * 绑定的固件版本号。也就是本次需呀哦升级的固件
+     * 目标版本号
      */
     private String targetFirmwareVersion;
+    /**
+     * 目标固件文件名。
+     */
+    private String targetFirmwareName;
 
- /*   private Long lastUpgradeTaskId;
+	 /*   private Long lastUpgradeTaskId;
     private String lastUpgradeTime;
 */
     /**
-     * 从redis查询
+     * 从redis查询. 0=offline  1=online
      */
-    private String onlineStatus;
+    private int isOnline;
     /**
      * 从redis查询
      */

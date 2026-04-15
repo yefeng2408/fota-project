@@ -1,6 +1,7 @@
 package com.yef.fota.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yef.fota.annotation.OperationLog;
 import com.yef.fota.common.ApiResponse;
@@ -10,10 +11,12 @@ import com.yef.fota.dto.device.DeviceVO;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.DeviceGroupEntity;
 import com.yef.fota.entity.DeviceGroupRelationEntity;
+import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.exception.BusinessException;
 import com.yef.fota.service.DeviceGroupRelationService;
 import com.yef.fota.service.DeviceGroupService;
 import com.yef.fota.service.DeviceService;
+import com.yef.fota.service.FirmwarePackageService;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -42,6 +45,7 @@ public class DeviceController {
     private final DeviceService deviceService;
     private final DeviceGroupService deviceGroupService;
     private final DeviceGroupRelationService deviceGroupRelationService;
+    private final FirmwarePackageService firmwarePackageService;
 
     @GetMapping
     public ApiResponse<PageResult<DeviceVO>> page(@RequestParam(defaultValue = "1") long current,
@@ -83,8 +87,9 @@ public class DeviceController {
         entity.setDeviceName(request.getDeviceName());
         entity.setDeviceType(request.getDeviceType());
         entity.setCurrentFirmwareVersion(request.getCurrentFirmwareVersion());
-        entity.setDeviceUpgradeStatus(StringUtils.hasText(request.getDeviceUpgradeStatus()) ? request.getDeviceUpgradeStatus() : "IDLE");
         entity.setTargetFirmwareId(request.getTargetFirmwareId());
+        entity.setIsBind(resolveBindStatus(request.getTargetFirmwareId()));
+        entity.setDeviceUpgradeStatus("NO_TASK");
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
         deviceService.save(entity);
@@ -106,8 +111,18 @@ public class DeviceController {
         entity.setCurrentFirmwareVersion(request.getCurrentFirmwareVersion());
         entity.setDeviceUpgradeStatus(StringUtils.hasText(request.getDeviceUpgradeStatus()) ? request.getDeviceUpgradeStatus() : entity.getDeviceUpgradeStatus());
         entity.setTargetFirmwareId(request.getTargetFirmwareId());
+        entity.setIsBind(resolveBindStatus(request.getTargetFirmwareId()));
         entity.setUpdatedAt(LocalDateTime.now());
-        deviceService.updateById(entity);
+        deviceService.update(new LambdaUpdateWrapper<DeviceEntity>()
+                .eq(DeviceEntity::getId, id)
+                .set(DeviceEntity::getImei, entity.getImei())
+                .set(DeviceEntity::getDeviceName, entity.getDeviceName())
+                .set(DeviceEntity::getDeviceType, entity.getDeviceType())
+                .set(DeviceEntity::getCurrentFirmwareVersion, entity.getCurrentFirmwareVersion())
+                .set(DeviceEntity::getDeviceUpgradeStatus, entity.getDeviceUpgradeStatus())
+                .set(DeviceEntity::getTargetFirmwareId, entity.getTargetFirmwareId())
+                .set(DeviceEntity::getIsBind, entity.getIsBind())
+                .set(DeviceEntity::getUpdatedAt, entity.getUpdatedAt()));
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>().eq(DeviceGroupRelationEntity::getDeviceId, id));
         saveRelation(id, request.getDeviceGroupId());
         return ApiResponse.ok(toDeviceVO(entity));
@@ -133,6 +148,10 @@ public class DeviceController {
         deviceGroupRelationService.save(relation);
     }
 
+    private Integer resolveBindStatus(Long targetFirmwareId) {
+        return targetFirmwareId == null ? 0 : 1;
+    }
+
     private void validateImeiUnique(String imei, Long excludeDeviceId) {
         long count = deviceService.lambdaQuery()
                 .eq(DeviceEntity::getImei, imei)
@@ -148,6 +167,14 @@ public class DeviceController {
                 .collect(Collectors.toMap(DeviceGroupRelationEntity::getDeviceId, Function.identity(), (a, b) -> a));
         Map<Long, DeviceGroupEntity> groupMap = deviceGroupService.list().stream()
                 .collect(Collectors.toMap(DeviceGroupEntity::getId, Function.identity(), (a, b) -> a));
+        Set<Long> targetFirmwareIds = entities.stream()
+                .map(DeviceEntity::getTargetFirmwareId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        Map<Long, FirmwarePackageEntity> firmwareMap = targetFirmwareIds.isEmpty()
+                ? Collections.emptyMap()
+                : firmwarePackageService.listByIds(targetFirmwareIds).stream()
+                        .collect(Collectors.toMap(FirmwarePackageEntity::getId, Function.identity(), (a, b) -> a));
         return entities.stream().map(entity -> {
             DeviceVO vo = new DeviceVO();
             vo.setId(entity.getId());
@@ -158,10 +185,20 @@ public class DeviceController {
             vo.setDeviceUpgradeStatus(entity.getDeviceUpgradeStatus());
             vo.setTargetFirmwareId(entity.getTargetFirmwareId());
             vo.setLastUpgradeTaskId(entity.getLastUpgradeTaskId());
-            vo.setTargetFirmwareVersion(entity.getTargetFirmwareId() == null ? null : String.valueOf(entity.getTargetFirmwareId()));
+            FirmwarePackageEntity targetFirmware = firmwareMap.get(entity.getTargetFirmwareId());
+            if (targetFirmware != null) {
+                vo.setTargetFirmwareVersion(targetFirmware.getVersion());
+                vo.setTargetFirmwareName(targetFirmware.getFileName());
+            }
             vo.setCreatedAt(entity.getCreatedAt());
             vo.setUpdatedAt(entity.getUpdatedAt());
-            vo.setOnlineStatus("UNKNOWN");
+            vo.setIsBind(entity.getIsBind());
+            //在线状态到时候查询 redis。这里先默认给0
+            vo.setIsOnline(0);
+            //计算是否可升级
+            if(vo.getIsBind() ==1 && vo.getIsOnline()==1 && "NO_TASK".equals(vo.getDeviceUpgradeStatus())) {
+                vo.setIsUpgradable("Y");
+            }
             DeviceGroupRelationEntity relation = relationMap.get(entity.getId());
             if (relation != null) {
                 vo.setDeviceGroupId(relation.getDeviceGroupId());

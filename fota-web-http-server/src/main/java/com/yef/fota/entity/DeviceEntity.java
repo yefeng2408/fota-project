@@ -54,11 +54,17 @@ public class DeviceEntity implements Serializable {
     @TableField("current_firmware_version")
     private String currentFirmwareVersion;
 
+    /**
+     * 当前绑定的目标固件ID
+     */
+    @TableField("target_firmware_id")
+    private Long targetFirmwareId;
 
     /**
      *  设备当前升级状态
      *  IDLE：平台首次新增设备，还未绑定固件
-     *  READY：设备绑定了固件
+     *  BOUND：已绑定固件
+     *  READY：已绑定固件，且处于在线状态
      *  UPGRADE_REQUESTED： 平台下发0x81升级请求指令
      *  UPGRADING：升级中。平台下发开始0x82指令，且收到设备对于该指令的ACK
      *  SUCCESS/FAIL：升级成功/失败。平台收到设备主动上行的0x06指令。平台收到0x06指令后，就不会在继续下发消息给设备
@@ -107,10 +113,10 @@ public class DeviceEntity implements Serializable {
     private String deviceUpgradeStatus;
 
     /**
-     * 当前绑定的目标固件ID
+     *  设备是否绑定了固件 1:已绑定 或 0：未绑定
      */
-    @TableField("target_firmware_id")
-    private Long targetFirmwareId;
+    @TableField("is_bind")
+    private Integer isBind;
 
     /**
      * 最近一次升级任务ID
