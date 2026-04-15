@@ -30,8 +30,8 @@
 
       <div class="device-table-scroll">
         <el-table :data="tableData.records" class="device-table">
-          <el-table-column prop="imei" label="IMEI" width="120" />
-          <el-table-column label="设备名称" min-width="150" show-overflow-tooltip>
+          <el-table-column prop="imei" label="IMEI" width="100" />
+          <el-table-column label="设备名称" min-width="80" width="120" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="device-name-cell">
                 <span
@@ -43,37 +43,30 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="deviceType" label="设备类型" width="120" />
-          <el-table-column prop="deviceGroupName" label="设备分组" min-width="140" show-overflow-tooltip />
-          <el-table-column label="当前/目标版本" min-width="170">
+          <el-table-column prop="deviceType" label="设备类型" width="100" />
+          <el-table-column prop="deviceGroupName" label="设备分组" min-width="100" width="110" show-overflow-tooltip />
+          <el-table-column label="当前/目标版本" width="130" min-width="100">
             <template #default="{ row }">
-              <span class="version-flow" :title="`${row.currentFirmwareVersion || '-'} → ${row.targetFirmwareVersion || '-'}`">
+              <span class="version-flow" :title="`${row.currentFirmwareVersion || '-'} → ${row.targetFirmwareVersion || '无'}`">
                 <span>{{ row.currentFirmwareVersion || '-' }}</span>
-                <span class="version-arrow">→</span>
-                <span>{{ row.targetFirmwareVersion || '-' }}</span>
+                <span class="version-arrow"> → </span>
+                <span>{{ row.targetFirmwareVersion || '无' }}</span>
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="固件绑定" width="100">
+          <el-table-column label="固件绑定" width="90">
             <template #default="{ row }">
               <el-tag size="small" :type="isFirmwareBound(row) ? 'success' : 'info'">
                 {{ isFirmwareBound(row) ? '已绑定' : '未绑定' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="在线状态" width="100">
-            <template #default="{ row }">
-              <el-tag size="small" :type="isDeviceOnline(row) ? 'success' : 'info'">
-                {{ isDeviceOnline(row) ? '在线' : '离线' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="升级状态" width="120">
+          <el-table-column label="升级状态" width="90">
             <template #default="{ row }">
               <span class="status-text">{{ formatUpgradeStatus(row.deviceUpgradeStatus) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="260" fixed="right">
+          <el-table-column label="操作" width="100" fixed="right">
             <template #default="{ row }">
               <el-button
                 size="small"
@@ -83,9 +76,10 @@
               >
                 开始升级
               </el-button>
+              <br>
               <el-dropdown @command="(command) => handleAction(command, row)">
                 <el-button size="small">
-                  更多
+                  更多操作
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>

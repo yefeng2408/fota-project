@@ -2,6 +2,12 @@ package com.yef.protocol;
 
 import java.util.Arrays;
 
+
+/**
+ * @description: 平台开始发送下行消息 0x82 UpgradePacket 分包数据
+ * @author: 叶丰
+ * @date: 2026/4/15 15:53
+ */
 public class UpgradePacketMessage implements FotaMessage {
 
     private final String imei;
