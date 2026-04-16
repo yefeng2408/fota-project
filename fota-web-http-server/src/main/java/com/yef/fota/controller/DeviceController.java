@@ -45,7 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class DeviceController {
 
     /**
-     * 网关级别的key，用于分包过程中的高频写操作
+     * 网关级别的key，用于分包过程中的【高频写操作】
      * TODO fota:upgrade:runtime:{imei}
      * taskId=90001
      * status=UPGRADING
@@ -65,7 +65,15 @@ public class DeviceController {
      */
 
     /**
-     * 设备基础信息 redis key 【低频更新】
+     * 设备在线状态
+     */
+    private static final String DEVICE_ONLINE_KEY_PREFIX = "fota:device:online:";
+    /**
+     * 升级运行态 设备基础信息 设备网关所用的key，用于分包过程中的【高频写操作】
+     */
+    private static final String UPGRADE_RUNTIME_KEY_PREFIX = "fota:upgrade:runtime:";
+    /**
+     * 设备基础信息 web服务所使用的key【低频更新】
      */
     private static final String DEVICE_CACHE_KEY_PREFIX = "fota:device:";
 
@@ -195,7 +203,6 @@ public class DeviceController {
 
     private void upsertDeviceCache(DeviceEntity entity) {
         String deviceKey = deviceCacheKey(entity.getId());
-        Object currentOnline = redisTemplate.opsForHash().get(deviceKey, "isOnline");
 
         Map<String, String> deviceCache = new HashMap<>();
         deviceCache.put("id", nullToEmpty(entity.getId()));
@@ -204,7 +211,6 @@ public class DeviceController {
         deviceCache.put("deviceType", nullToEmpty(entity.getDeviceType()));
         deviceCache.put("currentFirmwareVersion", nullToEmpty(entity.getCurrentFirmwareVersion()));
         deviceCache.put("deviceUpgradeStatus", nullToEmpty(entity.getDeviceUpgradeStatus()));
-        deviceCache.put("isOnline", currentOnline == null ? "0" : String.valueOf(currentOnline));
         deviceCache.put("isBind", nullToEmpty(entity.getIsBind()));
 
         //对象以hash的形式存储
@@ -276,8 +282,9 @@ public class DeviceController {
             vo.setCreatedAt(entity.getCreatedAt());
             vo.setUpdatedAt(entity.getUpdatedAt());
             vo.setIsBind(entity.getIsBind());
-            //在线状态到时候查询 redis。这里先默认给0
-            vo.setIsOnline(0);
+            //在线状态查询redis
+            String onlineValue = redisTemplate.opsForValue().get(DEVICE_ONLINE_KEY_PREFIX + entity.getImei());
+            vo.setIsOnline(Integer.parseInt(onlineValue == null ? "0" : onlineValue));
             //计算是否可升级
             if(vo.getIsBind() ==1 && vo.getIsOnline()==1 && "NO_TASK".equals(vo.getDeviceUpgradeStatus())) {
                 vo.setIsUpgradable("Y");

@@ -1,0 +1,9 @@
+fota-web-http-server
+http端口：8080
+
+fota-gateway-tcp-server
+http端口：8081
+netty server端口：7611
+
+fota-mock-device-client
+http端口：8082

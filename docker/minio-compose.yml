@@ -6,11 +6,11 @@ services:
     container_name: fota-minio
     ports:
       - "9000:9000"   # S3 API
-      - "9001:9001"   # Web Console
+      - "9002:9001"   # Web Console。宿主机访问9002，9001被我的宿主机其它进程占用了
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
-      - ./data/minio:/data
+      - /Users/fengye/develop/minioData:/data
     command: server /data --console-address ":9001"
     restart: unless-stopped

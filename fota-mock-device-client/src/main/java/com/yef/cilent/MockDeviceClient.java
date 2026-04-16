@@ -14,6 +14,7 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -21,6 +22,7 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +57,7 @@ public class MockDeviceClient implements SmartLifecycle {
     public MockDeviceClient(
             @Value("${netty.device-gateway-server.host:127.0.0.1}") String configuredHost,
             @Value("${netty.device-gateway-server.port:7611}") int configuredPort,
-            @Value("${mock.device.imei:12345678}") String configuredImei) {
+            @Value("${mock.device.imei:99999999}") String configuredImei) {
         this.configuredHost = configuredHost;
         this.configuredPort = configuredPort;
         this.configuredImei = configuredImei;
@@ -83,6 +85,12 @@ public class MockDeviceClient implements SmartLifecycle {
 
                             pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS));
 
+                            pipeline.addLast("lengthFieldFrameDecoder", new LengthFieldBasedFrameDecoder(
+                                    FotaProtocol.MAX_FRAME_LENGTH,
+                                    FotaProtocol.LENGTH_FIELD_OFFSET,
+                                    FotaProtocol.LENGTH_FIELD_LENGTH,
+                                    FotaProtocol.LENGTH_ADJUSTMENT,
+                                    FotaProtocol.INITIAL_BYTES_TO_STRIP));
                             pipeline.addLast("fotaFrameDecoder", new FotaFrameDecoder());
                             pipeline.addLast("fotaMessageDecoder", new FotaMessageDecoder());
                             pipeline.addLast("fotaMessageEncoder", new FotaMessageEncoder());
@@ -142,7 +150,6 @@ public class MockDeviceClient implements SmartLifecycle {
      * 连接建立后负责发送设备上线通知。
      */
     private static class MockDeviceConnectHandler extends ChannelInboundHandlerAdapter {
-
         private final String deviceImei;
 
         private MockDeviceConnectHandler(String deviceImei) {
@@ -152,7 +159,6 @@ public class MockDeviceClient implements SmartLifecycle {
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             log.info("MockDevice 建立连接成功，imei={}，准备发送 0x10 DeviceBootUpMessage", deviceImei);
-
             ctx.writeAndFlush(new FotaProtocol.DeviceBootUp(deviceImei, "v1.0.0", "MOCK_DEVICE"));
 
             super.channelActive(ctx);
@@ -179,13 +185,23 @@ public class MockDeviceClient implements SmartLifecycle {
                 handleUpgradeRequest(ctx, request);
                 return;
             }
+
             if (msg instanceof FotaProtocol.UpgradePacket packet) {
                 handleUpgradePacket(ctx, packet);
                 return;
             }
+            //handle 0x87
             if (msg instanceof FotaProtocol.CancelUpgrade cancelUpgrade) {
-                upgradeContext = null;
+                /**
+                 * 收包完成
+                 * step1-> merge
+                 * step2-> md5
+                 * step2-> 发 UpgradeResult(0x06)
+                 * step3-> 清空上下文
+                 */
                 ctx.writeAndFlush(new FotaProtocol.Ack(deviceImei, cancelUpgrade.taskId(), 0, FotaProtocol.ACK_TYPE_CANCEL));
+                //等待GC回收。避免占用内存
+                upgradeContext = null;
                 return;
             }
             super.channelRead(ctx, msg);
@@ -202,6 +218,9 @@ public class MockDeviceClient implements SmartLifecycle {
             super.userEventTriggered(ctx, evt);
         }
 
+        /**
+         * handle 0x81
+         */
         private void handleUpgradeRequest(ChannelHandlerContext ctx, FotaProtocol.UpgradeRequest request) {
             if (upgradeContext != null && upgradeContext.taskId != request.taskId()) {
                 ctx.writeAndFlush(new FotaProtocol.Fail(deviceImei, request.taskId(), 0, 1001));
@@ -212,6 +231,10 @@ public class MockDeviceClient implements SmartLifecycle {
             log.info("MockDevice 已接受升级请求，taskId={}，totalPacket={}", request.taskId(), request.totalPacket());
         }
 
+
+        /**
+         * handle 0x82
+         */
         private void handleUpgradePacket(ChannelHandlerContext ctx, FotaProtocol.UpgradePacket packet) {
             if (upgradeContext == null || upgradeContext.taskId != packet.taskId()) {
                 ctx.writeAndFlush(new FotaProtocol.Fail(deviceImei, packet.taskId(), packet.packetNo(), 1002));
@@ -227,6 +250,7 @@ public class MockDeviceClient implements SmartLifecycle {
 
             if (upgradeContext.chunks.size() == upgradeContext.totalPacket) {
                 byte[] firmware = merge(upgradeContext);
+                //对比md5
                 boolean md5Matched = Arrays.equals(FotaProtocol.md5(firmware), upgradeContext.expectedMd5);
                 int costTime = (int) ((System.currentTimeMillis() - upgradeContext.startTime) / 1000);
                 ctx.writeAndFlush(new FotaProtocol.UpgradeResult(deviceImei, packet.taskId(),
@@ -242,6 +266,9 @@ public class MockDeviceClient implements SmartLifecycle {
             return outputStream.toByteArray();
         }
 
+        /**
+         * 存储分包数据的上下文
+         */
         private static class UpgradeContext {
             private final long taskId;
             private final int totalPacket;

@@ -83,10 +83,6 @@ public class SessionManager {
         }
     }
 
-    public void bind(String imei, Channel channel) {
-        bind(imei, null, channel);
-    }
-
     /**
      * 根据设备imei获取 session
      */
@@ -150,8 +146,8 @@ public class SessionManager {
     /**
      * 判断终端是否在线
      */
-    public boolean isOnline(String terminalPhone) {
-        DeviceSession session = sessionByImei.get(terminalPhone);
+    public boolean isOnline(String imei) {
+        DeviceSession session = sessionByImei.get(imei);
         return session != null && session.getChannel() != null && session.getChannel().isActive();
     }
 

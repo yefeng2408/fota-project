@@ -24,6 +24,11 @@ public final class FotaProtocol {
     public static final byte ACK_TYPE_CANCEL = 4;
     public static final int MIN_FRAME_LENGTH = 28;
     public static final int MAX_BODY_LENGTH = 1024 * 1024;
+    public static final int MAX_FRAME_LENGTH = MIN_FRAME_LENGTH + MAX_BODY_LENGTH;
+    public static final int LENGTH_FIELD_OFFSET = 2;
+    public static final int LENGTH_FIELD_LENGTH = 4;
+    public static final int LENGTH_ADJUSTMENT = 8 + 8 + 2 + 1 + 2 + 1;
+    public static final int INITIAL_BYTES_TO_STRIP = 0;
 
     private FotaProtocol() {
     }

@@ -77,7 +77,7 @@
                 开始升级
               </el-button>
               <br>
-              <el-dropdown @command="(command) => handleAction(command, row)">
+              <el-dropdown class="action-dropdown" @command="(command) => handleAction(command, row)">
                 <el-button size="small">
                   更多操作
                 </el-button>
@@ -354,7 +354,7 @@ onMounted(async () => {
 
 <style scoped>
 .device-table-scroll {
-  overflow-x: auto;
+  overflow-x: hidden;
   width: 100%;
 }
 
@@ -363,7 +363,8 @@ onMounted(async () => {
 }
 
 .device-table {
-  min-width: 1320px;
+  width: 100%;
+  min-width: 100%;
 }
 
 .status-text {
@@ -399,6 +400,11 @@ onMounted(async () => {
 .upgrade-flag.is-enabled {
   color: #2fb344;
   font-weight: 700;
+}
+
+.action-dropdown {
+  display: inline-block;
+  margin-top: 4px;
 }
 </style>
 

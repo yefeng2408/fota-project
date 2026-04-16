@@ -1,9 +1,25 @@
+server:
+  port: 8082
+
 spring:
   application:
     name: fota-mock-device-client
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/fota_web_platform?useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: yefeng
+  redis:
+    host: localhost
+    port: 6379
+    database: 1
 
-server:
-  port: 8082
+minio:
+  endpoint: http://127.0.0.1:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket: fota-fireware
+
 
 netty:
   device-gateway-server:

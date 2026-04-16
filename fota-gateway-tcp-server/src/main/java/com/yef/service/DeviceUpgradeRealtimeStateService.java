@@ -3,7 +3,6 @@ package com.yef.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import java.util.concurrent.TimeUnit;
@@ -12,7 +11,6 @@ import java.util.concurrent.TimeUnit;
  *
  */
 @Service
-@RequiredArgsConstructor
 public class DeviceUpgradeRealtimeStateService {
 
     private static final String STATUS_KEY_PREFIX = "device:upgrade:status:";
@@ -20,6 +18,11 @@ public class DeviceUpgradeRealtimeStateService {
 
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
+
+    public DeviceUpgradeRealtimeStateService(StringRedisTemplate stringRedisTemplate, ObjectMapper objectMapper) {
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.objectMapper = objectMapper;
+    }
 
     public Long nextVersion(Long deviceId) {
         String key = VERSION_KEY_PREFIX + deviceId;

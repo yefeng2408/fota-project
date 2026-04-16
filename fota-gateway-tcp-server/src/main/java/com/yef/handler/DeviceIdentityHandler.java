@@ -3,6 +3,7 @@ package com.yef.handler;
 import com.yef.protocol.ChannelAttributes;
 import com.yef.protocol.FotaMessage;
 import com.yef.service.DeviceOnlineService;
+import com.yef.session.DeviceSession;
 import com.yef.session.SessionManager;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -38,11 +39,14 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
 
         String currentImei = ctx.channel().attr(ChannelAttributes.IMEI).get();
         if (currentImei == null || !currentImei.equals(imei)) {
+
             Long deviceId = deviceOnlineService.resolveDeviceId(imei);
+            deviceOnlineService.onDeviceOnline(imei,ctx.channel());
+
             ctx.channel().attr(ChannelAttributes.IMEI).set(imei);
             ctx.channel().attr(ChannelAttributes.DEVICE_ID).set(deviceId);
+
             sessionManager.bind(imei, deviceId, ctx.channel());
-            deviceOnlineService.onDeviceOnline(imei, deviceId, ctx.channel());
         } else {
             sessionManager.touch(ctx.channel());
         }
@@ -53,11 +57,15 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
         ctx.fireChannelRead(msg);
     }
 
+
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        String imei = ctx.channel().attr(ChannelAttributes.IMEI).get();
-        Long deviceId = ctx.channel().attr(ChannelAttributes.DEVICE_ID).get();
-        deviceOnlineService.onDeviceOffline(imei, deviceId);
+        DeviceSession deviceSession = sessionManager.getByChannel(ctx.channel());
+
+        if(deviceSession!=null){
+            deviceOnlineService.onDeviceOffline(deviceSession.getImei());
+            sessionManager.remove(ctx.channel());
+        }
         sessionManager.remove(ctx.channel());
         ctx.fireChannelInactive();
     }

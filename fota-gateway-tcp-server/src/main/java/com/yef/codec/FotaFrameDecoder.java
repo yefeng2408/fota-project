@@ -2,80 +2,55 @@ package com.yef.codec;
 
 import com.yef.protocol.FotaPacketFrame;
 import com.yef.protocol.FotaProtocolConstants;
+import com.yef.protocol.FotaProtocolException;
+import com.yef.protocol.LengthFieldFrameSpec;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.ByteToMessageDecoder;
+import io.netty.handler.codec.MessageToMessageDecoder;
 import java.util.List;
+
 /**
- * @description: 只做一件事，找出一个完整的协议包格式数据
+ * @description: 将 LengthFieldBasedFrameDecoder 切出来的完整帧解析成协议帧对象
  * @author: 叶丰
  * @date: 2026/4/11 22:46
  */
-public class FotaFrameDecoder extends ByteToMessageDecoder {
+public class FotaFrameDecoder extends MessageToMessageDecoder<ByteBuf> {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
-
-        while (in.readableBytes() >= FotaProtocolConstants.FRAME_MIN_LENGTH) {
-            int headIndex = findHead(in);
-            if (headIndex < 0) {
-                in.skipBytes(in.readableBytes());
-                return;
-            }
-            if (headIndex > in.readerIndex()) {
-                in.skipBytes(headIndex - in.readerIndex());
-            }
-            //如果可读字节小于最小长度 则直接返回，等待下次进来有足够满足一帧的长度
-            if (in.readableBytes() < FotaProtocolConstants.FRAME_MIN_LENGTH) {
-                return;
-            }
-
-            in.markReaderIndex();
-            in.skipBytes(1);
-            byte version = in.readByte();
-            int bodyLength = in.readInt();
-            String imei = com.yef.util.ProtocolBodyUtils.readFixedImei(in);
-            long timestamp = in.readLong();
-            int seqId = in.readUnsignedShort();
-            byte messageType = in.readByte();
-
-            if (bodyLength < 0 || bodyLength > FotaProtocolConstants.MAX_BODY_LENGTH) {
-                in.resetReaderIndex();
-                in.skipBytes(1);
-                continue;
-            }
-
-            int remainingLength = bodyLength + 2 + 1;
-            if (in.readableBytes() < remainingLength) {
-                in.resetReaderIndex();
-                return;
-            }
-
-            byte[] body = new byte[bodyLength];
-            in.readBytes(body);
-            int crc16 = in.readUnsignedShort();
-            byte tail = in.readByte();
-            if (tail != FotaProtocolConstants.TAIL) {
-                in.resetReaderIndex();
-                in.skipBytes(1);
-                continue;
-            }
-
-            out.add(new FotaPacketFrame(version, imei, timestamp, seqId, messageType, body, crc16));
+        int frameLength = in.readableBytes();
+        if (frameLength < LengthFieldFrameSpec.FRAME_MIN_LENGTH) {
+            throw new FotaProtocolException("frame too short: " + frameLength);
         }
-    }
 
-    /**
-     * 找包头标识符，找不到就返回-1
-     * @param in
-     * @return
-     */
-    private int findHead(ByteBuf in) {
-        for (int i = in.readerIndex(); i < in.writerIndex(); i++) {
-            if (in.getByte(i) == FotaProtocolConstants.HEAD) {
-                return i;
-            }
+        byte head = in.readByte();
+        if (head != FotaProtocolConstants.HEAD) {
+            throw new FotaProtocolException("invalid frame head: " + String.format("0x%02X", head));
         }
-        return -1;
+
+        byte version = in.readByte();
+        int bodyLength = in.readInt();
+        if (bodyLength < 0 || bodyLength > LengthFieldFrameSpec.MAX_BODY_LENGTH) {
+            throw new FotaProtocolException("invalid body length: " + bodyLength);
+        }
+
+        int expectedFrameLength = LengthFieldFrameSpec.FRAME_MIN_LENGTH + bodyLength;
+        if (frameLength != expectedFrameLength) {
+            throw new FotaProtocolException("frame length mismatch, expected=" + expectedFrameLength + ", actual=" + frameLength);
+        }
+
+        String imei = com.yef.util.ProtocolBodyUtils.readFixedImei(in);
+        long timestamp = in.readLong();
+        int seqId = in.readUnsignedShort();
+        byte messageType = in.readByte();
+        byte[] body = new byte[bodyLength];
+        in.readBytes(body);
+        int crc16 = in.readUnsignedShort();
+        byte tail = in.readByte();
+        if (tail != FotaProtocolConstants.TAIL) {
+            throw new FotaProtocolException("invalid frame tail: " + String.format("0x%02X", tail));
+        }
+
+        out.add(new FotaPacketFrame(version, imei, timestamp, seqId, messageType, body, crc16));
     }
 }
