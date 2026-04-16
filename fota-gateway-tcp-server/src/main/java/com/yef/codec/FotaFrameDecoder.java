@@ -1,8 +1,8 @@
 package com.yef.codec;
 
+import com.yef.exception.FotaProtocolException;
 import com.yef.protocol.FotaPacketFrame;
 import com.yef.protocol.FotaProtocolConstants;
-import com.yef.protocol.FotaProtocolException;
 import com.yef.protocol.LengthFieldFrameSpec;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;

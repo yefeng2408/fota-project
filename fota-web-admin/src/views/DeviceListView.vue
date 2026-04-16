@@ -272,8 +272,15 @@ function canStartUpgrade(row) {
   return isFirmwareBound(row) && isDeviceOnline(row) && row.deviceUpgradeStatus === 'NO_TASK'
 }
 
-function startUpgrade(row) {
-  ElMessage.info(`设备 ${row.imei} 已满足开始升级条件，等待接入升级任务接口`)
+
+async function startUpgrade(row) {
+  const data = await request.post('/api/upgrade-task/start', { imei: row.imei })
+    if(data.taskId){
+      ElMessage.success(data.message)
+    } else {
+      console.log('升级接口返回异常:', data)
+      ElMessage.error('升级失败，请稍后重试')
+    }
 }
 
 function cancelUpgrade(row) {

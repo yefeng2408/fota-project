@@ -1,16 +1,16 @@
-package com.yef.fota.api.dto;
+package com.yef.dto;
 
 import lombok.Data;
 import lombok.ToString;
 
 /**
- * @description: 下发0x81 请求升级
+ * @description: 网关接收平台下发的0x81的升级请求
  * @author: 叶丰
  * @date: 2026/4/15 22:27
  */
 @Data
 @ToString
-public class GatewayUpgradeRequest {
+public class PlatformUpgradeRequest {
 
     private Long taskId;
     private Long deviceId;

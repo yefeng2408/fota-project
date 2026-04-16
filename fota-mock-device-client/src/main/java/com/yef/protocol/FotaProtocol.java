@@ -94,6 +94,14 @@ public final class FotaProtocol {
         }
     }
 
+    /**
+     *
+     * @param imei
+     * @param taskId
+     * @param result 0成功 1失败
+     * @param errorCode 0正常 2001错误
+     * @param costTime 升级过程中的分包总耗时。单位：秒
+     */
     public record UpgradeResult(String imei, long taskId, byte result, int errorCode, int costTime) implements Message {
         @Override
         public byte messageType() {

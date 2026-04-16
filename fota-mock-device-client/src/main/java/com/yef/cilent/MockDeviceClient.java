@@ -4,6 +4,9 @@ import com.yef.codec.FotaFrameDecoder;
 import com.yef.codec.FotaMessageDecoder;
 import com.yef.codec.FotaMessageEncoder;
 import com.yef.protocol.FotaProtocol;
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.errors.*;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -26,10 +29,17 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.StringUtils;
+
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,6 +58,10 @@ public class MockDeviceClient implements SmartLifecycle {
 
     private volatile boolean running;
 
+    private final MinioClient minioClient;
+    @Value("${minio.bucket}")
+    private String minioBucket;
+
     /**
      * 客户端只需要一个 workerGroup
      */
@@ -57,10 +71,12 @@ public class MockDeviceClient implements SmartLifecycle {
     public MockDeviceClient(
             @Value("${netty.device-gateway-server.host:127.0.0.1}") String configuredHost,
             @Value("${netty.device-gateway-server.port:7611}") int configuredPort,
-            @Value("${mock.device.imei:99999999}") String configuredImei) {
+            @Value("${mock.device.imei:56756756}") String configuredImei,
+            MinioClient minioClient) {
         this.configuredHost = configuredHost;
         this.configuredPort = configuredPort;
         this.configuredImei = configuredImei;
+        this.minioClient = minioClient;
     }
 
     @Override
@@ -83,7 +99,7 @@ public class MockDeviceClient implements SmartLifecycle {
                         protected void initChannel(SocketChannel ch) {
                             ChannelPipeline pipeline = ch.pipeline();
 
-                            pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS));
+                            pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 60, 0, TimeUnit.SECONDS));
 
                             pipeline.addLast("lengthFieldFrameDecoder", new LengthFieldBasedFrameDecoder(
                                     FotaProtocol.MAX_FRAME_LENGTH,
@@ -96,7 +112,7 @@ public class MockDeviceClient implements SmartLifecycle {
                             pipeline.addLast("fotaMessageEncoder", new FotaMessageEncoder());
 
                             pipeline.addLast("mockDeviceConnectHandler", new MockDeviceConnectHandler(configuredImei));
-                            pipeline.addLast("mockDeviceDispatchHandler", new MockDeviceDispatchHandler(configuredImei));
+                            pipeline.addLast("mockDeviceDispatchHandler", new MockDeviceDispatchHandler(configuredImei,minioClient,minioBucket));
                             pipeline.addLast("mockDeviceExceptionHandler", new MockDeviceExceptionHandler());
                         }
                     });
@@ -172,9 +188,15 @@ public class MockDeviceClient implements SmartLifecycle {
 
         private final String deviceImei;
         private UpgradeContext upgradeContext;
+        private MinioClient minioClient;
+        private String minioBucket;
 
-        private MockDeviceDispatchHandler(String deviceImei) {
+        private MockDeviceDispatchHandler(String deviceImei,
+                                          MinioClient minioClient,
+                                          String minioBucket) {
             this.deviceImei = deviceImei;
+            this.minioClient = minioClient;
+            this.minioBucket = minioBucket;
         }
 
         @Override
@@ -255,11 +277,38 @@ public class MockDeviceClient implements SmartLifecycle {
                 int costTime = (int) ((System.currentTimeMillis() - upgradeContext.startTime) / 1000);
                 ctx.writeAndFlush(new FotaProtocol.UpgradeResult(deviceImei, packet.taskId(),
                         md5Matched ? (byte) 0 : (byte) 1, md5Matched ? 0 : 2001, costTime));
+
                 log.info("MockDevice 分包接收完成，taskId={}，md5Matched={}", packet.taskId(), md5Matched);
+                String storedName = UUID.randomUUID().toString();
+                String objectName = "firmware/" + packet.taskId() + "/" + storedName;
+                //写入minio
+                try {
+                    minioClient.putObject(
+                            PutObjectArgs.builder()
+                                    .bucket(minioBucket)
+                                    .object(objectName)
+                                    .stream(new ByteArrayInputStream(firmware), firmware.length, -1)
+                                    .contentType("application/octet-stream")
+                                    .build()
+                    );
+                } catch (Exception e) {
+                    log.error("设备侧固件上传minio失败，taskId={}", packet.taskId(), e);
+                }
+                /*
+                 * 当前 mock client 会将所有分包暂存在内存中，升级完成后需要释放上下文引用，
+                 * 让 chunks 中缓存的 byte[] 分片后续可以被 GC 回收，避免长时间持有导致堆内存膨胀。
+                 * 注意：upgradeContext = null 只是解除引用，并不会立即触发 GC。
+                 *
+                 * 如果后续一个进程模拟大量设备并发升级，内存占用约等于：
+                 * 并发设备数 * 固件大小 + 分片 byte[] / TreeMap 节点 / key 等对象开销。
+                 * 例如 500 台设备同时接收 3MB 固件，原始分片数据约 1.5GB，
+                 * 加上对象与 Map 节点开销后，实际堆占用可能明显更高。
+                 */
                 upgradeContext = null;
             }
         }
 
+        //合并成字节流
         private byte[] merge(UpgradeContext context) {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             context.chunks.forEach((packetNo, data) -> outputStream.writeBytes(data));

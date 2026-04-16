@@ -13,4 +13,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface DeviceService extends IService<DeviceEntity> {
 
+    DeviceEntity getDeviceByImei(String imei);
 }

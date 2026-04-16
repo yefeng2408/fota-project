@@ -325,6 +325,7 @@ public class DeviceController {
         }
     }
 
+    //三种状态下，列表列表不能编辑设备信息
     private boolean isForbiddenEditStatus(String status) {
         return "UPGRADE_REQUESTED".equals(status)
                 || "UPGRADING".equals(status)

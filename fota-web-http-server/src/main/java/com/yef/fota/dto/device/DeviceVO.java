@@ -15,6 +15,12 @@ public class DeviceVO {
     private String deviceName;
     private String deviceType;
     private String currentFirmwareVersion;
+    /**
+     * 设备升级状态：
+     * 1. 表示当前升级过程状态（如 UPGRADE_REQUESTED / UPGRADING）
+     * 2. 也表示最近一轮升级终态（如 SUCCESS / FAIL / TIMEOUT / CANCEL_UPGRADE）
+     * 3. 当用户重新编辑设备并重新绑定目标固件时，状态重置为 NO_TASK，进入下一轮升级流程
+     */
     private String deviceUpgradeStatus;
     /**
      * 0：未绑定固件  1:已绑定固件

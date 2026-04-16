@@ -12,24 +12,23 @@ import com.yef.fota.api.dto.GatewayUpgradeRequest;
  * @author: 叶丰
  * @date: 2026/04/15 22:31
  */
-
-@BaseRequest(baseURL = "${gateway.http.base-url}")
+@BaseRequest(baseURL = "${baseUrl}")
 public interface GatewayApiClient {
 
     /**
-     * 让网关给设备下发 0x81 UpgradeRequest
+     * 平台下发 0x81 UpgradeRequest
      */
     @Post(
-            url = "/internal/device-upgrade/send-upgrade-request",
+            url = "/internal/device/upgrade-request",
             contentType = "application/json"
     )
     GatewayApiResponse<Void> sendUpgradeRequest(@Body GatewayUpgradeRequest request);
 
     /**
-     * 让网关给设备下发 0x87 CancelUpgrade
+     * 平台下发 0x87 CancelUpgrade
      */
     @Post(
-            url = "/internal/device-upgrade/send-cancel-request",
+            url = "/internal/device/cancel-request",
             contentType = "application/json"
     )
     GatewayApiResponse<Void> sendCancelUpgradeRequest(@Body GatewayCancelUpgradeRequest request);

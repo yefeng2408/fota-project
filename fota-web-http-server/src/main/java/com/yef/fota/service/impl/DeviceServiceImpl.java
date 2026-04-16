@@ -1,5 +1,6 @@
 package com.yef.fota.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.mapper.DeviceMapper;
 import com.yef.fota.service.DeviceService;
@@ -17,4 +18,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> implements DeviceService {
 
+    @Override
+    public DeviceEntity getDeviceByImei(String imei) {
+        QueryWrapper<DeviceEntity> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("imei", imei);
+        return this.baseMapper.selectOne(queryWrapper);
+    }
 }

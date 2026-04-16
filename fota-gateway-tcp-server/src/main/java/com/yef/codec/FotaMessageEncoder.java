@@ -1,12 +1,12 @@
 package com.yef.codec;
 
+import com.yef.exception.FotaProtocolException;
 import com.yef.protocol.AckMessage;
 import com.yef.protocol.CancelUpgradeMessage;
 import com.yef.protocol.DeviceBootUpMessage;
 import com.yef.protocol.FailMessage;
 import com.yef.protocol.FotaMessage;
 import com.yef.protocol.FotaProtocolConstants;
-import com.yef.protocol.FotaProtocolException;
 import com.yef.protocol.HeartbeatMessage;
 import com.yef.protocol.UpgradePacketMessage;
 import com.yef.protocol.UpgradeRequestMessage;
