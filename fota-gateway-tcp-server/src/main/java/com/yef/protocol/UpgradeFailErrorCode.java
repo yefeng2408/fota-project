@@ -1,7 +1,7 @@
 package com.yef.protocol;
 
 /**
- * @description: 0x04上行消息异常分类。只是列举了一些常见情况，部分错误类型可能用不上
+ * @description: 0x04上行消息异常分类。只是列举了一些常见情况，大部分错误类型可能用不上
  * @author: 叶丰
  * @date: 2026/4/15 16:47
  */

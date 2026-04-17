@@ -13,7 +13,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 
 /**
@@ -27,12 +27,9 @@ import java.time.LocalDateTime;
 @Service
 public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, UpgradeTaskEntity> implements UpgradeTaskService {
 
-    private final FirmwarePackageService firmwarePackageService;
     private final GatewayCommandService gatewayCommandService;
 
-    public UpgradeTaskServiceImpl(FirmwarePackageService firmwarePackageService,
-                                  GatewayCommandService gatewayCommandService) {
-        this.firmwarePackageService = firmwarePackageService;
+    public UpgradeTaskServiceImpl(GatewayCommandService gatewayCommandService) {
         this.gatewayCommandService = gatewayCommandService;
     }
 
@@ -51,6 +48,7 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         this.save(task);
 
         GatewayUpgradeRequest gatewayRequest = getUpgradeRequest(task, device, firmware);
+
         gatewayCommandService.sendUpgradeRequest(gatewayRequest);
         return task.getId();
     }
@@ -58,11 +56,21 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
     @NotNull
     private GatewayUpgradeRequest getUpgradeRequest(UpgradeTaskEntity task, DeviceEntity device,
                                                     FirmwarePackageEntity firmware) {
+
         GatewayUpgradeRequest gatewayRequest = new GatewayUpgradeRequest();
-        gatewayRequest.setTaskId(task.getId());
+        gatewayRequest.setTaskId(task.getTaskId());
         gatewayRequest.setDeviceId(device.getId());
         gatewayRequest.setImei(device.getImei());
         gatewayRequest.setFirmwareId(firmware.getId());
+
+        byte[] firmwareNameBytes = firmware.getFileName().getBytes(StandardCharsets.UTF_8);
+        byte[] firmwareVersionBytes = firmware.getVersion().getBytes(StandardCharsets.UTF_8);
+
+        gatewayRequest.setFirmwareNameLen((byte) firmwareNameBytes.length);
+        gatewayRequest.setFirmwareName(firmware.getFileName());
+
+        gatewayRequest.setFirmwareVersionLen((byte) firmwareVersionBytes.length);
+        gatewayRequest.setFirmwareVersionName(firmware.getVersion());
 
         gatewayRequest.setChunkSize(firmware.getChunkSize());
         gatewayRequest.setChunkCount(firmware.getChunkCount());

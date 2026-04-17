@@ -14,7 +14,7 @@ public class HeartbeatMessage implements FotaMessage {
     }
 
     @Override
-    public String getImei() {
+    public String imei() {
         return imei;
     }
 

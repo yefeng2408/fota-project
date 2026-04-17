@@ -25,21 +25,14 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.StringUtils;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.UUID;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -175,7 +168,10 @@ public class MockDeviceClient implements SmartLifecycle {
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             log.info("MockDevice 建立连接成功，imei={}，准备发送 0x10 DeviceBootUpMessage", deviceImei);
-            ctx.writeAndFlush(new FotaProtocol.DeviceBootUp(deviceImei, "v1.0.0", "MOCK_DEVICE"));
+            //写死设备假数据
+            String firmwareVersion = "v1.0.0";
+
+            ctx.writeAndFlush(new FotaProtocol.DeviceBootUpDTO(deviceImei, firmwareVersion, "MOCK_DEVICE"));
 
             super.channelActive(ctx);
         }
@@ -203,23 +199,32 @@ public class MockDeviceClient implements SmartLifecycle {
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             log.info("MockDevice 收到网关消息，imei={}，msg={}", deviceImei, msg);
 
-            if (msg instanceof FotaProtocol.UpgradeRequest request) {
+            //handle 0x83
+            if (msg instanceof FotaProtocol.PlatformAckDTO ack) {
+                log.info("MockDevice 收到平台ACK，taskId={}，refMessageType={}，ackStatus={}，reasonCode={}",
+                        ack.taskId(), ack.refMessageType(), ack.ackStatus(), ack.reasonCode());
+                return;
+            }
+
+            //handle 0x81
+            if (msg instanceof FotaProtocol.UpgradeRequestDTO request) {
                 handleUpgradeRequest(ctx, request);
                 return;
             }
 
-            if (msg instanceof FotaProtocol.UpgradePacket packet) {
+            //handle 0x82
+            if (msg instanceof FotaProtocol.UpgradePacketDTO packet) {
                 handleUpgradePacket(ctx, packet);
                 return;
             }
             //handle 0x87
-            if (msg instanceof FotaProtocol.CancelUpgrade cancelUpgrade) {
+            if (msg instanceof FotaProtocol.CancelUpgradeDTO cancelUpgrade) {
                 /**
-                 * 收包完成
-                 * step1-> merge
-                 * step2-> md5
-                 * step2-> 发 UpgradeResult(0x06)
-                 * step3-> 清空上下文
+                 * 收包完成。做以下几件事情：
+                 *              step1-> merge
+                 *              step2-> md5
+                 *              step2-> 发 UpgradeResult(0x06)
+                 *              step3-> 清空上下文
                  */
                 ctx.writeAndFlush(new FotaProtocol.Ack(deviceImei, cancelUpgrade.taskId(), 0, FotaProtocol.ACK_TYPE_CANCEL));
                 //等待GC回收。避免占用内存
@@ -243,12 +248,12 @@ public class MockDeviceClient implements SmartLifecycle {
         /**
          * handle 0x81
          */
-        private void handleUpgradeRequest(ChannelHandlerContext ctx, FotaProtocol.UpgradeRequest request) {
+        private void handleUpgradeRequest(ChannelHandlerContext ctx, FotaProtocol.UpgradeRequestDTO request) {
             if (upgradeContext != null && upgradeContext.taskId != request.taskId()) {
-                ctx.writeAndFlush(new FotaProtocol.Fail(deviceImei, request.taskId(), 0, 1001));
+                ctx.writeAndFlush(new FotaProtocol.Fail(deviceImei, request.taskId(), 0, 1));
                 return;
             }
-            upgradeContext = new UpgradeContext(request.taskId(), request.totalPacket(), request.md5(), System.currentTimeMillis());
+            upgradeContext = new UpgradeContext(request.taskId(), request.firmwareName(), request.firmwareVersionName(), request.totalPacket(), request.md5(), System.currentTimeMillis(), new TreeMap<>());
             ctx.writeAndFlush(new FotaProtocol.Ack(deviceImei, request.taskId(), 0, FotaProtocol.ACK_TYPE_UPGRADE_REQUEST));
             log.info("MockDevice 已接受升级请求，taskId={}，totalPacket={}", request.taskId(), request.totalPacket());
         }
@@ -257,30 +262,33 @@ public class MockDeviceClient implements SmartLifecycle {
         /**
          * handle 0x82
          */
-        private void handleUpgradePacket(ChannelHandlerContext ctx, FotaProtocol.UpgradePacket packet) {
-            if (upgradeContext == null || upgradeContext.taskId != packet.taskId()) {
-                ctx.writeAndFlush(new FotaProtocol.Fail(deviceImei, packet.taskId(), packet.packetNo(), 1002));
+        private void handleUpgradePacket(ChannelHandlerContext ctx, FotaProtocol.UpgradePacketDTO packet) {
+            if (upgradeContext == null || upgradeContext.taskId() != packet.taskId()) {
+                ctx.writeAndFlush(new FotaProtocol.Fail(deviceImei, packet.taskId(), packet.packetNo(), 2));
                 return;
             }
-            if (packet.packetNo() <= 0 || packet.packetNo() > upgradeContext.totalPacket) {
-                ctx.writeAndFlush(new FotaProtocol.Fail(deviceImei, packet.taskId(), packet.packetNo(), 1003));
+            if (packet.packetNo() <= 0 || packet.packetNo() > upgradeContext.totalPacket()) {
+                ctx.writeAndFlush(new FotaProtocol.Fail(deviceImei, packet.taskId(), packet.packetNo(), 3));
                 return;
             }
-            upgradeContext.chunks.putIfAbsent(packet.packetNo(), packet.chunkData());
+            //将收到的0x82指令中的每一个固件分包数据写入临时内存
+            upgradeContext.chunks().putIfAbsent(packet.packetNo(), packet.chunkData());
             ctx.writeAndFlush(new FotaProtocol.Ack(deviceImei, packet.taskId(), packet.packetNo(), FotaProtocol.ACK_TYPE_PACKET));
             log.info("MockDevice 已接收分包，taskId={}，packetNo={}/{}", packet.taskId(), packet.packetNo(), packet.totalPacket());
 
-            if (upgradeContext.chunks.size() == upgradeContext.totalPacket) {
+            if (upgradeContext.chunks().size() == upgradeContext.totalPacket()) {
                 byte[] firmware = merge(upgradeContext);
                 //对比md5
-                boolean md5Matched = Arrays.equals(FotaProtocol.md5(firmware), upgradeContext.expectedMd5);
-                int costTime = (int) ((System.currentTimeMillis() - upgradeContext.startTime) / 1000);
-                ctx.writeAndFlush(new FotaProtocol.UpgradeResult(deviceImei, packet.taskId(),
-                        md5Matched ? (byte) 0 : (byte) 1, md5Matched ? 0 : 2001, costTime));
+                boolean md5Matched = Arrays.equals(FotaProtocol.md5(firmware), upgradeContext.expectedMd5());
+                int costTime = (int) ((System.currentTimeMillis() - upgradeContext.startTime()) / 1000);
+                ctx.writeAndFlush(new FotaProtocol.UpgradeResultDTO(deviceImei, packet.taskId(),
+                        md5Matched ? (byte) 0 : (byte) 1, md5Matched ? 0 : 4, costTime));
 
                 log.info("MockDevice 分包接收完成，taskId={}，md5Matched={}", packet.taskId(), md5Matched);
-                String storedName = UUID.randomUUID().toString();
-                String objectName = "firmware/" + packet.taskId() + "/" + storedName;
+                DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+                String versionName = upgradeContext.firmwareVersionName();
+                String firmwareName = upgradeContext.firmwareName();
+                String objectName = "firmware/" + dateFormat.format(new Date()) + "/" + versionName + "/" + firmwareName;
                 //写入minio
                 try {
                     minioClient.putObject(
@@ -311,26 +319,23 @@ public class MockDeviceClient implements SmartLifecycle {
         //合并成字节流
         private byte[] merge(UpgradeContext context) {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            context.chunks.forEach((packetNo, data) -> outputStream.writeBytes(data));
+            context.chunks().forEach((packetNo, data) -> outputStream.writeBytes(data));
             return outputStream.toByteArray();
         }
 
         /**
          * 存储分包数据的上下文
          */
-        private static class UpgradeContext {
-            private final long taskId;
-            private final int totalPacket;
-            private final byte[] expectedMd5;
-            private final long startTime;
-            private final Map<Integer, byte[]> chunks = new TreeMap<>();
 
-            private UpgradeContext(long taskId, int totalPacket, byte[] expectedMd5, long startTime) {
-                this.taskId = taskId;
-                this.totalPacket = totalPacket;
-                this.expectedMd5 = expectedMd5;
-                this.startTime = startTime;
-            }
+        private record UpgradeContext(
+                long taskId,
+                String firmwareName,
+                String firmwareVersionName,
+                int totalPacket,
+                byte[] expectedMd5,
+                long startTime,
+                Map<Integer, byte[]> chunks
+        ) {
         }
     }
 

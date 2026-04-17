@@ -20,7 +20,7 @@ public class FailMessage implements FotaMessage {
     }
 
     @Override
-    public String getImei() {
+    public String imei() {
         return imei;
     }
 

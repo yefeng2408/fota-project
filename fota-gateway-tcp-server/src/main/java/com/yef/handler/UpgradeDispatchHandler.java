@@ -14,6 +14,11 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import org.springframework.stereotype.Component;
 
+/**
+ * @description: 这里统一写出站消息
+ * @author: 叶丰
+ * @date: 2026/4/17 18:24
+ */
 @Component
 @ChannelHandler.Sharable
 public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> {

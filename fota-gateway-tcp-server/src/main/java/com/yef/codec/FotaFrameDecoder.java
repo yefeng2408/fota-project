@@ -10,7 +10,7 @@ import io.netty.handler.codec.MessageToMessageDecoder;
 import java.util.List;
 
 /**
- * @description: 将 LengthFieldBasedFrameDecoder 切出来的完整帧解析成协议帧对象
+ * @description: 将 LengthFieldBasedFrameDecoder 切出来的一帧解析成协议帧对象
  * @author: 叶丰
  * @date: 2026/4/11 22:46
  */
@@ -51,6 +51,6 @@ public class FotaFrameDecoder extends MessageToMessageDecoder<ByteBuf> {
             throw new FotaProtocolException("invalid frame tail: " + String.format("0x%02X", tail));
         }
 
-        out.add(new FotaPacketFrame(version, imei, timestamp, seqId, messageType, body, crc16));
+        out.add(new FotaPacketFrame(version,bodyLength, imei, timestamp, seqId, messageType, body, crc16));
     }
 }

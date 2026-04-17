@@ -11,6 +11,7 @@ import com.yef.protocol.HeartbeatMessage;
 import com.yef.protocol.UpgradePacketMessage;
 import com.yef.protocol.UpgradeRequestMessage;
 import com.yef.protocol.UpgradeResultMessage;
+import com.yef.protocol.out.DeviceBootUpMessageAck;
 import com.yef.util.Crc16Utils;
 import com.yef.util.ProtocolBodyUtils;
 import io.netty.buffer.ByteBuf;
@@ -18,6 +19,11 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 
+/**
+ * @description: 网关出站编码，提前将响应设备的ACK消息格式提前组装
+ * @author: 叶丰
+ * @date: 2026/4/17 18:22
+ */
 public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
 
     private static final java.util.concurrent.atomic.AtomicInteger SEQ = new java.util.concurrent.atomic.AtomicInteger(0);
@@ -29,13 +35,13 @@ public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
         long timestamp = System.currentTimeMillis();
         int seqId = SEQ.updateAndGet(value -> value >= 65535 ? 1 : value + 1);
         byte[] crcPayload = ProtocolBodyUtils.buildCrcPayload(FotaProtocolConstants.VERSION, body.length,
-                msg.getImei(), timestamp, seqId, messageType, body);
+                msg.imei(), timestamp, seqId, messageType, body);
         int crc16 = Crc16Utils.calculate(crcPayload);
 
         out.writeByte(FotaProtocolConstants.HEAD);
         out.writeByte(FotaProtocolConstants.VERSION);
         out.writeInt(body.length);
-        ProtocolBodyUtils.writeFixedImei(out, msg.getImei());
+        ProtocolBodyUtils.writeFixedImei(out, msg.imei());
         out.writeLong(timestamp);
         out.writeShort(seqId);
         out.writeByte(messageType);
@@ -49,18 +55,30 @@ public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
         try {
             if (msg instanceof DeviceBootUpMessage) {
                 DeviceBootUpMessage message = (DeviceBootUpMessage) msg;
-                ProtocolBodyUtils.writeUtf8WithShortLength(body, message.getFirmwareVersion());
-                ProtocolBodyUtils.writeUtf8WithShortLength(body, message.getDeviceType());
+                ProtocolBodyUtils.writeUtf8WithByteLength(body, message.firmwareVersion());
+                ProtocolBodyUtils.writeUtf8WithByteLength(body, message.deviceType());
+            } else if (msg instanceof DeviceBootUpMessageAck) {
+                DeviceBootUpMessageAck message = (DeviceBootUpMessageAck) msg;
+                body.writeLong(message.taskId());
+                body.writeByte(message.refMessageType());
+                body.writeByte(message.ackStatus());
+                body.writeByte(message.reasonCode());
             } else if (msg instanceof HeartbeatMessage) {
                 // Heartbeat body is empty.
             } else if (msg instanceof UpgradeRequestMessage) {
                 UpgradeRequestMessage message = (UpgradeRequestMessage) msg;
+                byte[] md5 = message.getMd5();
+                if (md5.length != 16) {
+                    throw new FotaProtocolException("upgrade request md5 must be 16 bytes, actual=" + md5.length);
+                }
                 body.writeLong(message.getTaskId());
                 body.writeLong(message.getFirmwareId());
+                ProtocolBodyUtils.writeUtf8WithByteLength(body, message.getFirmwareName());
+                ProtocolBodyUtils.writeUtf8WithByteLength(body, message.getFirmwareVersionName());
                 body.writeInt(message.getTotalPacket());
                 body.writeInt(message.getChunkSize());
                 body.writeLong(message.getFileSize());
-                body.writeBytes(message.getMd5());
+                body.writeBytes(md5);
             } else if (msg instanceof UpgradePacketMessage) {
                 UpgradePacketMessage message = (UpgradePacketMessage) msg;
                 byte[] chunkData = message.getChunkData();
@@ -78,17 +96,15 @@ public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
                 FailMessage message = (FailMessage) msg;
                 body.writeLong(message.getTaskId());
                 body.writeInt(message.getPacketNo());
-                body.writeShort(message.getErrorCode());
+                body.writeByte(message.getErrorCode());
             } else if (msg instanceof UpgradeResultMessage) {
                 UpgradeResultMessage message = (UpgradeResultMessage) msg;
-                ProtocolBodyUtils.writeFixedImei(body, message.getImei());
                 body.writeLong(message.getTaskId());
                 body.writeByte(message.getResult());
-                body.writeShort(message.getErrorCode());
+                body.writeByte(message.getErrorCode());
                 body.writeInt(message.getCostTime());
             } else if (msg instanceof CancelUpgradeMessage) {
                 CancelUpgradeMessage message = (CancelUpgradeMessage) msg;
-                ProtocolBodyUtils.writeFixedImei(body, message.getImei());
                 body.writeLong(message.getTaskId());
                 body.writeByte(message.getReason());
             } else {

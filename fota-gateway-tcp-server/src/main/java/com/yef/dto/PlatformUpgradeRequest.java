@@ -15,7 +15,10 @@ public class PlatformUpgradeRequest {
     private Long taskId;
     private Long deviceId;
     private String imei;
-
+    private byte firmwareNameLen;
+    private String firmwareName;
+    private byte firmwareVersionLen;
+    private String firmwareVersionName;
     private Long firmwareId;
     private Integer chunkSize;
     private Integer chunkCount;

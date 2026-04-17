@@ -18,7 +18,7 @@ public class CancelUpgradeMessage implements FotaMessage {
     }
 
     @Override
-    public String getImei() {
+    public String imei() {
         return imei;
     }
 

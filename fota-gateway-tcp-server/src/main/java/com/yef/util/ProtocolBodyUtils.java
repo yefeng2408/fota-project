@@ -40,6 +40,22 @@ public final class ProtocolBodyUtils {
         out.writeBytes(bytes);
     }
 
+    public static String readUtf8WithByteLength(ByteBuf in) {
+        int length = in.readUnsignedByte();
+        byte[] bytes = new byte[length];
+        in.readBytes(bytes);
+        return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    public static void writeUtf8WithByteLength(ByteBuf out, String value) {
+        byte[] bytes = value == null ? new byte[0] : value.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > 255) {
+            throw new IllegalArgumentException("string too long for uint8 length");
+        }
+        out.writeByte(bytes.length);
+        out.writeBytes(bytes);
+    }
+
     public static byte[] toByteArray(ByteBuf buf) {
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
@@ -47,7 +63,7 @@ public final class ProtocolBodyUtils {
     }
 
     /**
-     *
+     * 其始字节 从version开始 到 body（byte[]）最后一个字节
      * @param version
      * @param messageType
      * @param body

@@ -32,13 +32,33 @@ public class GatewayUpgradeDispatchService {
                 req.getImei(),
                 req.getTaskId(),
                 req.getFirmwareId(),
+                req.getFirmwareNameLen(),
+                req.getFirmwareName(),
+                req.getFirmwareVersionLen(),
+                req.getFirmwareVersionName(),
                 req.getChunkCount(),
                 req.getChunkSize(),
                 req.getFileSize(),
-                req.getMd5().getBytes()
+                hexMd5ToBytes(req.getMd5())
         );
         Channel channel = session.getChannel();
         channel.writeAndFlush(message);
+    }
+
+    private byte[] hexMd5ToBytes(String md5) {
+        if (md5 == null || md5.length() != 32) {
+            throw new FotaProtocolException("md5 must be 32 hex chars");
+        }
+        byte[] bytes = new byte[16];
+        for (int i = 0; i < bytes.length; i++) {
+            int high = Character.digit(md5.charAt(i * 2), 16);
+            int low = Character.digit(md5.charAt(i * 2 + 1), 16);
+            if (high < 0 || low < 0) {
+                throw new FotaProtocolException("md5 contains non-hex chars");
+            }
+            bytes[i] = (byte) ((high << 4) + low);
+        }
+        return bytes;
     }
 
    /* public void sendCancelUpgradeRequest(GatewayCancelUpgradeRequest request) {

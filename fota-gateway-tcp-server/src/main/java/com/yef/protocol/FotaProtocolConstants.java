@@ -188,6 +188,25 @@ public final class FotaProtocolConstants {
     public static final byte MSG_UPGRADE_PACKET = (byte) 0x82;
 
     /**
+     * 平台通用 ACK 确认消息（平台 -> 设备）
+     * <p>
+     * body 结构：
+     * - taskId         (8 byte)
+     * - refMessageType (1 byte)
+     * - ackStatus      (1 byte)
+     * - reasonCode     (1 byte)
+     * <p>
+     * 说明：
+     * 1. 该消息用于平台对设备上行关键消息做统一确认
+     * 2. 具体确认哪一种上行消息，由 refMessageType 区分
+     * 3. 当 refMessageType = MSG_DEVICE_BOOT_UP 时，taskId 固定为 0 🔥
+     * 4. 当 refMessageType = MSG_UPGRADE_RESULT 时，taskId 为本次升级任务ID
+     * 5. ackStatus 表示平台是否已成功接收并处理该上行消息
+     * 6. reasonCode 用于补充失败原因，成功场景下固定为 0
+     */
+    public static final byte PLATFORM_ACK = (byte) 0x83;
+
+    /**
      * 取消升级消息（平台 -> 设备）
      * <p>
      * 说明：

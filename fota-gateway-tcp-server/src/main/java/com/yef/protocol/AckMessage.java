@@ -20,7 +20,7 @@ public class AckMessage implements FotaMessage {
     }
 
     @Override
-    public String getImei() {
+    public String imei() {
         return imei;
     }
 

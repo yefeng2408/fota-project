@@ -23,12 +23,17 @@ public class FotaMessageDecoder extends MessageToMessageDecoder<FotaProtocol.Fra
             if (frame.messageType() == FotaProtocol.UPGRADE_REQUEST) {
                 long taskId = body.readLong();
                 long firmwareId = body.readLong();
+
+                String firmwareName = FotaProtocol.readStringWithByteLength(body);
+                String firmwareVersion = FotaProtocol.readStringWithByteLength(body);
+
                 int totalPacket = body.readInt();
                 int chunkSize = body.readInt();
                 long fileSize = body.readLong();
                 byte[] md5 = new byte[16];
                 body.readBytes(md5);
-                out.add(new FotaProtocol.UpgradeRequest(frame.imei(), taskId, firmwareId, totalPacket, chunkSize, fileSize, md5));
+                FotaProtocol.UpgradeRequestDTO upgradeRequestDTO = new FotaProtocol.UpgradeRequestDTO(frame.imei(), taskId, firmwareId, firmwareName, firmwareVersion, totalPacket, chunkSize, fileSize, md5);
+                out.add(upgradeRequestDTO);
             } else if (frame.messageType() == FotaProtocol.UPGRADE_PACKET) {
                 long taskId = body.readLong();
                 int packetNo = body.readInt();
@@ -36,12 +41,17 @@ public class FotaMessageDecoder extends MessageToMessageDecoder<FotaProtocol.Fra
                 int chunkLength = body.readInt();
                 byte[] chunkData = new byte[chunkLength];
                 body.readBytes(chunkData);
-                out.add(new FotaProtocol.UpgradePacket(frame.imei(), taskId, packetNo, totalPacket, chunkData));
+                out.add(new FotaProtocol.UpgradePacketDTO(frame.imei(), taskId, packetNo, totalPacket, chunkData));
+            } else if (frame.messageType() == FotaProtocol.PLATFORM_ACK) {
+                long taskId = body.readLong();
+                byte refMessageType = body.readByte();
+                byte ackStatus = body.readByte();
+                byte reasonCode = body.readByte();
+                out.add(new FotaProtocol.PlatformAckDTO(frame.imei(), taskId, refMessageType, ackStatus, reasonCode));
             } else if (frame.messageType() == FotaProtocol.CANCEL_UPGRADE) {
-                String bodyImei = FotaProtocol.readFixedImei(body);
                 long taskId = body.readLong();
                 byte reason = body.readByte();
-                out.add(new FotaProtocol.CancelUpgrade(bodyImei, taskId, reason));
+                out.add(new FotaProtocol.CancelUpgradeDTO(frame.imei(), taskId, reason));
             }
         } finally {
             body.release();

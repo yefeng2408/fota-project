@@ -15,13 +15,18 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.http.Method;
+
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -77,10 +82,8 @@ public class FirmwarePackageController {
         if (file.isEmpty()) {
             throw new BusinessException("上传文件不能为空");
         }
-        String suffix = StringUtils.getFilenameExtension(file.getOriginalFilename());
-        String storedName = UUID.randomUUID() + (StringUtils.hasText(suffix) ? "." + suffix : "");
-        String objectName = "firmware/" + version + "/" + storedName;
-
+        DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+        String objectName = "firmware/" + dateFormat.format(new Date()) + "/" + version + "/" + file.getOriginalFilename();
         FirmwarePackageEntity entity = new FirmwarePackageEntity();
         entity.setVersion(version);
         entity.setDeviceType(deviceType);

@@ -34,9 +34,10 @@ public class FotaMessageEncoder extends MessageToByteEncoder<FotaProtocol.Messag
     private byte[] encodeBody(FotaProtocol.Message msg) {
         ByteBuf body = Unpooled.buffer();
         try {
-            if (msg instanceof FotaProtocol.DeviceBootUp bootUp) {
-                FotaProtocol.writeString(body, bootUp.firmwareVersion());
-                FotaProtocol.writeString(body, bootUp.deviceType());
+            //TODO=============
+            if (msg instanceof FotaProtocol.DeviceBootUpDTO bootUp) {
+                FotaProtocol.writeStringWithByteLength(body, bootUp.firmwareVersion());
+                FotaProtocol.writeStringWithByteLength(body, bootUp.deviceType());
             } else if (msg instanceof FotaProtocol.Heartbeat) {
                 // empty body
             } else if (msg instanceof FotaProtocol.Ack ack) {
@@ -46,12 +47,11 @@ public class FotaMessageEncoder extends MessageToByteEncoder<FotaProtocol.Messag
             } else if (msg instanceof FotaProtocol.Fail fail) {
                 body.writeLong(fail.taskId());
                 body.writeInt(fail.packetNo());
-                body.writeShort(fail.errorCode());
-            } else if (msg instanceof FotaProtocol.UpgradeResult result) {
-                FotaProtocol.writeFixedImei(body, result.imei());
+                body.writeByte(fail.errorCode());
+            } else if (msg instanceof FotaProtocol.UpgradeResultDTO result) {
                 body.writeLong(result.taskId());
                 body.writeByte(result.result());
-                body.writeShort(result.errorCode());
+                body.writeByte(result.errorCode());
                 body.writeInt(result.costTime());
             }
             byte[] bytes = new byte[body.readableBytes()];

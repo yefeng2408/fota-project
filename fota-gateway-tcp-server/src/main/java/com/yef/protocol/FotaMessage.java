@@ -4,7 +4,7 @@ public interface FotaMessage {
 
     byte getMessageType();
 
-    String getImei();
+    String imei();
 
     Long getTaskId();
 }

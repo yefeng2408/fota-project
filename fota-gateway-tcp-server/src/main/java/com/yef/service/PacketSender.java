@@ -5,6 +5,11 @@ import com.yef.session.DeviceSession;
 import com.yef.session.SessionManager;
 import org.springframework.stereotype.Service;
 
+/**
+ * @description: 统一发上行消息
+ * @author: 叶丰
+ * @date: 2026/4/17 09:35
+ */
 @Service
 public class PacketSender {
 

@@ -30,7 +30,7 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
         }
 
         FotaMessage message = (FotaMessage) msg;
-        String imei = message.getImei();
+        String imei = message.imei();
         if (imei == null || imei.isBlank()) {
             System.out.println("[DeviceIdentityHandler] message without imei, close channel");
             ctx.close();

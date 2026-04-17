@@ -18,6 +18,7 @@ public final class FotaProtocol {
     public static final byte DEVICE_BOOT_UP = 0x10;
     public static final byte UPGRADE_REQUEST = (byte) 0x81;
     public static final byte UPGRADE_PACKET = (byte) 0x82;
+    public static final byte PLATFORM_ACK = (byte) 0x83;
     public static final byte CANCEL_UPGRADE = (byte) 0x87;
     public static final byte ACK_TYPE_UPGRADE_REQUEST = 1;
     public static final byte ACK_TYPE_PACKET = 2;
@@ -42,7 +43,7 @@ public final class FotaProtocol {
     public record Frame(byte version, String imei, long timestamp, int seqId, byte messageType, byte[] body, int crc16) {
     }
 
-    public record DeviceBootUp(String imei, String firmwareVersion, String deviceType) implements Message {
+    public record DeviceBootUpDTO(String imei, String firmwareVersion, String deviceType) implements Message {
         @Override
         public byte messageType() {
             return DEVICE_BOOT_UP;
@@ -56,8 +57,16 @@ public final class FotaProtocol {
         }
     }
 
-    public record UpgradeRequest(String imei, long taskId, long firmwareId, int totalPacket, int chunkSize,
-                                 long fileSize, byte[] md5) implements Message {
+    //升级包DTO
+    public record UpgradeRequestDTO(String imei,
+                                 long taskId,
+                                 long firmwareId,
+                                 String firmwareName,
+                                 String firmwareVersionName,
+                                 int totalPacket,
+                                 int chunkSize,
+                                 long fileSize,
+                                 byte[] md5) implements Message {
         @Override
         public byte messageType() {
             return UPGRADE_REQUEST;
@@ -68,7 +77,8 @@ public final class FotaProtocol {
         }
     }
 
-    public record UpgradePacket(String imei, long taskId, int packetNo, int totalPacket,
+
+    public record UpgradePacketDTO(String imei, long taskId, int packetNo, int totalPacket,
                                 byte[] chunkData) implements Message {
         @Override
         public byte messageType() {
@@ -99,17 +109,24 @@ public final class FotaProtocol {
      * @param imei
      * @param taskId
      * @param result 0成功 1失败
-     * @param errorCode 0正常 2001错误
+     * @param errorCode 0正常，其他值表示失败原因
      * @param costTime 升级过程中的分包总耗时。单位：秒
      */
-    public record UpgradeResult(String imei, long taskId, byte result, int errorCode, int costTime) implements Message {
+    public record UpgradeResultDTO(String imei, long taskId, byte result, int errorCode, int costTime) implements Message {
         @Override
         public byte messageType() {
             return UPGRADE_RESULT;
         }
     }
 
-    public record CancelUpgrade(String imei, long taskId, byte reason) implements Message {
+    public record PlatformAckDTO(String imei, long taskId, byte refMessageType, byte ackStatus, byte reasonCode) implements Message {
+        @Override
+        public byte messageType() {
+            return PLATFORM_ACK;
+        }
+    }
+
+    public record CancelUpgradeDTO(String imei, long taskId, byte reason) implements Message {
         @Override
         public byte messageType() {
             return CANCEL_UPGRADE;
@@ -139,6 +156,22 @@ public final class FotaProtocol {
     public static void writeString(ByteBuf out, String value) {
         byte[] bytes = value == null ? new byte[0] : value.getBytes(StandardCharsets.UTF_8);
         out.writeShort(bytes.length);
+        out.writeBytes(bytes);
+    }
+
+    public static String readStringWithByteLength(ByteBuf in) {
+        int length = in.readUnsignedByte();
+        byte[] bytes = new byte[length];
+        in.readBytes(bytes);
+        return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    public static void writeStringWithByteLength(ByteBuf out, String value) {
+        byte[] bytes = value == null ? new byte[0] : value.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > 255) {
+            throw new IllegalArgumentException("string too long for uint8 length");
+        }
+        out.writeByte(bytes.length);
         out.writeBytes(bytes);
     }
 

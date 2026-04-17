@@ -274,13 +274,18 @@ function canStartUpgrade(row) {
 
 
 async function startUpgrade(row) {
-  const data = await request.post('/api/upgrade-task/start', { imei: row.imei })
-    if(data.taskId){
-      ElMessage.success(data.message)
-    } else {
-      console.log('升级接口返回异常:', data)
-      ElMessage.error('升级失败，请稍后重试')
+  try {
+    const taskId = await request.post('/api/upgrade-task/start', { imei: row.imei })
+    if (taskId !== undefined && taskId !== null) {
+      ElMessage.success(`已发起升级请求，任务ID：${taskId}`)
+      await loadDevices()
+      return
     }
+    console.log('升级接口返回异常:', taskId)
+    ElMessage.error('升级失败，请稍后重试')
+  } catch (error) {
+    console.error('升级接口调用失败:', error)
+  }
 }
 
 function cancelUpgrade(row) {

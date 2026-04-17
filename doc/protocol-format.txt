@@ -22,10 +22,16 @@
 | tail (1 byte)        | uint8       | 0x5D 包尾标识符                  |
 -----------------------------------------------------------------------
 
+
 body结构：
+------------下行消息的body结构--------------------------
 🟢 1️⃣ 升级请求（messageType = 0x81）
     taskId        (8 byte)  long 升级任务ID
     firmwareId    (8 byte)  long 固件ID
+    firmwareNameLen (1 byte) byte 固件包名称长度
+    firmwareName  (N byte)  byte[] 固件包名称
+    firmwareVersionLen (1 byte)  byte 固件包版本号长度
+    firmwareVersionName (N byte) byte[] 固件包版本名称
     totalPacket   (4 byte)  int 总包数
     chunkSize     (4 byte)  int 分包大小（最后一次分包可能小于分包大小）
     fileSize      (8 byte)  long 文件总大小
@@ -33,72 +39,85 @@ body结构：
 
 🟢 2️⃣ 分包数据（messageType = 0x82）🔥核心
     taskId        (8 byte)  long 升级任务ID
-    packetNo      (4 byte)
-    totalPacket   (4 byte)
-    chunkLength   (4 byte)
-    chunkData     (N byte)
+    packetNo      (4 byte)  int 分包序号
+    totalPacket   (4 byte)  int 总包数
+    chunkLength   (4 byte)  int 固件包分片的长度
+    chunkData     (N byte)  byte[] 固件包分片数据
 
-🟢 3️⃣ ACK确认（messageType = 0x03） 多语义 ACK（Multi-semantic ACK）
+🟢 3️⃣平台ACK确认（messageType = 0x83）网关收到设备上行消息，对设备做出通用应答
+    taskId         (8 byte)  long  关联任务ID，🔥注意：非升级场景可为0。例如给0x10做应答，则taskId为 0
+    refMessageType (1 byte)  uint8 被确认的原始上行消息类型
+    ackStatus      (1 byte)  uint8 确认结果（0=成功收到 1=拒绝/失败）
+    reasonCode     (1 byte)  uint8 原因码（成功时为0，失败时可扩展）
+        🔥refMessageType 类型说明：
+            表明这条 0x83 是在确认哪一种设备上行消息。
+            例如：
+                •   0x10：表示确认 DeviceBootUp。
+                •   0x06：表示确认 UpgradeResult
+            这是 0x83 body 里最关键的字段。
+
+        ackStatus 类型说明：
+            0 = ACK_OK        平台已成功接收并处理
+            1 = ACK_REJECT    平台拒绝/处理失败
+            当前阶段甚至几乎只会用到 0。 但保留 1 很有扩展性。
+
+        🔥reasonCode 类型说明：
+            0 = NONE
+            1 = UNKNOWN_MESSAGE
+            2 = TASK_NOT_FOUND
+            3 = DUPLICATE_RESULT
+            4 = INVALID_STATE
+            成功就填 0，失败暂时统一填 1
+
+
+🟠 4️⃣CancelUpgrade（messageType = 0x87）
+    taskId        (8 byte)  任务Id
+    reason        (1 byte)  取消原因（0=用户取消。目前就只有用户手动点击取消。因为0x07是用户在平台主动点击下发的取消升级指令）
+
+
+
+
+🟢 5️⃣DeviceBootUp（messageType = 0x10）
+    currentFirmwareVersionLength  (1 byte)  当前固件版本号长度
+    currentFirmwareVersion        (N byte)  当前固件版本号，UTF-8字符串，例如 v1.0.0
+    deviceTypeLen				  (1 byte)  设备类型长度
+    deviceType					  (N byte)  设备类型
+        🔥说明：
+        - 设备建立连接后发送，仅发送一次
+        - 平台收到后更新设备在线状态
+        - 平台收到后可回填 device.current_firmware_version
+
+
+
+🟢 5️⃣设备ACK确认（messageType = 0x03） 针对平台下发指令的多语义 设备ACK（Multi-semantic ACK）。
+    taskId        (8 byte) 任务Id
+    packetNo      (4 byte) 分包序号
+    ackType       (1 byte) 应答类型
+        ackType 类型说明：
+        ackType =1        UPGRADE_REQUEST_ACK      （上行消息。对应着下行0x81消息类型的ACK）
+        ackType =2        PACKET_ACK               （上行消息。对应着下行0x82消息类型的ACK）
+        ackType =4        CANCEL_ACK               （上行消息。对应着下行0x87消息类型的ACK）
+        ackType =5        HEARTBEAT                 (上行消息。平台无需回复设备的心跳消息)
+            说明：
+            - packetNo 在 ackType=1（升级请求ACK）时可为0
+            - packetNo 在分包ACK时必须对应具体分包序号
+            - PACKET_LAST_ACK 用于通知平台“分包已全部接收完成”，但不代表升级成功
+
+🔴 6️⃣FAIL失败（messageType = 0x04）
     taskId        (8 byte)
     packetNo      (4 byte)
-    ackType       (1 byte)
+    errorCode     (1 byte) 1以上的值（包含1）都是网关层面的网络，掉线，等失败原因。参考类定义：/Users/fengye/IdeaProjects/fota-project/fota-gateway-tcp-server/src/main/java/com/yef/protocol/UpgradeFailErrorCode.java
 
-                  ackType 类型说明：
-                      ackType =1        UPGRADE_REQUEST_ACK      （上行消息。对应着下行0x81消息类型的ACK）
-                      ackType =2        PACKET_ACK               （上行消息。对应着下行0x82消息类型的ACK）
-                      ackType =4        CANCEL_ACK               （上行消息。对应着下行0x87消息类型的ACK）
-                      ackType =5        HEARTBEAT                 (上行消息。平台无需回复设备的心跳消息)
-                  说明：
-                      - packetNo 在 ackType=1（升级请求ACK）时可为0
-                      - packetNo 在分包ACK时必须对应具体分包序号
-                      - PACKET_LAST_ACK 用于通知平台“分包已全部接收完成”，但不代表升级成功
-
-🔴 4️⃣ FAIL失败（messageType = 0x04）
-    taskId        (8 byte)
-    packetNo      (4 byte)
-    errorCode     (1 byte) 1以上的值（包含1）都是网关层面的网络，掉线，等失败原因，后续定义一个枚举值范围【比方说1至5】
-
-🟡 5️⃣ Heartbeat（messageType = 0x05）
+🟡 7⃣ Heartbeat（messageType = 0x05）
     心跳包body无任何内容
 
-🟢 6️⃣ UpgradeResult（messageType = 0x06）🔥最终结果
+🟢 8⃣ UpgradeResult（messageType = 0x06）🔥最终结果
     taskId        (8 byte)
     result        (1 byte)  升级结果（0=成功 1=失败）
     errorCode     (1 byte)  失败原因（成功时为0）
     costTime      (4 byte)  升级耗时（秒，可选）
 
-🟠 7️⃣ CancelUpgrade（messageType = 0x87）
-    taskId        (8 byte)
-    reason        (1 byte)  取消原因（0=用户取消。目前就只有用户手动点击取消。因为0x07是用户在平台主动点击下发的取消升级指令）
 
-
-
-messageType类型的详细职责描述如下（区分上行 / 下行）：
-    - 0x00 ~ 0x7F：设备上行消息（Device → Platform）
-    - 0x80 ~ 0xFF：平台下行消息（Platform → Device）
-
-    ---------------- 平台下行（Platform → Device）----------------
-    0x81 UpgradeRequest       （开始升级）下行消息：用户平台点击‘开始升级’按钮，主动给设备发升级请求消息
-                               平台发送 0x81指令,设备收到该指令，并且对平台做出上行ACK(messageType = 0x03)应答。平台收到ackType =1 后。
-                               平台才允许将 upgrade_task.status 从 UPGRADE_REQUESTED 更新为 UPGRADING
-
-
-    0x82 UpgradePacket         平台开始发送下行消息 0x82 UpgradePacket 分包数据。
-
-    0x87 CancelUpgrade         （取消升级🔥）用户平台人工主动点击“取消升级”按钮，下发取消升级指令
-
-
-    ---------------- 设备上行（Device → Platform）----------------
-    0x01 DeviceBootUpMessage   （设备上线）NettyClient连接上 NettyServer 后发送上线通知包（只在连接上线发送一次）
-
-    0x03 ACK                   （确认响应）设备对平台指令或分包的确认（通过 ackType 区分语义）
-
-    0x04 FAIL                  （分包失败）设备回复升级失败。比如说：在upgrading过程中，设备此时接受到的分包(chunkData)crc16计算结果与本次body封装的crc16结果不一致
-
-    0x05 Heartbeat             （心跳）设备定时上报，维持在线状态，防止被 IdleStateHandler 误踢下线
-
-    0x06 UpgradeResult         （最终结果🔥）设备完成升级后上报结果（成功 / 失败）
------------------------------------------------------------------
 
 
 messageType 类型文档定义：
@@ -110,22 +129,27 @@ messageType 类型文档定义：
 | 0x80 ~ 0xFF     | Platform → Device       | 平台下行消息             |
 ---------------------------------------------------------------------------
 
-
 --------------------------- 平台下行（Platform → Device） --------------------
 ---------------------------------------------------------------------------
 | messageType | 名称              | 说明                                     |
 ---------------------------------------------------------------------------
-| 0x81        | UpgradeRequest    | 开始升级指令                              |
+|             |                   | 开始升级指令                              |
 |             |                   | 平台触发升级流程，下发固件元信息             |
-|             |                   | 设备收到后需返回 ACK(ackType=1)            |
+| 0x81        |  UpgradeRequest   | 设备收到后需返回 ACK(ackType=1)            |
 |             |                   | 平台收到 ACK 后，状态进入 UPGRADING         |
 ---------------------------------------------------------------------------
-| 0x82        | UpgradePacket     | 固件分包数据                              |
-|             |                   | 平台按顺序发送分包（packetNo递增）           |
+|             |                   | 固件分包数据                              |
+| 0x82        | UpgradePacket     | 平台按顺序发送分包（packetNo递增）           |
 |             |                   | 设备逐包返回 ACK(ackType=2)               |
 ---------------------------------------------------------------------------
-| 0x87        | CancelUpgrade     | 取消升级指令                              |
-|             |                   | 用户手动触发取消升级                        |
+|             |                   | 通用应答【平台回复设备】                    |
+|             |                   | 平台对设备关键上行通知消息的确认响应。        |
+| 0x83        | Platform ACK      | 当前主要用于确认：                         |
+|             |                   |   1. DeviceBootUp（0x10）                |
+|             |                   |   2. UpgradeResult（0x06）               |
+---------------------------------------------------------------------------
+|             |                   | 取消升级指令                              |
+| 0x87        | CancelUpgrade     | 用户手动触发取消升级                        |
 |             |                   | 设备收到后应停止升级并返回 ACK(ackType=4)    |
 ---------------------------------------------------------------------------
 
@@ -134,16 +158,16 @@ messageType 类型文档定义：
 ---------------------------------------------------------------------------
 | messageType | 名称              | 说明                                    |
 ---------------------------------------------------------------------------
-| 0x01        | DeviceBootUp      | 设备上线通知                             |
+| 0x10        | DeviceBootUp      | 设备上线通知                             |
 |             |                   | 建立连接后发送，仅发送一次                  |
 ---------------------------------------------------------------------------
-| 0x03        | ACK               | 通用确认响应                              |
+| 0x03        | Device ACK        | 通用应答【设备回复平台】                    |
 |             |                   | 通过 ackType 区分具体语义                  |
 |             |                   | 用于 UpgradeRequest / UpgradePacket 等确认|
 ---------------------------------------------------------------------------
 | 0x04        | FAIL              | 分包失败                                  |
 |             |                   | 分包校验失败（如 CRC 校验不通过）            |
----------------------------------------------------------------------------
+-----------------------------------------------------------------------------｜
 | 0x05        | Heartbeat         | 心跳包                                    |
 |             |                   | 定时上报，维持连接                          |
 |             |                   | 平台无需回复                               |
@@ -151,6 +175,11 @@ messageType 类型文档定义：
 | 0x06        | UpgradeResult     | 升级最终结果                               |
 |             |                   | 升级完成后上报（成功 / 失败）                |
 ---------------------------------------------------------------------------
+
+
+
+
+
 
 
 

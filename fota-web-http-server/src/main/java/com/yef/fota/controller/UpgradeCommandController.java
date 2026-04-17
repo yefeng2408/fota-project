@@ -14,6 +14,7 @@ import com.yef.fota.service.FirmwarePackageService;
 import com.yef.fota.service.UpgradeTaskService;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -75,6 +76,14 @@ public class UpgradeCommandController {
         if (firmware == null) {
             throw new BusinessException("目标固件不存在");
         }
+
+        if (!StringUtils.hasText(firmware.getFileName())) {
+            throw new IllegalArgumentException("固件文件名不能为空");
+        }
+        if (!StringUtils.hasText(firmware.getVersion())) {
+            throw new IllegalArgumentException("固件版本号不能为空");
+        }
+
         Long taskId = upgradeTaskService.startUpgrade(device, firmware);
         //TODO========
         //这里如何拿到本次0x81的应答ack呢【messageType = 0x03，ackType =1】？

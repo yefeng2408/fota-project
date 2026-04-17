@@ -23,7 +23,7 @@
           <template #title>设备管理</template>
           <el-menu-item index="/devices">设备列表</el-menu-item>
           <el-menu-item index="/device-groups">设备分组</el-menu-item>
-          <el-menu-item index="/device-firmware-bindings">已绑定固件</el-menu-item>
+          <el-menu-item index="/device-firmware-bindings">历史升级固件</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="firmware">
           <template #title>固件管理</template>
