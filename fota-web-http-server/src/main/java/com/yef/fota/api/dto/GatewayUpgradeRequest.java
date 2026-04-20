@@ -1,5 +1,6 @@
 package com.yef.fota.api.dto;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import lombok.Data;
 import lombok.ToString;
 
@@ -23,8 +24,18 @@ public class GatewayUpgradeRequest {
 
     private Long firmwareId;
     private Integer chunkSize;
-    private Integer chunkCount;
+    private Integer totalPacket;
     private Long fileSize;
     private String md5;
+
+    /**
+     * MinIO桶名称
+     */
+    private String bucketName;
+
+    /**
+     * MinIO对象名
+     */
+    private String objectName;
 
 }

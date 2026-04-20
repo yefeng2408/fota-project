@@ -64,7 +64,7 @@ public class MockDeviceClient implements SmartLifecycle {
     public MockDeviceClient(
             @Value("${netty.device-gateway-server.host:127.0.0.1}") String configuredHost,
             @Value("${netty.device-gateway-server.port:7611}") int configuredPort,
-            @Value("${mock.device.imei:56756756}") String configuredImei,
+            @Value("${mock.device.imei:66666666}") String configuredImei,
             MinioClient minioClient) {
         this.configuredHost = configuredHost;
         this.configuredPort = configuredPort;
@@ -214,11 +214,6 @@ public class MockDeviceClient implements SmartLifecycle {
 
             //handle 0x82
             if (msg instanceof FotaProtocol.UpgradePacketDTO packet) {
-                handleUpgradePacket(ctx, packet);
-                return;
-            }
-            //handle 0x87
-            if (msg instanceof FotaProtocol.CancelUpgradeDTO cancelUpgrade) {
                 /**
                  * 收包完成。做以下几件事情：
                  *              step1-> merge
@@ -226,6 +221,13 @@ public class MockDeviceClient implements SmartLifecycle {
                  *              step2-> 发 UpgradeResult(0x06)
                  *              step3-> 清空上下文
                  */
+                handleUpgradePacket(ctx, packet);
+                //模拟设备处理耗时。也是为了更好地测试 观察分包过程
+                Thread.sleep(1000);
+                return;
+            }
+            //handle 0x87
+            if (msg instanceof FotaProtocol.CancelUpgradeDTO cancelUpgrade) {
                 ctx.writeAndFlush(new FotaProtocol.Ack(deviceImei, cancelUpgrade.taskId(), 0, FotaProtocol.ACK_TYPE_CANCEL));
                 //等待GC回收。避免占用内存
                 upgradeContext = null;
@@ -274,7 +276,7 @@ public class MockDeviceClient implements SmartLifecycle {
             //将收到的0x82指令中的每一个固件分包数据写入临时内存
             upgradeContext.chunks().putIfAbsent(packet.packetNo(), packet.chunkData());
             ctx.writeAndFlush(new FotaProtocol.Ack(deviceImei, packet.taskId(), packet.packetNo(), FotaProtocol.ACK_TYPE_PACKET));
-            log.info("MockDevice 已接收分包，taskId={}，packetNo={}/{}", packet.taskId(), packet.packetNo(), packet.totalPacket());
+            log.info(">>>>>>>>>>>>>>>>>MockDevice 已接收分包，taskId={}，packetNo={}/{}", packet.taskId(), packet.packetNo(), packet.totalPacket());
 
             if (upgradeContext.chunks().size() == upgradeContext.totalPacket()) {
                 byte[] firmware = merge(upgradeContext);
@@ -302,6 +304,17 @@ public class MockDeviceClient implements SmartLifecycle {
                 } catch (Exception e) {
                     log.error("设备侧固件上传minio失败，taskId={}", packet.taskId(), e);
                 }
+
+                //收到完整包,模拟mcu写入flush
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                //上报升级结果
+                FotaProtocol.UpgradeResultDTO upgradeResult =new FotaProtocol.UpgradeResultDTO(deviceImei, packet.taskId(), (byte) 0,0,0);
+                ctx.writeAndFlush(upgradeResult);
+
                 /*
                  * 当前 mock client 会将所有分包暂存在内存中，升级完成后需要释放上下文引用，
                  * 让 chunks 中缓存的 byte[] 分片后续可以被 GC 回收，避免长时间持有导致堆内存膨胀。

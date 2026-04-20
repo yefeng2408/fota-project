@@ -24,7 +24,7 @@
         <el-table-column prop="fileSize" label="大小" width="110" />
         <el-table-column prop="md5" label="MD5" min-width="240" show-overflow-tooltip />
         <el-table-column prop="chunkSize" label="分包大小" width="120" />
-        <el-table-column prop="chunkCount" label="分包数量" width="120" />
+        <el-table-column prop="totalPacket" label="分包数量" width="120" />
         <el-table-column prop="status" label="状态" width="90" />
         <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
         <el-table-column label="操作" width="120" fixed="right">

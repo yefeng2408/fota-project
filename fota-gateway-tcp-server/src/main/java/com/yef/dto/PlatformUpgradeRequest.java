@@ -21,8 +21,16 @@ public class PlatformUpgradeRequest {
     private String firmwareVersionName;
     private Long firmwareId;
     private Integer chunkSize;
-    private Integer chunkCount;
+    private Integer totalPacket;
     private Long fileSize;
     private String md5;
+    /**
+     * MinIO桶名称
+     */
+    private String bucketName;
 
+    /**
+     * MinIO对象名
+     */
+    private String objectName;
 }

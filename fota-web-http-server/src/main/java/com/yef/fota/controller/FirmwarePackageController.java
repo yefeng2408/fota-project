@@ -10,10 +10,7 @@ import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.exception.BusinessException;
 import com.yef.fota.service.FirmwarePackageService;
 import com.yef.fota.util.FileDigestUtils;
-import io.minio.GetPresignedObjectUrlArgs;
-import io.minio.MinioClient;
-import io.minio.PutObjectArgs;
-import io.minio.RemoveObjectArgs;
+import io.minio.*;
 import io.minio.http.Method;
 
 import java.io.IOException;
@@ -91,7 +88,8 @@ public class FirmwarePackageController {
         entity.setFileUrl(objectName);
         entity.setFileSize(file.getSize());
         entity.setChunkSize(chunkSize);
-        entity.setChunkCount((int) Math.ceil(file.getSize() * 1.0 / chunkSize));
+        //entity.setChunkCount((int) Math.ceil(file.getSize() * 1.0 / chunkSize));
+        entity.setTotalPacket((int) Math.ceil(file.getSize() * 1.0 / chunkSize));
         entity.setForceUpgrade(forceUpgrade);
         entity.setStatus(status);
         entity.setRemark(remark);
@@ -99,7 +97,7 @@ public class FirmwarePackageController {
         entity.setUpdatedAt(LocalDateTime.now());
 
         try (InputStream uploadInputStream = file.getInputStream()) {
-            minioClient.putObject(
+            ObjectWriteResponse resp = minioClient.putObject(
                     PutObjectArgs.builder()
                             .bucket(minioBucket)
                             .object(objectName)
@@ -107,10 +105,11 @@ public class FirmwarePackageController {
                             .contentType(file.getContentType())
                             .build()
             );
+            entity.setBucketName(resp.bucket());
+            entity.setObjectName(resp.object());
         } catch (Exception e) {
             throw new BusinessException("上传固件到 MinIO 失败: " + e.getMessage());
         }
-
         try (InputStream md5InputStream = file.getInputStream()) {
             entity.setMd5(FileDigestUtils.md5(md5InputStream));
         }
@@ -166,7 +165,8 @@ public class FirmwarePackageController {
         vo.setDownloadUrl(buildDownloadUrl(entity.getFileUrl()));
         vo.setFileSize(entity.getFileSize());
         vo.setChunkSize(entity.getChunkSize());
-        vo.setChunkCount(entity.getChunkCount());
+        //vo.setChunkCount(entity.getChunkCount());
+        vo.setTotalPacket(entity.getTotalPacket());
         vo.setMd5(entity.getMd5());
         vo.setForceUpgrade(entity.getForceUpgrade());
         vo.setStatus(entity.getStatus());

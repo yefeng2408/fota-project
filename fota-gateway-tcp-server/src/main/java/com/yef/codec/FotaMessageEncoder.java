@@ -1,17 +1,8 @@
 package com.yef.codec;
 
 import com.yef.exception.FotaProtocolException;
-import com.yef.protocol.AckMessage;
-import com.yef.protocol.CancelUpgradeMessage;
-import com.yef.protocol.DeviceBootUpMessage;
-import com.yef.protocol.FailMessage;
-import com.yef.protocol.FotaMessage;
-import com.yef.protocol.FotaProtocolConstants;
-import com.yef.protocol.HeartbeatMessage;
-import com.yef.protocol.UpgradePacketMessage;
-import com.yef.protocol.UpgradeRequestMessage;
-import com.yef.protocol.UpgradeResultMessage;
-import com.yef.protocol.out.DeviceBootUpMessageAck;
+import com.yef.protocol.*;
+import com.yef.protocol.outMsg.DeviceBootUpMessageAck;
 import com.yef.util.Crc16Utils;
 import com.yef.util.ProtocolBodyUtils;
 import io.netty.buffer.ByteBuf;
@@ -20,7 +11,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 
 /**
- * @description: 网关出站编码，提前将响应设备的ACK消息格式提前组装
+ * @description: 网关出站编码，提前将响应设备的ACK消息格式提前组装。主要是给上行消息做应答
  * @author: 叶丰
  * @date: 2026/4/17 18:22
  */
@@ -53,11 +44,7 @@ public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
     private byte[] encodeBody(FotaMessage msg) {
         ByteBuf body = Unpooled.buffer();
         try {
-            if (msg instanceof DeviceBootUpMessage) {
-                DeviceBootUpMessage message = (DeviceBootUpMessage) msg;
-                ProtocolBodyUtils.writeUtf8WithByteLength(body, message.firmwareVersion());
-                ProtocolBodyUtils.writeUtf8WithByteLength(body, message.deviceType());
-            } else if (msg instanceof DeviceBootUpMessageAck) {
+            if (msg instanceof DeviceBootUpMessageAck) {
                 DeviceBootUpMessageAck message = (DeviceBootUpMessageAck) msg;
                 body.writeLong(message.taskId());
                 body.writeByte(message.refMessageType());
@@ -97,16 +84,20 @@ public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
                 body.writeLong(message.getTaskId());
                 body.writeInt(message.getPacketNo());
                 body.writeByte(message.getErrorCode());
-            } else if (msg instanceof UpgradeResultMessage) {
+            } else
+
+           /* if (msg instanceof UpgradeResultMessage) {
                 UpgradeResultMessage message = (UpgradeResultMessage) msg;
                 body.writeLong(message.getTaskId());
                 body.writeByte(message.getResult());
                 body.writeByte(message.getErrorCode());
                 body.writeInt(message.getCostTime());
-            } else if (msg instanceof CancelUpgradeMessage) {
-                CancelUpgradeMessage message = (CancelUpgradeMessage) msg;
-                body.writeLong(message.getTaskId());
-                body.writeByte(message.getReason());
+            } else*/ if (msg instanceof CancelUpgradeMessage) {
+                DeviceBootUpMessageAck message = (DeviceBootUpMessageAck) msg;
+                body.writeLong(message.taskId());
+                body.writeByte(message.refMessageType());
+                body.writeByte(message.ackStatus());
+                body.writeByte(message.reasonCode());
             } else {
                 throw new FotaProtocolException("unsupported outbound message: " + msg.getClass().getName());
             }

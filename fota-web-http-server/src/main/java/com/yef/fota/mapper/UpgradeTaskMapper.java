@@ -2,9 +2,9 @@ package com.yef.fota.mapper;
 
 import com.yef.fota.entity.UpgradeTaskEntity;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import org.apache.ibatis.annotations.Mapper;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.*;
+
+import java.util.List;
 
 /**
  * <p>
@@ -32,4 +32,10 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
                                 @Param("status") String status,
                                 @Param("version") Long version,
                                 @Param("eventTime") Long eventTime);
+
+    @Delete("delete from upgrade_task where task_id=#{taskId}")
+    int delByTaskId(@Param("taskId") Long taskId);
+
+    @Select("select * from upgrade_task")
+    List<UpgradeTaskEntity> selectAll();
 }

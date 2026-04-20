@@ -15,7 +15,7 @@ import io.netty.handler.timeout.IdleStateEvent;
 import org.springframework.stereotype.Component;
 
 /**
- * @description: 这里统一写出站消息
+ * @description: 统一写出站消息
  * @author: 叶丰
  * @date: 2026/4/17 18:24
  */
@@ -35,11 +35,24 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
         if (msg instanceof DeviceBootUpMessage) {
             upgradeExecutor.onDeviceBootUp((DeviceBootUpMessage) msg, deviceId);
         } else if (msg instanceof HeartbeatMessage) {
-            upgradeExecutor.handleHeartbeat((HeartbeatMessage) msg, deviceId);
+            System.out.println("[UpgradeDispatchHandler] heartbeat ignored, deviceId=" + deviceId);
         } else if (msg instanceof AckMessage) {
-            upgradeExecutor.handleAck((AckMessage) msg, deviceId);
+            AckMessage ack = (AckMessage) msg;
+            System.out.println("[UpgradeDispatchHandler] device ACK ignored, imei=" + ack.imei()
+                    + ", deviceId=" + deviceId
+                    + ", taskId=" + ack.getTaskId()
+                    + ", packetNo=" + ack.getPacketNo());
+            if(ack.getAckType()==1 || ack.getAckType()==2){
+                //收到0x81的应答。开始对固件进行分包下发0x82消息
+                upgradeExecutor.sendSpiltPacket(ack);
+            }
         } else if (msg instanceof FailMessage) {
-            upgradeExecutor.handleFail((FailMessage) msg, deviceId);
+            FailMessage fail = (FailMessage) msg;
+            System.out.println("[UpgradeDispatchHandler] device FAIL ignored, imei=" + fail.imei()
+                    + ", deviceId=" + deviceId
+                    + ", taskId=" + fail.getTaskId()
+                    + ", packetNo=" + fail.getPacketNo()
+                    + ", errorCode=" + fail.getErrorCode());
         } else if (msg instanceof UpgradeResultMessage) {
             upgradeExecutor.handleUpgradeResult((UpgradeResultMessage) msg, deviceId);
         } else {

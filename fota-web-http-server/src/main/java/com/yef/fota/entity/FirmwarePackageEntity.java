@@ -69,8 +69,8 @@ public class FirmwarePackageEntity implements Serializable {
     /**
      * chunk后的总的个数
      */
-    @TableField("chunk_count")
-    private Integer chunkCount;
+    @TableField("total_packet")
+    private Integer totalPacket;
 
     /**
      * MD5值
@@ -107,4 +107,17 @@ public class FirmwarePackageEntity implements Serializable {
      */
     @TableField("updated_at")
     private LocalDateTime updatedAt;
+
+    /**
+     * MinIO桶名称
+     */
+    @TableField("bucket_name")
+    private String bucketName;
+
+    /**
+     * MinIO对象名
+     */
+    @TableField("object_name")
+    private String objectName;
+
 }

@@ -73,9 +73,11 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         gatewayRequest.setFirmwareVersionName(firmware.getVersion());
 
         gatewayRequest.setChunkSize(firmware.getChunkSize());
-        gatewayRequest.setChunkCount(firmware.getChunkCount());
+        gatewayRequest.setTotalPacket(firmware.getTotalPacket());
         gatewayRequest.setFileSize(firmware.getFileSize());
         gatewayRequest.setMd5(firmware.getMd5());
+        gatewayRequest.setBucketName(firmware.getBucketName());
+        gatewayRequest.setObjectName(firmware.getObjectName());
         return gatewayRequest;
     }
 }

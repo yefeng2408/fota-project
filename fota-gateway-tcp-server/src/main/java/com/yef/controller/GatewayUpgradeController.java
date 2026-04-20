@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * @description: 网关暴露给web-http-server的接口，用于ACK平台下发指令的应答
+ * @description: 网关暴露给web-http-server的接口，用于平台下发指令
  * @author: 叶丰
  * @date: 2026/04/16 09:42
  */

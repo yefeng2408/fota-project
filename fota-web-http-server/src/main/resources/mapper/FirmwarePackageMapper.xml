@@ -18,6 +18,9 @@
         <result column="remark" property="remark" />
         <result column="created_at" property="createdAt" />
         <result column="updated_at" property="updatedAt" />
+
+        <result column="bucket_name" property="bucketName" />
+        <result column="object_name" property="objectName" />
     </resultMap>
 
     <!-- 通用查询结果列 -->

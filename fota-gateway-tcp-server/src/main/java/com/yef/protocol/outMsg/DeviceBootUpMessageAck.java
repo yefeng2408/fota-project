@@ -1,4 +1,4 @@
-package com.yef.protocol.out;
+package com.yef.protocol.outMsg;
 
 import com.yef.protocol.FotaMessage;
 import com.yef.protocol.FotaProtocolConstants;
@@ -10,7 +10,7 @@ import com.yef.protocol.FotaProtocolConstants;
  */
 public record DeviceBootUpMessageAck(
         String imei,
-        long taskId,
+        Long taskId,
         byte refMessageType,
         byte ackStatus,
         byte reasonCode

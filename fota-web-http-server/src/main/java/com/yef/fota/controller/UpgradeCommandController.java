@@ -1,25 +1,20 @@
 package com.yef.fota.controller;
 
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
-import com.yef.fota.api.dto.GatewayUpgradeRequest;
 import com.yef.fota.api.dto.StartUpgradeRequest;
 import com.yef.fota.api.service.GatewayCommandService;
 import com.yef.fota.common.ApiResponse;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
-import com.yef.fota.entity.UpgradeTaskEntity;
 import com.yef.fota.exception.BusinessException;
 import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.FirmwarePackageService;
 import com.yef.fota.service.UpgradeTaskService;
 import lombok.RequiredArgsConstructor;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import java.time.LocalDateTime;
 
 /**
  *🟢 3️⃣ ACK确认（messageType = 0x03） 多语义 ACK（Multi-semantic ACK）
