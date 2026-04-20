@@ -223,7 +223,7 @@ public class MockDeviceClient implements SmartLifecycle {
                  */
                 handleUpgradePacket(ctx, packet);
                 //模拟设备处理耗时。也是为了更好地测试 观察分包过程
-                Thread.sleep(1000);
+                Thread.sleep(500);
                 return;
             }
             //handle 0x87
@@ -326,6 +326,7 @@ public class MockDeviceClient implements SmartLifecycle {
                  * 加上对象与 Map 节点开销后，实际堆占用可能明显更高。
                  */
                 upgradeContext = null;
+                ctx.close();
             }
         }
 

@@ -59,7 +59,7 @@ public class DeviceVO {
     /**
      * 升级进度
      */
-    private int process;
+    private int progress;
     /**
      * 从redis查询
      */

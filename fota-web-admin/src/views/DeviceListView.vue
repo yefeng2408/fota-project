@@ -61,9 +61,21 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="升级状态" width="90">
+          <el-table-column label="升级状态" width="110">
             <template #default="{ row }">
               <span class="status-text">{{ formatUpgradeStatus(row.deviceUpgradeStatus) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="升级进度" width="160">
+            <template #default="{ row }">
+              <div class="progress-cell">
+                <el-progress
+                  :percentage="normalizeProgress(row.progress)"
+                  :stroke-width="12"
+                  :show-text="true"
+                  :status="progressBarStatus(row)"
+                />
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="100" fixed="right">
@@ -189,6 +201,7 @@ const upgradeStatusTextMap = {
   NO_TASK: '未升级',
   UPGRADE_REQUESTED: '已下发升级请求',
   UPGRADING: '升级中',
+  WAIT_RESULT: '等待升级结果',
   SUCCESS: '升级成功',
   FAIL: '升级失败',
   TIMEOUT: '升级超时',
@@ -242,6 +255,28 @@ function changePage(page) {
 
 function formatUpgradeStatus(status) {
   return upgradeStatusTextMap[status] || status || '-'
+}
+
+function normalizeProgress(value) {
+  const num = Number(value)
+  if (!Number.isFinite(num) || num < 0) {
+    return 0
+  }
+  if (num > 100) {
+    return 100
+  }
+  return Math.round(num)
+}
+
+function progressBarStatus(row) {
+  const status = row.deviceUpgradeStatus
+  if (status === 'SUCCESS' || status === 'DONE') {
+    return 'success'
+  }
+  if (status === 'FAIL' || status === 'TIMEOUT' || status === 'CANCEL_UPGRADE' || status === 'CANCELLED') {
+    return 'exception'
+  }
+  return undefined
 }
 
 function isTruthy(value) {
@@ -381,6 +416,10 @@ onMounted(async () => {
 
 .status-text {
   white-space: nowrap;
+}
+
+.progress-cell {
+  min-width: 120px;
 }
 
 .device-name-cell {

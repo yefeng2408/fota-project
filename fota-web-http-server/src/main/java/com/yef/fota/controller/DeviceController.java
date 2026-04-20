@@ -276,8 +276,12 @@ public class DeviceController {
             }
             String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX+entity.getImei();
             Map<Object, Object> runtimeMap = redisTemplate.opsForHash().entries(runtimeKey);
-            vo.setDeviceUpgradeStatus(String.valueOf(runtimeMap.get("deviceUpgradeStatus")));
-            vo.setProcess(Integer.parseInt(String.valueOf(runtimeMap.get("process"))));
+            if(runtimeMap.containsKey("status")) {
+                vo.setDeviceUpgradeStatus(String.valueOf(runtimeMap.get("status")));
+            }
+           if(runtimeMap.containsKey("progress")) {
+               vo.setProgress(Integer.parseInt(String.valueOf(runtimeMap.get("progress"))));
+           }
             return vo;
         }).collect(Collectors.toList());
     }
