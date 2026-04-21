@@ -13,11 +13,14 @@ services:
       --default-authentication-plugin=mysql_native_password
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
-    ports:
-      - "3306:3306"
     volumes:
       - ./data/mysql:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - fota-net
 
@@ -26,10 +29,13 @@ services:
     container_name: fota-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
-    ports:
-      - "6379:6379"
     volumes:
       - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - fota-net
 
@@ -47,6 +53,11 @@ services:
       - "9001:9001"
     volumes:
       - ./data/minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
       - fota-net
 
@@ -55,9 +66,12 @@ services:
     container_name: fota-web-http-server
     restart: unless-stopped
     depends_on:
-      - mysql
-      - redis
-      - minio
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Shanghai
@@ -76,9 +90,9 @@ services:
       MINIO_BUCKET_NAME: fota-firmware
 
       GATEWAY_HTTP_URL: http://fota-gateway-tcp-server:8081
-      FOTA_JWT_SECRET: your-prod-jwt-secret-change-me
-
       GATEWAY_INTERNAL_BASE_URL: http://fota-gateway-tcp-server:8081
+
+      FOTA_JWT_SECRET: your-prod-jwt-secret-change-me
     ports:
       - "8080:8080"
     networks:
@@ -89,10 +103,14 @@ services:
     container_name: fota-gateway-tcp-server
     restart: unless-stopped
     depends_on:
-      - mysql
-      - redis
-      - minio
-      - fota-web-http-server
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      fota-web-http-server:
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Shanghai
@@ -111,6 +129,7 @@ services:
       MINIO_BUCKET_NAME: fota-firmware
 
       DEVICE_UPGRADE_PUSH_URL: http://fota-web-http-server:8080/internal/device-upgrade/event
+      FOTA_GATEWAY_PORT: 8224
     ports:
       - "8224:8224"
       - "8081:8081"
@@ -122,10 +141,14 @@ services:
     container_name: fota-mock-device-client
     restart: unless-stopped
     depends_on:
-      - fota-gateway-tcp-server
-      - mysql
-      - redis
-      - minio
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      fota-gateway-tcp-server:
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: Asia/Shanghai
@@ -134,9 +157,6 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/fota_web_platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root123456
-
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
 
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
