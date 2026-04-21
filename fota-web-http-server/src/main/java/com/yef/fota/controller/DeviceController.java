@@ -155,6 +155,12 @@ public class DeviceController {
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>().eq(DeviceGroupRelationEntity::getDeviceId, id));
         saveRelation(id, request.getDeviceGroupId());
         upsertDeviceCache(entity);
+        //删除旧的升级任务缓存的key
+        String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + entity.getImei();
+        String lastProgressKey =  runtimeKey + ":lastPushProgress";
+        redisTemplate.delete(runtimeKey);
+        redisTemplate.delete(lastProgressKey);
+
         return ApiResponse.ok(toDeviceVO(entity));
     }
 

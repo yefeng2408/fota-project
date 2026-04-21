@@ -217,19 +217,19 @@ public class MockDeviceClient implements SmartLifecycle {
                 /**
                  * 收包完成。做以下几件事情：
                  *              step1-> merge
-                 *              step2-> md5
-                 *              step2-> 发 UpgradeResult(0x06)
+                 *              step2-> check md5
+                 *              step2-> 上发 UpgradeResult(0x06)
                  *              step3-> 清空上下文
                  */
                 handleUpgradePacket(ctx, packet);
                 //模拟设备处理耗时。也是为了更好地测试 观察分包过程
-                Thread.sleep(300);
+                Thread.sleep(10);
                 return;
             }
             //handle 0x87
             if (msg instanceof FotaProtocol.CancelUpgradeDTO cancelUpgrade) {
                 ctx.writeAndFlush(new FotaProtocol.Ack(deviceImei, cancelUpgrade.taskId(), 0, FotaProtocol.ACK_TYPE_CANCEL));
-                //等待GC回收。避免占用内存
+                //交给GC回收。避免占用内存
                 upgradeContext = null;
                 return;
             }
@@ -282,6 +282,12 @@ public class MockDeviceClient implements SmartLifecycle {
                 byte[] firmware = merge(upgradeContext);
                 //对比md5
                 boolean md5Matched = Arrays.equals(FotaProtocol.md5(firmware), upgradeContext.expectedMd5());
+                //模拟mcu写入flush 耗时场景
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
                 int costTime = (int) ((System.currentTimeMillis() - upgradeContext.startTime()) / 1000);
                 ctx.writeAndFlush(new FotaProtocol.UpgradeResultDTO(deviceImei, packet.taskId(),
                         md5Matched ? (byte) 0 : (byte) 1, md5Matched ? 0 : 4, costTime));
@@ -304,16 +310,6 @@ public class MockDeviceClient implements SmartLifecycle {
                 } catch (Exception e) {
                     log.error("设备侧固件上传minio失败，taskId={}", packet.taskId(), e);
                 }
-
-                //模拟mcu写入flush 耗时场景
-                try {
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                //上报升级结果
-                FotaProtocol.UpgradeResultDTO upgradeResult =new FotaProtocol.UpgradeResultDTO(deviceImei, packet.taskId(), (byte) 0,0,0);
-                ctx.writeAndFlush(upgradeResult);
 
                 /*
                  * 当前 mock client 会将所有分包暂存在内存中，升级完成后需要释放上下文引用，

@@ -188,7 +188,6 @@ public class UpgradeExecutor {
              * 从而实现高频场景下的稳定推送机制。
              */
             //String lastPushTimeKey = runtimeKey + ":lastPushTime";
-
             //String lastTimeStr = redisTemplate.opsForValue().get(lastPushTimeKey)==null?"0":String.valueOf(redisTemplate.opsForValue().get(lastPushTimeKey));
 
             String lastProgressKey = runtimeKey + ":lastPushProgress";
@@ -199,11 +198,16 @@ public class UpgradeExecutor {
             if (progress != lastPushProgress /*||  now - Long.parseLong(lastTimeStr) > 1000*/) {
                 // 更新已推送进度
                 redisTemplate.opsForValue().set(lastProgressKey, String.valueOf(progress));
+
+                String upgradeStatus = nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING";
+                if(Objects.equals("WAIT_RESULT",upgradeStatus )){
+                    Thread.sleep(3000);
+                }
                 // 推送
                 deviceUpgradeEventPushClient.push(
                         new DeviceUpgradeEventRequest(
                                 ack.imei(),
-                                nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING",
+                                upgradeStatus,
                                 progress,
                                 null,
                                 null
