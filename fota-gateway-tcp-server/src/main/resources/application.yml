@@ -8,7 +8,6 @@ netty:
 gateway:
   demo-upgrade:
     enabled: true
-
 spring:
   application:
     name: fota-gateway
@@ -16,7 +15,6 @@ spring:
     host: localhost
     port: 6379
     database: 0
-
 
 # 对象存储服务
 minio:

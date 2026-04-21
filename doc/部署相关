@@ -1,0 +1,8 @@
+#这份 docker-compose.yml 能跑的前提是，你要先把两个 Java 服务和 mock-device 打成镜像。
+
+docker build -t fota-web-http-server:latest ./fota-web-http-server
+docker build -t fota-gateway-tcp-server:latest ./fota-gateway-tcp-server
+docker build -t fota-mock-device-client:latest ./fota-mock-device-client
+
+
+

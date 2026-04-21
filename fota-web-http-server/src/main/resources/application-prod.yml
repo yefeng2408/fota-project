@@ -1,0 +1,64 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: fota-web
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 8
+      connection-timeout: 30000
+
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST}
+      port: ${SPRING_REDIS_PORT}
+      timeout: 5000
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+minio:
+  endpoint: ${MINIO_ENDPOINT}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: ${MINIO_BUCKET_NAME}
+
+  bucket-name: fota-firmware
+  device-bucket-name: device-firmware
+
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+gateway:
+  http:
+    url: ${GATEWAY_HTTP_URL}
+
+forest:
+  backend: okhttp3
+  timeout:
+    connect: 5000
+    read: 20000
+  variables:
+    baseUrl: ${gateway.http.url}
+
+logging:
+  level:
+    root: INFO
+    com.yef: INFO
+
+fota:
+  jwt:
+    secret: ${FOTA_JWT_SECRET}
+    expire-hours: 12
+  file-storage:
+    path: /data/fota/files

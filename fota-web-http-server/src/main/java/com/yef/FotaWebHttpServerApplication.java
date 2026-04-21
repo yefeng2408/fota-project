@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @EnableTransactionManagement
 @ForestScan(basePackages = "com.yef.fota.api.client")
-@SpringBootApplication
+@SpringBootApplication(excludeName = "com.dtflys.forest.springboot.ForestAutoConfiguration")
 public class FotaWebHttpServerApplication {
 
     public static void main(String[] args) {

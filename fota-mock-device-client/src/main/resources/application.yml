@@ -9,10 +9,6 @@ spring:
     url: jdbc:mysql://localhost:3306/fota_web_platform?useSSL=false&serverTimezone=Asia/Shanghai
     username: root
     password: yefeng
-  redis:
-    host: localhost
-    port: 6379
-    database: 1
 
 # 设备侧的对象存储服务
 minio:

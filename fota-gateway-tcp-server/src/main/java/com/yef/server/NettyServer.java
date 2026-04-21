@@ -10,10 +10,12 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.NettyRuntime;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 public class NettyServer implements SmartLifecycle {
 
@@ -35,6 +37,7 @@ public class NettyServer implements SmartLifecycle {
 
     @Override
     public synchronized void start() {
+
         if (running) {
             return;
         }
@@ -55,6 +58,7 @@ public class NettyServer implements SmartLifecycle {
             serverChannel = future.channel();
             running = true;
             System.out.println("Netty server started. listen port = " + getBoundPort());
+
         } catch (Exception e) {
             shutdownGroups();
             throw new RuntimeException("failed to start Netty server", e);
