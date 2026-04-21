@@ -6,8 +6,10 @@ import com.yef.session.SessionManager;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 @ChannelHandler.Sharable
 public class ExceptionHandler extends ChannelInboundHandlerAdapter {
@@ -24,10 +26,10 @@ public class ExceptionHandler extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         String imei = ctx.channel().attr(ChannelAttributes.IMEI).get();
         Long deviceId = ctx.channel().attr(ChannelAttributes.DEVICE_ID).get();
-        System.out.println("[ExceptionHandler] channel exception, imei=" + imei
-                + ", deviceId=" + deviceId + ", cause=" + cause.getMessage());
-        upgradeExecutor.pauseIfUpgrading(imei, deviceId);
+
+        log.warn("[ExceptionHandler] channel exception, imei:{}, cause:{}", imei, cause);
         sessionManager.remove(ctx.channel());
+
         ctx.close();
     }
 }

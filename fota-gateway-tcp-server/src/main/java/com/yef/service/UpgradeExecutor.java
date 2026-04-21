@@ -2,21 +2,20 @@ package com.yef.service;
 
 import com.yef.protocol.*;
 import java.io.InputStream;
-import java.security.MessageDigest;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import com.yef.protocol.outMsg.DeviceBootUpMessageAck;
 import com.yef.protocol.outMsg.UpgradeResultMessageAck;
+import com.yef.req.DeviceUpgradeEventRequest;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.errors.*;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class UpgradeExecutor {
 
@@ -31,17 +30,17 @@ public class UpgradeExecutor {
 
     private final PacketSender packetSender;
 
-    private final boolean demoUpgradeEnabled;
+    private final DeviceUpgradeEventPushClient deviceUpgradeEventPushClient;
 
-    private final Map<String, DemoUpgradeTask> demoTasks = new ConcurrentHashMap<>();
 
     public UpgradeExecutor(StringRedisTemplate redisTemplate, MinioClient minioClient,
                            PacketSender packetSender,
-                           @Value("${gateway.demo-upgrade.enabled:false}") boolean demoUpgradeEnabled) {
+                           DeviceUpgradeEventPushClient deviceUpgradeEventPushClient) {
         this.redisTemplate = redisTemplate;
         this.minioClient = minioClient;
         this.packetSender = packetSender;
-        this.demoUpgradeEnabled = demoUpgradeEnabled;
+        this.deviceUpgradeEventPushClient = deviceUpgradeEventPushClient;
+
     }
 
     //网关对设备开机包的上行消息0x10做出应答【写出站消息】
@@ -55,21 +54,14 @@ public class UpgradeExecutor {
         );
         packetSender.sendToDevice(msg.imei(), messageAck);
 
-        //resumeIfNeeded(message.getImei(), deviceId);
-        //startDemoUpgradeIfNeeded(message.getImei());
     }
-
 
 
     //网关对设备升级结果的上行消息0x06做出应答【写出站消息】
     public void handleUpgradeResult(UpgradeResultMessage message, Long deviceId) {
-        System.out.println("[UpgradeExecutor] upgrade result, imei=" + message.imei()
-                + ", deviceId=" + deviceId
-                + ", taskId=" + message.getTaskId()
-                + ", result=" + message.getResult()
-                + ", errorCode=" + message.getErrorCode()
-                /*+ ", costTime=" + message.getCostTime()*/);
-        demoTasks.remove(message.imei());
+
+        log.info("[UpgradeExecutor] upgrade result. imei:{} ,taskId:{}, result:{}, errorCode:{}"
+                , message.imei(), message.getTaskId(), message.getResult(), message.getErrorCode());
 
         UpgradeResultMessageAck messageAck = new UpgradeResultMessageAck(
                 message.imei(),
@@ -77,9 +69,9 @@ public class UpgradeExecutor {
                 FotaProtocolConstants.MSG_UPGRADE_RESULT,
                 (byte) 0x00,
                 (byte) 0x00
-                );
+        );
         packetSender.sendToDevice(messageAck.imei(), messageAck);
-        //
+
         String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + message.imei();
         Map<String, String> runtimeHash = new HashMap<>();
         long now = System.currentTimeMillis();
@@ -89,56 +81,23 @@ public class UpgradeExecutor {
         runtimeHash.put("lastPacketAt", String.valueOf(now));
         runtimeHash.put("status", "SUCCESS");
         redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
+
+        deviceUpgradeEventPushClient.push(
+                new DeviceUpgradeEventRequest(
+                        message.imei(),
+                        "SUCCESS",
+                        100,
+                        null,
+                        null
+                )
+        );
+
     }
 
-
-    public void pauseIfUpgrading(String imei, Long deviceId) {
-        System.out.println("[UpgradeExecutor] pause upgrade if needed, imei=" + imei + ", deviceId=" + deviceId);
-    }
-
-    public void resumeIfNeeded(String imei, Long deviceId) {
-        System.out.println("[UpgradeExecutor] resume upgrade if needed, imei=" + imei + ", deviceId=" + deviceId);
-    }
-
-//    private void startDemoUpgradeIfNeeded(String imei) {
-//        if (!demoUpgradeEnabled || demoTasks.containsKey(imei)) {
-//            return;
-//        }
-//        byte[] firmware = ("mock-firmware-" + imei + "-" + System.currentTimeMillis()).getBytes(StandardCharsets.UTF_8);
-//        int chunkSize = 16;
-//        int totalPacket = (firmware.length + chunkSize - 1) / chunkSize;
-//        long taskId = System.currentTimeMillis();
-//        DemoUpgradeTask task = new DemoUpgradeTask(taskId, 10001L, firmware, md5(firmware), chunkSize, totalPacket);
-//        demoTasks.put(imei, task);
-//        UpgradeRequestMessage message = new UpgradeRequestMessage(imei, task.taskId, task.firmwareId, task.totalPacket,
-//                task.chunkSize, task.firmware.length, task.md5);
-//        System.out.println("[UpgradeExecutor] demo send 0x81 UpgradeRequest, imei=" + imei + ", taskId=" + taskId);
-//        packetSender.sendToDevice(imei, message);
-//    }
-
-    private void sendNextDemoPacket(String imei, long taskId, int packetNo) {
-        DemoUpgradeTask task = demoTasks.get(imei);
-        if (task == null || task.taskId != taskId || packetNo > task.totalPacket) {
-            return;
-        }
-        int from = (packetNo - 1) * task.chunkSize;
-        int to = Math.min(from + task.chunkSize, task.firmware.length);
-        byte[] chunk = Arrays.copyOfRange(task.firmware, from, to);
-        System.out.println("[UpgradeExecutor] demo send 0x82 UpgradePacket, imei=" + imei
-                + ", taskId=" + taskId + ", packetNo=" + packetNo + "/" + task.totalPacket);
-        packetSender.sendToDevice(imei, new UpgradePacketMessage(imei, taskId, packetNo, task.totalPacket, chunk));
-    }
-
-    private byte[] md5(byte[] data) {
-        try {
-            return MessageDigest.getInstance("MD5").digest(data);
-        } catch (Exception e) {
-            throw new IllegalStateException("md5 failed", e);
-        }
-    }
 
     /**
      * 发送分包数据【0x82】
+     *
      * @param ack
      */
     public void sendSpiltPacket(AckMessage ack) {
@@ -166,7 +125,7 @@ public class UpgradeExecutor {
             nextPacketNo = 1;
         } else if (ack.getAckType() == FotaProtocolConstants.ACK_TYPE_PACKET) {
             nextPacketNo = ack.getPacketNo() + 1;
-            System.out.println("[UpgradeExecutor]---------> send 0x82 UpgradePacket, packetNo=" + packetNo);
+            log.info("[UpgradeExecutor]---------> send 0x82 UpgradePacket, packetNo:{}", packetNo);
         } else {
             return;
         }
@@ -181,6 +140,7 @@ public class UpgradeExecutor {
             return;
         }
 
+        //按 offset读取
         try (InputStream in = minioClient.getObject(
                 GetObjectArgs.builder()
                         .bucket(bucketName)
@@ -203,7 +163,7 @@ public class UpgradeExecutor {
             );
 
             long now = System.currentTimeMillis();
-            int progress = (int) Math.min(100L, ((long) nextPacketNo * 100) / totalPacket);
+            int progress = (int) Math.min(100L, (nextPacketNo * 100) / totalPacket);
 
             Map<String, String> runtimeHash = new HashMap<>();
             runtimeHash.put("offset", String.valueOf(offset));
@@ -216,6 +176,41 @@ public class UpgradeExecutor {
             runtimeHash.put("chunkSize", String.valueOf(chunkSize));
             runtimeHash.put("totalPacket", String.valueOf(totalPacket));
             redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
+
+
+            /*
+             * WebSocketConfig 这个 bean 不能直接注册到 UpgradeExecutor，因为它们属于两个独立服务；
+             * 正确做法是让 gateway 在 sendSpiltPacket 里把升级事件通过内部 HTTP 接口发送给 fota-web-http-server，
+             * 再由 web-http-server 的 WebSocketConfig 广播给前端。
+             *
+             * 在设备升级过程中，由于分包高频推进，progress 计算存在重复值，为避免 WebSocket 推送风暴，
+             * 通过 Redis 记录上一次推送的进度值，并结合时间窗口做限流控制，仅在进度发生变化且满足时间阈值时才触发推送，
+             * 从而实现高频场景下的稳定推送机制。
+             */
+            //String lastPushTimeKey = runtimeKey + ":lastPushTime";
+
+            //String lastTimeStr = redisTemplate.opsForValue().get(lastPushTimeKey)==null?"0":String.valueOf(redisTemplate.opsForValue().get(lastPushTimeKey));
+
+            String lastProgressKey = runtimeKey + ":lastPushProgress";
+
+            String lastProgressStr = redisTemplate.opsForValue().get(lastProgressKey);
+            int lastPushProgress = lastProgressStr == null ? -1 : Integer.parseInt(lastProgressStr);
+
+            if (progress != lastPushProgress /*||  now - Long.parseLong(lastTimeStr) > 1000*/) {
+                // 更新已推送进度
+                redisTemplate.opsForValue().set(lastProgressKey, String.valueOf(progress));
+                // 推送
+                deviceUpgradeEventPushClient.push(
+                        new DeviceUpgradeEventRequest(
+                                ack.imei(),
+                                nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING",
+                                progress,
+                                null,
+                                null
+                        )
+                );
+            }
+
         } catch (Exception e) {
             throw new RuntimeException(
                     "read split packet from minio failed, imei=" + ack.imei()
@@ -227,14 +222,4 @@ public class UpgradeExecutor {
 
     }
 
-
-    private record DemoUpgradeTask(long taskId,
-                                   long firmwareId,
-                                   byte[] firmware,
-                                   byte[] md5,
-                                   int chunkSize,
-                                   int totalPacket) {
-
-
-    }
 }

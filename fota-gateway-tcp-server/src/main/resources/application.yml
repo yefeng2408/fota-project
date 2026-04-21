@@ -28,3 +28,8 @@ minio:
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
+
+#事件推送至http-server
+upgrade:
+  event:
+    push-url: http://localhost:8080/internal/device-upgrade/event

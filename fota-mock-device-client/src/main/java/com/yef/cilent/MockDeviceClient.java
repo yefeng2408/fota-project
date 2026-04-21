@@ -223,7 +223,7 @@ public class MockDeviceClient implements SmartLifecycle {
                  */
                 handleUpgradePacket(ctx, packet);
                 //模拟设备处理耗时。也是为了更好地测试 观察分包过程
-                Thread.sleep(500);
+                Thread.sleep(300);
                 return;
             }
             //handle 0x87
@@ -305,9 +305,9 @@ public class MockDeviceClient implements SmartLifecycle {
                     log.error("设备侧固件上传minio失败，taskId={}", packet.taskId(), e);
                 }
 
-                //收到完整包,模拟mcu写入flush
+                //模拟mcu写入flush 耗时场景
                 try {
-                    Thread.sleep(500);
+                    Thread.sleep(3000);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -326,7 +326,13 @@ public class MockDeviceClient implements SmartLifecycle {
                  * 加上对象与 Map 节点开销后，实际堆占用可能明显更高。
                  */
                 upgradeContext = null;
-                ctx.close();
+                //模拟设备 mcu写入耗时
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                // ctx.close();
             }
         }
 

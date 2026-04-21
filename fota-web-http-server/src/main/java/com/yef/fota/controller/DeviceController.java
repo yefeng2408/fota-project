@@ -17,15 +17,13 @@ import com.yef.fota.service.DeviceGroupRelationService;
 import com.yef.fota.service.DeviceGroupService;
 import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.FirmwarePackageService;
+
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
@@ -97,6 +95,7 @@ public class DeviceController {
 
     /**
      * 新增设备
+     *
      * @param request
      * @return
      */
@@ -116,7 +115,7 @@ public class DeviceController {
         entity.setUpdatedAt(LocalDateTime.now());
         boolean save = deviceService.save(entity);
         saveRelation(entity.getId(), request.getDeviceGroupId());
-        if (save){
+        if (save) {
             upsertDeviceCache(entity);
         }
         return ApiResponse.ok(toDeviceVO(entity));
@@ -137,7 +136,9 @@ public class DeviceController {
         entity.setDeviceName(request.getDeviceName());
         entity.setDeviceType(request.getDeviceType());
         entity.setCurrentFirmwareVersion(request.getCurrentFirmwareVersion());
-        entity.setDeviceUpgradeStatus(StringUtils.hasText(request.getDeviceUpgradeStatus()) ? request.getDeviceUpgradeStatus() : entity.getDeviceUpgradeStatus());
+        if (!Objects.equals(entity.getTargetFirmwareId(), request.getTargetFirmwareId())) {
+            entity.setDeviceUpgradeStatus("NO_TASK");
+        }
         entity.setTargetFirmwareId(request.getTargetFirmwareId());
         entity.setIsBind(resolveBindStatus(request.getTargetFirmwareId()));
         entity.setUpdatedAt(LocalDateTime.now());
@@ -160,6 +161,7 @@ public class DeviceController {
 
     /**
      * 删除设备
+     *
      * @param id
      * @return
      */
@@ -167,14 +169,14 @@ public class DeviceController {
     @OperationLog(action = "DELETE_DEVICE")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         DeviceEntity entity = deviceService.getById(id);
-        if(entity==null){
+        if (entity == null) {
             return ApiResponse.fail("该设备不存在.");
         }
         validateDeviceEditable(entity);
         boolean deleted = deviceService.removeById(id);
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>()
-                                  .eq(DeviceGroupRelationEntity::getDeviceId, id));
-        if(deleted){
+                .eq(DeviceGroupRelationEntity::getDeviceId, id));
+        if (deleted) {
             redisTemplate.delete(deviceCacheKey(id));
         }
         return ApiResponse.ok(null);
@@ -242,7 +244,7 @@ public class DeviceController {
         Map<Long, FirmwarePackageEntity> firmwareMap = targetFirmwareIds.isEmpty()
                 ? Collections.emptyMap()
                 : firmwarePackageService.listByIds(targetFirmwareIds).stream()
-                        .collect(Collectors.toMap(FirmwarePackageEntity::getId, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(FirmwarePackageEntity::getId, Function.identity(), (a, b) -> a));
         return entities.stream().map(entity -> {
             DeviceVO vo = new DeviceVO();
             vo.setId(entity.getId());
@@ -265,7 +267,7 @@ public class DeviceController {
             String onlineValue = redisTemplate.opsForValue().get(DEVICE_ONLINE_KEY_PREFIX + entity.getImei());
             vo.setIsOnline(Integer.parseInt(onlineValue == null ? "0" : onlineValue));
             //计算是否可升级
-            if(vo.getIsBind() ==1 && vo.getIsOnline()==1 && "NO_TASK".equals(vo.getDeviceUpgradeStatus())) {
+            if (vo.getIsBind() == 1 && vo.getIsOnline() == 1 && "NO_TASK".equals(vo.getDeviceUpgradeStatus())) {
                 vo.setIsUpgradable("Y");
             }
             DeviceGroupRelationEntity relation = relationMap.get(entity.getId());
@@ -274,14 +276,14 @@ public class DeviceController {
                 DeviceGroupEntity group = groupMap.get(relation.getDeviceGroupId());
                 vo.setDeviceGroupName(group == null ? null : group.getDeviceGroupName());
             }
-            String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX+entity.getImei();
+            String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + entity.getImei();
             Map<Object, Object> runtimeMap = redisTemplate.opsForHash().entries(runtimeKey);
-            if(runtimeMap.containsKey("status")) {
+            if (runtimeMap.containsKey("status")) {
                 vo.setDeviceUpgradeStatus(String.valueOf(runtimeMap.get("status")));
             }
-           if(runtimeMap.containsKey("progress")) {
-               vo.setProgress(Integer.parseInt(String.valueOf(runtimeMap.get("progress"))));
-           }
+            if (runtimeMap.containsKey("progress")) {
+                vo.setProgress(Integer.parseInt(String.valueOf(runtimeMap.get("progress"))));
+            }
             return vo;
         }).collect(Collectors.toList());
     }
@@ -292,6 +294,7 @@ public class DeviceController {
 
     /**
      * 安全校验。处于升级环节中的设备，不可以操作
+     *
      * @param entity
      */
     private void validateDeviceEditable(DeviceEntity entity) {

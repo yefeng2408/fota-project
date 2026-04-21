@@ -182,7 +182,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '../api/request'
 
@@ -218,6 +218,94 @@ const form = reactive({
   targetFirmwareId: null,
   deviceGroupId: null
 })
+
+const wsRef = ref(null)
+let wsReconnectTimer = null
+let wsReconnectAttempts = 0
+const WS_RECONNECT_MAX = 5
+const WS_RECONNECT_DELAY = 2000
+
+function applyUpgradeEvent(event) {
+  if (!event?.imei) {
+    return
+  }
+  const row = tableData.records.find((item) => item.imei === event.imei)
+  if (!row) {
+    return
+  }
+  if (event.status !== undefined && event.status !== null && event.status !== '') {
+    row.deviceUpgradeStatus = event.status
+  }
+  if (event.progress !== undefined && event.progress !== null && event.progress !== '') {
+    row.progress = normalizeProgress(event.progress)
+  }
+  if (event.currentFirmwareVersion !== undefined && event.currentFirmwareVersion !== null) {
+    row.currentFirmwareVersion = event.currentFirmwareVersion
+  }
+  if (event.targetFirmwareVersion !== undefined && event.targetFirmwareVersion !== null) {
+    row.targetFirmwareVersion = event.targetFirmwareVersion
+  }
+}
+
+function getDeviceUpgradeWsUrl() {
+  return 'ws://localhost:8080/ws/device-upgrade'
+}
+
+function clearWsReconnectTimer() {
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer)
+    wsReconnectTimer = null
+  }
+}
+
+function scheduleWsReconnect() {
+  if (wsReconnectAttempts >= WS_RECONNECT_MAX) {
+    return
+  }
+  clearWsReconnectTimer()
+  wsReconnectTimer = setTimeout(() => {
+    wsReconnectAttempts += 1
+    connectDeviceUpgradeWs()
+  }, WS_RECONNECT_DELAY)
+}
+
+function connectDeviceUpgradeWs() {
+  clearWsReconnectTimer()
+  try {
+    const ws = new WebSocket(getDeviceUpgradeWsUrl())
+    wsRef.value = ws
+
+    ws.onopen = () => {
+      wsReconnectAttempts = 0
+    }
+
+    ws.onmessage = (messageEvent) => {
+      try {
+        const payload = JSON.parse(messageEvent.data)
+        applyUpgradeEvent(payload)
+      } catch (error) {
+        console.error('解析设备升级推送消息失败:', error)
+      }
+    }
+
+    ws.onclose = () => {
+      if (wsRef.value === ws) {
+        wsRef.value = null
+      }
+      scheduleWsReconnect()
+    }
+
+    ws.onerror = (error) => {
+      console.error('设备升级 WebSocket 连接异常:', error)
+      ws.close()
+    }
+  } catch (error) {
+    console.error('创建设备升级 WebSocket 失败:', error)
+    scheduleWsReconnect()
+  }
+}
+
+
 
 async function loadGroups() {
   groupTree.value = await request.get('/api/device-groups/tree')
@@ -396,7 +484,19 @@ onMounted(async () => {
   await loadGroups()
   await loadFirmwares()
   await loadDevices()
+  connectDeviceUpgradeWs()
 })
+
+
+onBeforeUnmount(() => {
+  clearWsReconnectTimer()
+  if (wsRef.value) {
+    wsRef.value.close()
+    wsRef.value = null
+  }
+})
+
+
 </script>
 
 <style scoped>
