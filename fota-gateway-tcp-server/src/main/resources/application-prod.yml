@@ -21,14 +21,9 @@ spring:
       port: ${SPRING_REDIS_PORT}
       timeout: 5000
 
-# =========================
-# Netty 网关配置
-# =========================
-fota:
-  gateway:
+netty:
+  server:
     port: ${FOTA_GATEWAY_PORT:8224}
-    boss-threads: 1
-    worker-threads: 4
 
 # =========================
 # MinIO 配置
@@ -39,11 +34,10 @@ minio:
   secret-key: ${MINIO_SECRET_KEY}
   bucket-name: ${MINIO_BUCKET_NAME}
 
-# =========================
-# 升级推送（调用 http-server）
-# =========================
-device-upgrade:
-  push-url: ${DEVICE_UPGRADE_PUSH_URL}
+upgrade:
+  event:
+    push-url: ${DEVICE_UPGRADE_PUSH_URL}
+    update-result-url: ${DEVICE_UPGRADE_RESULT_URL}
 
 # =========================
 # 日志（先简单版）

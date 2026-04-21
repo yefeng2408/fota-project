@@ -270,7 +270,12 @@ function applyUpgradeEvent(event) {
 }
 
 function getDeviceUpgradeWsUrl() {
-  return 'ws://localhost:8080/ws/device-upgrade'
+  const envBaseUrl = (import.meta.env.VITE_WS_BASE_URL || '').trim()
+  if (envBaseUrl) {
+    return `${envBaseUrl.replace(/\/$/, '')}/ws/device-upgrade`
+  }
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${wsProtocol}//${window.location.host}/ws/device-upgrade`
 }
 
 function clearWsReconnectTimer() {
