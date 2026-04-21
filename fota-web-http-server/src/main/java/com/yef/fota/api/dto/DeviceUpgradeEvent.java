@@ -1,4 +1,4 @@
-package com.yef.fota.websocket;
+package com.yef.fota.api.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

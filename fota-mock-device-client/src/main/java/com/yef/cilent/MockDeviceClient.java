@@ -284,7 +284,7 @@ public class MockDeviceClient implements SmartLifecycle {
                 boolean md5Matched = Arrays.equals(FotaProtocol.md5(firmware), upgradeContext.expectedMd5());
                 //模拟mcu写入flush 耗时场景
                 try {
-                    Thread.sleep(5000);
+                    Thread.sleep(2000);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }

@@ -61,11 +61,18 @@
               </el-tag>
             </template>
           </el-table-column>
+
           <el-table-column label="升级状态" width="110">
             <template #default="{ row }">
-              <span class="status-text">{{ formatUpgradeStatus(row.deviceUpgradeStatus) }}</span>
+              <el-tag
+                size="small"
+                effect="light"
+                :type="upgradeStatusTagType(row.deviceUpgradeStatus)">
+                    {{ formatUpgradeStatus(row.deviceUpgradeStatus) }}
+              </el-tag>
             </template>
           </el-table-column>
+
           <el-table-column label="升级进度" width="160">
             <template #default="{ row }">
               <div class="progress-cell">
@@ -78,6 +85,7 @@
               </div>
             </template>
           </el-table-column>
+
           <el-table-column label="操作" width="100" fixed="right">
             <template #default="{ row }">
               <el-button
@@ -94,16 +102,30 @@
                   更多操作
                 </el-button>
                 <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="edit">编辑</el-dropdown-item>
-                    <el-dropdown-item command="delete">删除</el-dropdown-item>
-                    <el-dropdown-item
-                      command="cancel"
-                      :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
-                    >
-                      取消升级
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
+                    <el-dropdown-menu class="action-dropdown-menu">
+                      <el-dropdown-item command="edit" class="action-dropdown-item">
+                        <el-button size="small">编辑</el-button>
+                      </el-dropdown-item>
+
+                      <el-dropdown-item command="delete" class="action-dropdown-item">
+                        <el-button size="small" type="danger" plain>删除</el-button>
+                      </el-dropdown-item>
+
+                      <el-dropdown-item
+                        command="cancel"
+                        class="action-dropdown-item"
+                        :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
+                      >
+                        <el-button
+                          size="small"
+                          type="warning"
+                          plain
+                          :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
+                        >
+                          取消升级
+                        </el-button>
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
                 </template>
               </el-dropdown>
             </template>
@@ -155,7 +177,7 @@
         />
       </el-form-item>
       <el-form-item label="当前固件版本"><el-input v-model="form.currentFirmwareVersion" /></el-form-item>
-      <el-form-item label="目标固件">
+      <el-form-item label="目标（绑定）固件">
         <el-select
           v-model="form.targetFirmwareId"
           placeholder="请选择目标固件"
@@ -345,6 +367,19 @@ function formatUpgradeStatus(status) {
   return upgradeStatusTextMap[status] || status || '-'
 }
 
+function upgradeStatusTagType(status) {
+  if (status === 'SUCCESS' || status === 'DONE') {
+    return 'success'
+  }
+  if (status === 'UPGRADING' || status === 'UPGRADE_REQUESTED' || status === 'WAIT_RESULT') {
+    return 'warning'
+  }
+  if (status === 'FAIL' || status === 'TIMEOUT' || status === 'CANCEL_UPGRADE' || status === 'CANCELLED') {
+    return 'danger'
+  }
+  return 'info'
+}
+
 function normalizeProgress(value) {
   const num = Number(value)
   if (!Number.isFinite(num) || num < 0) {
@@ -464,20 +499,21 @@ async function submit() {
     targetFirmwareId: form.targetFirmwareId || null,
     deviceUpgradeStatus: form.id ? form.deviceUpgradeStatus : 'NO_TASK'
   }
-  if (form.id) {
+  const isEdit = Boolean(form.id)
+  if (isEdit) {
     await request.put(`/api/devices/${form.id}`, payload)
   } else {
     await request.post('/api/devices', payload)
   }
+  ElMessage.success(isEdit ? '更新成功' : '新增成功')
   dialogVisible.value = false
-  loadDevices()
-  loadGroups()
+  await Promise.all([loadDevices(), loadGroups()])
 }
 
 async function remove(id) {
   await request.delete(`/api/devices/${id}`)
-  loadDevices()
-  loadGroups()
+  ElMessage.success('删除成功')
+  await Promise.all([loadDevices(), loadGroups()])
 }
 
 onMounted(async () => {
@@ -500,6 +536,21 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+
+.action-dropdown-menu :deep(.el-dropdown-menu__item) {
+  padding: 6px 12px;
+  justify-content: center;
+}
+
+.action-dropdown-item :deep(.el-button) {
+  min-width: 96px;
+}
+
+.action-dropdown {
+  display: inline-block;
+  margin-top: 4px;
+}
+
 .device-table-scroll {
   overflow-x: hidden;
   width: 100%;

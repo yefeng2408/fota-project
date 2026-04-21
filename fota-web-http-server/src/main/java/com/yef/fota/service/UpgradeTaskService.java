@@ -1,5 +1,6 @@
 package com.yef.fota.service;
 
+import com.yef.fota.api.dto.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.entity.UpgradeTaskEntity;
@@ -16,4 +17,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
 public interface UpgradeTaskService extends IService<UpgradeTaskEntity> {
 
     Long startUpgrade(DeviceEntity deviceEntity,FirmwarePackageEntity firmware);
+
+    void updateDeviceUpgradeFinalResult(UpdateDeviceUpgradeFinalResult result);
 }

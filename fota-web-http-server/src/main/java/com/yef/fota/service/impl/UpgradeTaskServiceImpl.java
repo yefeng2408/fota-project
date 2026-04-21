@@ -1,7 +1,10 @@
 package com.yef.fota.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.yef.fota.api.dto.GatewayUpgradeRequest;
+import com.yef.fota.api.dto.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.api.service.GatewayCommandService;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
@@ -11,6 +14,7 @@ import com.yef.fota.service.FirmwarePackageService;
 import com.yef.fota.service.UpgradeTaskService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
@@ -27,9 +31,11 @@ import java.time.LocalDateTime;
 @Service
 public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, UpgradeTaskEntity> implements UpgradeTaskService {
 
+    private final UpgradeTaskMapper upgradeTaskMapper;
     private final GatewayCommandService gatewayCommandService;
 
-    public UpgradeTaskServiceImpl(GatewayCommandService gatewayCommandService) {
+    public UpgradeTaskServiceImpl(UpgradeTaskMapper upgradeTaskMapper, GatewayCommandService gatewayCommandService) {
+        this.upgradeTaskMapper = upgradeTaskMapper;
         this.gatewayCommandService = gatewayCommandService;
     }
 
@@ -52,6 +58,7 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         gatewayCommandService.sendUpgradeRequest(gatewayRequest);
         return task.getId();
     }
+
 
     @NotNull
     private GatewayUpgradeRequest getUpgradeRequest(UpgradeTaskEntity task, DeviceEntity device,
@@ -80,4 +87,19 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         gatewayRequest.setObjectName(firmware.getObjectName());
         return gatewayRequest;
     }
+
+
+
+    @Override
+    public void updateDeviceUpgradeFinalResult(UpdateDeviceUpgradeFinalResult result) {
+        UpgradeTaskEntity upgradeTask =new UpgradeTaskEntity();
+        BeanUtils.copyProperties(result, upgradeTask);
+        Wrapper<UpgradeTaskEntity> queryWrapper = new QueryWrapper<>();
+
+        //this.baseMapper.update();
+
+    }
+
+
+
 }

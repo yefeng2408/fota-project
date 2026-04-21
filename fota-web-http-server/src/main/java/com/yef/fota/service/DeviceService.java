@@ -1,5 +1,6 @@
 package com.yef.fota.service;
 
+import com.yef.fota.dto.device.DeviceSaveRequest;
 import com.yef.fota.entity.DeviceEntity;
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -14,4 +15,8 @@ import com.baomidou.mybatisplus.extension.service.IService;
 public interface DeviceService extends IService<DeviceEntity> {
 
     DeviceEntity getDeviceByImei(String imei);
+
+    DeviceEntity addDevice(DeviceSaveRequest request);
+
+    void updateDevice(DeviceEntity entity, DeviceSaveRequest request);
 }
