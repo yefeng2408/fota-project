@@ -36,9 +36,16 @@
         <div class="toolbar-left">
           <el-input v-model="query.keyword" placeholder="按 IMEI/设备名搜索" clearable style="width: 180px" />
           <el-button @click="loadDevices">查询</el-button>
-          <el-button type="warning" :disabled="!canBatchUpgradeSelectedGroup" @click="openBatchUpgradeDialog">
-            批量升级
-          </el-button>
+          <el-tooltip
+            content="自动跳过不满足升级条件的设备，如未绑定固件、或当前正处于升级中的设备。"
+            placement="top"
+          >
+            <span class="toolbar-button-wrapper">
+              <el-button type="warning" :disabled="!canBatchUpgradeSelectedGroup" @click="openBatchUpgradeDialog">
+                批量升级
+              </el-button>
+            </span>
+          </el-tooltip>
           <el-button type="success" plain :disabled="!selectedBatchGroup" @click="simulateGroupOnline">
             模拟上线
           </el-button>
@@ -933,6 +940,10 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.toolbar-button-wrapper {
+  display: inline-flex;
 }
 
 .upload-tip {
