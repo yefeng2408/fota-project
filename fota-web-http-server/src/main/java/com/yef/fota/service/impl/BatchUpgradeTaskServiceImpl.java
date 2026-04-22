@@ -19,13 +19,13 @@ import com.yef.fota.service.FirmwarePackageService;
 import com.yef.fota.service.BatchUpgradeTaskService;
 import com.yef.fota.service.UpgradeTaskService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -47,19 +47,22 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
     private final FirmwarePackageService firmwarePackageService;
     private final DeviceFirmwareBindingService deviceFirmwareBindingService;
     private final UpgradeTaskService upgradeTaskService;
+    private final StringRedisTemplate redisTemplate;
 
     public BatchUpgradeTaskServiceImpl(DeviceGroupService deviceGroupService,
                                        DeviceGroupRelationService deviceGroupRelationService,
                                        DeviceService deviceService,
                                        FirmwarePackageService firmwarePackageService,
                                        DeviceFirmwareBindingService deviceFirmwareBindingService,
-                                       UpgradeTaskService upgradeTaskService) {
+                                       UpgradeTaskService upgradeTaskService,
+                                       StringRedisTemplate redisTemplate) {
         this.deviceGroupService = deviceGroupService;
         this.deviceGroupRelationService = deviceGroupRelationService;
         this.deviceService = deviceService;
         this.firmwarePackageService = firmwarePackageService;
         this.deviceFirmwareBindingService = deviceFirmwareBindingService;
         this.upgradeTaskService = upgradeTaskService;
+        this.redisTemplate = redisTemplate;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -92,6 +95,19 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
             throw new BusinessException("当前设备组下没有可用设备，无法批量升级");
         }
 
+        //拿到所有设备在线状态
+        long now = System.currentTimeMillis();
+        Set<String> onlineDeviceIdSet = redisTemplate.opsForZSet()
+                .rangeByScore("fota:device:online:zset", now - 60_000L, now);
+        List<Boolean> list = new LinkedList<>();
+        for (Long deviceId : deviceIds) {
+            boolean online = onlineDeviceIdSet != null && onlineDeviceIdSet.contains(String.valueOf(deviceId));
+            list.add(online);
+        }
+        if (!list.contains(true)) {
+            throw new BusinessException("当前设备组下无在线设备，无法批量升级");
+        }
+
         BatchUpgradeTaskEntity batchTask = new BatchUpgradeTaskEntity();
         batchTask.setGroupId(group.getId());
         batchTask.setFirmwareId(firmware.getId());
@@ -113,7 +129,7 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
         int startedCount = 0;
         int skippedCount = 0;
         for (DeviceEntity device : devices) {
-            if (!canBatchUpgrade(device, firmware)) {
+            if (!canBatchUpgrade(device, onlineDeviceIdSet, firmware)) {
                 skippedCount++;
                 continue;
             }
@@ -140,8 +156,14 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
         return response;
     }
 
-    private boolean canBatchUpgrade(DeviceEntity device, FirmwarePackageEntity firmware) {
+    private boolean canBatchUpgrade(DeviceEntity device,Set<String> onlineDeviceIdSet , FirmwarePackageEntity firmware) {
         if (device == null) {
+            return false;
+        }
+
+        //跳过离线设备
+        boolean online = onlineDeviceIdSet != null && onlineDeviceIdSet.contains(String.valueOf(device.getId()));
+        if(!online){
             return false;
         }
       /*  if (StringUtils.hasText(firmware.getDeviceType())

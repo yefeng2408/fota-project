@@ -36,7 +36,7 @@
         <div class="toolbar-left">
           <el-input v-model="query.keyword" placeholder="按 IMEI/设备名搜索" clearable style="width: 180px" />
           <el-button @click="loadDevices">查询</el-button>
-          <el-button type="warning" :disabled="!selectedBatchGroup" @click="openBatchUpgradeDialog">
+          <el-button type="warning" :disabled="!canBatchUpgradeSelectedGroup" @click="openBatchUpgradeDialog">
             批量升级
           </el-button>
           <el-button type="success" plain :disabled="!selectedBatchGroup" @click="simulateGroupOnline">
@@ -530,6 +530,10 @@ const importFirmwareOptions = computed(() => {
     return firmwareOptions.value
   }
   return firmwareOptions.value.filter((item) => !item.deviceType || item.deviceType === importForm.deviceType)
+})
+
+const canBatchUpgradeSelectedGroup = computed(() => {
+  return Boolean(selectedBatchGroup.value && Number(selectedBatchGroup.value.deviceCount || 0) > 0)
 })
 
 function handleImeiInput(value) {
