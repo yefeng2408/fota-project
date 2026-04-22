@@ -2,7 +2,7 @@ package com.yef.handler;
 
 import com.yef.protocol.ChannelAttributes;
 import com.yef.protocol.FotaMessage;
-import com.yef.service.DeviceOnlineService;
+import com.yef.service.DeviceKeepOnlineService;
 import com.yef.session.DeviceSession;
 import com.yef.session.SessionManager;
 import io.netty.channel.ChannelHandler;
@@ -15,9 +15,9 @@ import org.springframework.stereotype.Component;
 public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
 
     private final SessionManager sessionManager;
-    private final DeviceOnlineService deviceOnlineService;
+    private final DeviceKeepOnlineService deviceOnlineService;
 
-    public DeviceIdentityHandler(SessionManager sessionManager, DeviceOnlineService deviceOnlineService) {
+    public DeviceIdentityHandler(SessionManager sessionManager, DeviceKeepOnlineService deviceOnlineService) {
         this.sessionManager = sessionManager;
         this.deviceOnlineService = deviceOnlineService;
     }
@@ -38,18 +38,23 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
         }
 
         String currentImei = ctx.channel().attr(ChannelAttributes.IMEI).get();
-        if (currentImei == null || !currentImei.equals(imei)) {
 
-            Long deviceId = deviceOnlineService.resolveDeviceId(imei);
-            deviceOnlineService.onDeviceOnline(imei,ctx.channel());
+        Long deviceId = deviceOnlineService.getDeviceId(imei);
+        if (currentImei == null || !currentImei.equals(imei)) {
 
             ctx.channel().attr(ChannelAttributes.IMEI).set(imei);
             ctx.channel().attr(ChannelAttributes.DEVICE_ID).set(deviceId);
 
             sessionManager.bind(imei, deviceId, ctx.channel());
+
+            //只在首次连接调用
+            deviceOnlineService.onDeviceFirstConnect(deviceId);
+
         } else {
             sessionManager.touch(ctx.channel());
         }
+        //每次消息都刷新心跳
+        deviceOnlineService.refreshHeartbeat(deviceId);
 
         if (message.getTaskId() != null) {
             ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).set(message.getTaskId());
@@ -63,7 +68,6 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
         DeviceSession deviceSession = sessionManager.getByChannel(ctx.channel());
 
         if(deviceSession!=null){
-            deviceOnlineService.onDeviceOffline(deviceSession.getImei());
             sessionManager.remove(ctx.channel());
         }
         sessionManager.remove(ctx.channel());
