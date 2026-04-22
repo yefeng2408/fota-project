@@ -1,4 +1,5 @@
 services:
+
   mysql:
     image: mysql:8.0
     container_name: fota-mysql
@@ -8,12 +9,12 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-fota_web_platform}
       TZ: ${TZ:-Asia/Shanghai}
     command:
-      --default-authentication-plugin=mysql_native_password
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     volumes:
       - ./data/mysql:/var/lib/mysql
-      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+      - ./ddl/fota_web_platform.sql:/docker-entrypoint-initdb.d/001_fota_web_platform.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-root123456}"]
       interval: 10s
@@ -51,19 +52,11 @@ services:
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - ./data/minio:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
     networks:
       - fota-net
 
   fota-web-http-server:
-    build:
-      context: .
-      dockerfile: fota-web-http-server/Dockerfile
-    image: fota-web-http-server:latest
+    image: fota-web-http-server:v1
     container_name: fota-web-http-server
     restart: unless-stopped
     depends_on:
@@ -72,7 +65,7 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_healthy
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: ${TZ:-Asia/Shanghai}
@@ -100,10 +93,7 @@ services:
       - fota-net
 
   fota-gateway-tcp-server:
-    build:
-      context: .
-      dockerfile: fota-gateway-tcp-server/Dockerfile
-    image: fota-gateway-tcp-server:latest
+    image: fota-gateway-tcp-server:v1
     container_name: fota-gateway-tcp-server
     restart: unless-stopped
     depends_on:
@@ -112,7 +102,7 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_healthy
+        condition: service_started
       fota-web-http-server:
         condition: service_started
     environment:
@@ -142,11 +132,8 @@ services:
       - fota-net
 
   fota-mock-device-client:
-    profiles: ["mock"]
-    build:
-      context: .
-      dockerfile: fota-mock-device-client/Dockerfile
-    image: fota-mock-device-client:latest
+    #profiles: ["mock"]
+    image: fota-mock-device-client:v1
     container_name: fota-mock-device-client
     restart: unless-stopped
     depends_on:
@@ -155,7 +142,7 @@ services:
       redis:
         condition: service_healthy
       minio:
-        condition: service_healthy
+        condition: service_started
       fota-gateway-tcp-server:
         condition: service_started
     environment:
@@ -178,10 +165,7 @@ services:
       - fota-net
 
   nginx:
-    build:
-      context: .
-      dockerfile: docker/nginx/Dockerfile
-    image: fota-web-admin-nginx:latest
+    image: fota-web-admin-nginx:v1
     container_name: fota-nginx
     restart: unless-stopped
     depends_on:

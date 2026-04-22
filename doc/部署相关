@@ -1,8 +1,134 @@
-#这份 docker-compose.yml 能跑的前提是，你要先把两个 Java 服务和 mock-device 打成镜像。
+#最干净的删除方式。当前linux文件夹下所有文件
+rm -rf * .[!.]* ..?*
 
-docker build -t fota-web-http-server:latest ./fota-web-http-server
-docker build -t fota-gateway-tcp-server:latest ./fota-gateway-tcp-server
-docker build -t fota-mock-device-client:latest ./fota-mock-device-client
+#打包方式。禁止把 macOS 的扩展属性打进去.【在fota-project目录的上一级】
+COPYFILE_DISABLE=1 tar \
+  --exclude='*.DS_Store' \
+  --exclude='._*' \
+  --exclude='node_modules' \
+  --exclude='target' \
+  -czvf fota.tar.gz fota-project
+
+#上传项目文件压缩包
+scp fota.tar.gz ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
+
+#解压上面打的包
+tar -xzvf fota.tar.gz
+
+
+###这份 docker-compose.yml 能跑的前提是，你要先把两个 Java 服务和 mock-device 打成镜像。
+
+#-----------------------本地 build + docker save/load--------------------------
+在 build 之前，你得先确保本地已经真的生成了 jar
+mvn clean package -DskipTests
+ls fota-web-http-server/target/*.jar
+ls fota-gateway-tcp-server/target/*.jar
+ls fota-mock-device-client/target/*.jar
+
+#本地打包镜像。本地执行
+docker build -t fota-web-admin-nginx:v1 -f docker/nginx/Dockerfile .
+docker build -t fota-web-http-server:v1 -f fota-web-http-server/Dockerfile .
+docker build -t fota-gateway-tcp-server:v1 -f fota-gateway-tcp-server/Dockerfile .
+docker build -t fota-mock-device-client:v1 -f fota-mock-device-client/Dockerfile .
+
+#导出镜像。 本地执行 把“本地镜像”导出成一个 .tar 文件，方便传输
+docker save -o fota-web-admin-nginx-v1.tar fota-web-admin-nginx:v1
+docker save -o fota-web-http-server-v1.tar fota-web-http-server:v1
+docker save -o fota-gateway-tcp-server-v1.tar fota-gateway-tcp-server:v1
+docker save -o fota-mock-device-client-v1.tar fota-mock-device-client:v1
+
+#上传到服务器后导入。 把 .tar 文件重新导入成“服务器上的镜像”【服务器上执行】
+
+docker load -i fota-web-http-server-v1.tar
+docker load -i fota-gateway-tcp-server-v1.tar
+docker load -i fota-mock-device-client-v1.tar
+
+总体流程：
+
+    【本地开发机】
+       ↓
+    mvn package（生成 jar）
+       ↓
+    docker build（把 jar → 镜像）
+       ↓
+    docker save（把镜像 → tar文件）
+       ↓
+    scp 上传 tar 到服务器   scp fota-*.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
+                          scp fota-web-admin-nginx-v1.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
+                          #将镜像jar包上传目标服务器。【这里要区分镜像jar文件和mvn打包的springboot jar包】
+       ↓
+    【服务器】
+    docker load（tar → 镜像）
+                             docker load -i fota-web-admin-nginx-v1.tar
+       ↓                     docker load -i fota-web-http-server-v1.tar
+       ↓                     docker load -i fota-gateway-tcp-server-v1.tar
+       ↓                     docker load -i fota-mock-device-client-v1.tar
+       ↓
+    docker run / docker-compose 启动
+
+
+-----------------compose部署前最终检查------------------
+第一步：确认 docker-compose.yml 里的 image 标签与docker load -i xxx 的image名称一致
+
+第二步：确认 MySQL 初始化挂载
+- ./ddl/fota_web_platform.sql:/docker-entrypoint-initdb.d/001_fota_web_platform.sql:ro
+但记住只会在 ./data/mysql 第一次初始化时执行。
+如果你之前启动过 mysql，需要先清空：
+docker compose down
+rm -rf ./data/mysql
+再重新起。
+
+
+第三步：检查 .env
+
+第四步：先只启动基础中间件
+生产部署不要一上来全起。先把底座起起来：
+docker compose up -d mysql redis minio
+看这三个是否正常
+docker logs -f fota-mysql
+
+第五步：验证数据库真的起来了
+进入 mysql：
+docker exec -it fota-mysql mysql -uroot -p
+
+然后执行：
+show databases;
+use fota_web_platform;
+show tables;
+如果表都在，说明建表 OK。
+
+第六步：启动业务服务
+底座没问题后，再启动业务服务：
+docker compose up -d fota-web-http-server fota-gateway-tcp-server fota-mock-device-client
+docker ps
+
+第七步：逐个看个个服务的日志
+docker logs -f fota-web-http-server
+看有没有：
+* Spring Boot started
+* 数据库连接成功
+* Redis 连接成功
+* MinIO 初始化成功
+
+docker logs -f fota-gateway-tcp-server
+看有没有：
+* Netty 端口监听成功
+* web-http-server 回调地址可达
+
+docker logs -f fota-mock-device-client
+看有没有：
+* 连接 gateway 成功
+* 模拟设备上线成功
+
+
+推荐生产启动顺序：
+docker compose up -d mysql redis minio
+docker compose up -d fota-web-http-server
+docker compose up -d fota-gateway-tcp-server
+docker compose up -d fota-mock-device-client
+docker compose up -d nginx
+
+
 
 
 
