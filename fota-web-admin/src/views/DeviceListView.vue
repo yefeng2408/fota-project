@@ -39,6 +39,12 @@
           <el-button type="warning" :disabled="!selectedBatchGroup" @click="openBatchUpgradeDialog">
             批量升级
           </el-button>
+          <el-button type="success" plain :disabled="!selectedBatchGroup" @click="simulateGroupOnline">
+            模拟上线
+          </el-button>
+          <el-button type="info" plain :disabled="!selectedBatchGroup" @click="simulateGroupOffline">
+            模拟下线
+          </el-button>
           <el-button type="primary" plain @click="openImportDialog">
             批量添加
           </el-button>
@@ -769,6 +775,33 @@ async function submitBatchUpgrade() {
   } finally {
     batchSubmitting.value = false
   }
+}
+
+async function simulateGroupOnline() {
+  await controlMockDevices('online')
+}
+
+async function simulateGroupOffline() {
+  await controlMockDevices('offline')
+}
+
+async function controlMockDevices(action) {
+  if (!selectedBatchGroup.value?.id) {
+    ElMessage.warning('请先勾选一个设备组')
+    return
+  }
+
+  const endpoint = action === 'online' ? '/api/mock-devices/online' : '/api/mock-devices/offline'
+  const fallbackMessage = action === 'online' ? '模拟上线已完成' : '模拟下线已完成'
+
+  const result = await request.post(endpoint, { groupId: selectedBatchGroup.value.id })
+  const message = result?.summary || fallbackMessage
+  if ((result?.skippedCount || 0) > 0) {
+    ElMessage.warning(message)
+  } else {
+    ElMessage.success(message)
+  }
+  await loadDevices()
 }
 
 async function submitImportDevices() {

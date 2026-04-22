@@ -41,6 +41,11 @@ gateway:
   http:
     url: ${GATEWAY_HTTP_URL}
 
+mock:
+  device:
+    http:
+      url: ${MOCK_DEVICE_HTTP_URL:http://fota-mock-device-client:8082}
+
 forest:
   backend: okhttp3
   timeout:

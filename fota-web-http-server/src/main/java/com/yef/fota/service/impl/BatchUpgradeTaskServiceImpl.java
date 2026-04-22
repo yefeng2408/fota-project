@@ -144,11 +144,11 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
         if (device == null) {
             return false;
         }
-        if (StringUtils.hasText(firmware.getDeviceType())
+      /*  if (StringUtils.hasText(firmware.getDeviceType())
                 && StringUtils.hasText(device.getDeviceType())
-                /*&& !firmware.getDeviceType().equals(device.getDeviceType())*/) {
+                && !firmware.getDeviceType().equals(device.getDeviceType())) {
             return false;
-        }
+        }*/
         return "NO_TASK".equals(device.getDeviceUpgradeStatus());
     }
 

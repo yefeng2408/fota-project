@@ -27,13 +27,14 @@ import java.io.ByteArrayOutputStream;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,7 +54,6 @@ public class MockDeviceClient implements SmartLifecycle {
 
     private final String configuredHost;
     private final int configuredPort;
-    private final String configuredImei;
     private final JdbcTemplate jdbcTemplate;
     private final MinioClient minioClient;
 
@@ -62,17 +62,16 @@ public class MockDeviceClient implements SmartLifecycle {
 
     private volatile boolean running;
     private EventLoopGroup workerGroup;
-    private final Map<String, Channel> deviceChannels = new LinkedHashMap<>();
+    private Bootstrap bootstrap;
+    private final Map<String, Channel> deviceChannels = new ConcurrentHashMap<>();
 
     public MockDeviceClient(
             @Value("${netty.device-gateway-server.host:127.0.0.1}") String configuredHost,
             @Value("${netty.device-gateway-server.port:7611}") int configuredPort,
-            @Value("${mock.device.imei:66666666}") String configuredImei,
             JdbcTemplate jdbcTemplate,
             MinioClient minioClient) {
         this.configuredHost = configuredHost;
         this.configuredPort = configuredPort;
-        this.configuredImei = configuredImei;
         this.jdbcTemplate = jdbcTemplate;
         this.minioClient = minioClient;
     }
@@ -82,27 +81,10 @@ public class MockDeviceClient implements SmartLifecycle {
         if (running) {
             return;
         }
-        log.info("准备启动 MockDeviceClient，目标网关地址: {}:{}", configuredHost, configuredPort);
-
-        List<MockDeviceProfile> profiles = loadDeviceProfiles();
-        if (profiles.isEmpty()) {
-            log.warn("device 表中没有可用设备，回退为默认单设备 imei={}", configuredImei);
-            profiles = List.of(new MockDeviceProfile(configuredImei, "v1.0.0", "MOCK_DEVICE"));
-        }
-
-        this.workerGroup = new NioEventLoopGroup();
-        Bootstrap bootstrap = createBootstrap(workerGroup);
-
-        int successCount = 0;
-        for (MockDeviceProfile profile : profiles) {
-            if (connectDevice(bootstrap, profile)) {
-                successCount++;
-            }
-        }
-
-        this.running = successCount > 0;
-        log.info("MockDeviceClient 启动完成，总设备={}，上线成功={}，失败={}",
-                profiles.size(), successCount, profiles.size() - successCount);
+        log.info("准备启动 MockDeviceClient 控制器，目标网关地址: {}:{}", configuredHost, configuredPort);
+        initializeBootstrapIfNecessary();
+        this.running = true;
+        log.info("MockDeviceClient 已就绪，等待平台按需触发模拟上线/下线");
     }
 
     @Override
@@ -134,17 +116,102 @@ public class MockDeviceClient implements SmartLifecycle {
         callback.run();
     }
 
-    private List<MockDeviceProfile> loadDeviceProfiles() {
+    public synchronized MockDeviceControlResponse onlineDevices(List<String> imeiList) {
+        List<String> normalizedImeis = normalizeImeis(imeiList);
+        if (normalizedImeis.isEmpty()) {
+            return buildResponse("模拟上线完成：共 0 台，成功上线 0 台，跳过 0 台", 0, 0, 0);
+        }
+
+        initializeBootstrapIfNecessary();
+        this.running = true;
+
+        Map<String, MockDeviceProfile> profileMap = loadDeviceProfiles(normalizedImeis);
+        int successCount = 0;
+        int skippedCount = 0;
+
+        for (String imei : normalizedImeis) {
+            Channel existingChannel = deviceChannels.get(imei);
+            if (existingChannel != null && existingChannel.isActive()) {
+                skippedCount++;
+                continue;
+            }
+            if (existingChannel != null) {
+                deviceChannels.remove(imei, existingChannel);
+                closeChannelQuietly(existingChannel, imei);
+            }
+
+            MockDeviceProfile profile = profileMap.get(imei);
+            if (profile == null) {
+                skippedCount++;
+                continue;
+            }
+
+            if (connectDevice(profile)) {
+                successCount++;
+            } else {
+                skippedCount++;
+            }
+        }
+
+        String summary = String.format("模拟上线完成：共 %d 台，成功上线 %d 台，跳过 %d 台",
+                normalizedImeis.size(), successCount, skippedCount);
+        return buildResponse(summary, normalizedImeis.size(), successCount, skippedCount);
+    }
+
+    public synchronized MockDeviceControlResponse offlineDevices(List<String> imeiList) {
+        List<String> normalizedImeis = normalizeImeis(imeiList);
+        if (normalizedImeis.isEmpty()) {
+            return buildResponse("模拟下线完成：共 0 台，成功下线 0 台，跳过 0 台", 0, 0, 0);
+        }
+
+        int successCount = 0;
+        int skippedCount = 0;
+        for (String imei : normalizedImeis) {
+            Channel channel = deviceChannels.remove(imei);
+            if (channel == null) {
+                skippedCount++;
+                continue;
+            }
+            closeChannelQuietly(channel, imei);
+            successCount++;
+        }
+
+        String summary = String.format("模拟下线完成：共 %d 台，成功下线 %d 台，跳过 %d 台",
+                normalizedImeis.size(), successCount, skippedCount);
+        return buildResponse(summary, normalizedImeis.size(), successCount, skippedCount);
+    }
+
+    private void initializeBootstrapIfNecessary() {
+        if (workerGroup != null && bootstrap != null) {
+            return;
+        }
+        this.workerGroup = new NioEventLoopGroup();
+        this.bootstrap = createBootstrap(workerGroup);
+    }
+
+    private Map<String, MockDeviceProfile> loadDeviceProfiles(List<String> imeiList) {
+        if (imeiList == null || imeiList.isEmpty()) {
+            return Map.of();
+        }
+        String placeholders = imeiList.stream().map(item -> "?").collect(Collectors.joining(","));
+        String sql = "select imei, current_firmware_version, device_type from device where imei in (" + placeholders + ")";
         List<MockDeviceProfile> profiles = jdbcTemplate.query(
-                "select imei, current_firmware_version, device_type from device order by id asc",
+                sql,
+                imeiList.toArray(),
                 (rs, rowNum) -> new MockDeviceProfile(
                         rs.getString("imei"),
                         rs.getString("current_firmware_version"),
                         rs.getString("device_type"))
         );
-        return profiles == null ? Collections.emptyList() : profiles.stream()
-                .filter(profile -> profile.imei() != null && profile.imei().length() == 8)
-                .toList();
+        Map<String, MockDeviceProfile> profileMap = new ConcurrentHashMap<>();
+        if (profiles != null) {
+            for (MockDeviceProfile profile : profiles) {
+                if (profile.imei() != null && profile.imei().matches("\\d{8}")) {
+                    profileMap.put(profile.imei(), profile);
+                }
+            }
+        }
+        return profileMap;
     }
 
     private Bootstrap createBootstrap(EventLoopGroup group) {
@@ -178,7 +245,7 @@ public class MockDeviceClient implements SmartLifecycle {
         return bootstrap;
     }
 
-    private boolean connectDevice(Bootstrap bootstrap, MockDeviceProfile profile) {
+    private boolean connectDevice(MockDeviceProfile profile) {
         try {
             ChannelFuture future = bootstrap.clone()
                     .attr(MockDeviceAttributes.DEVICE_PROFILE, profile)
@@ -186,6 +253,10 @@ public class MockDeviceClient implements SmartLifecycle {
                     .sync();
             Channel channel = future.channel();
             deviceChannels.put(profile.imei(), channel);
+            channel.closeFuture().addListener(listenerFuture -> {
+                deviceChannels.remove(profile.imei(), channel);
+                log.info("MockDevice 连接已关闭，imei={}", profile.imei());
+            });
             log.info("MockDevice 已上线，imei={}，remoteAddress={}", profile.imei(), channel.remoteAddress());
             return true;
         } catch (InterruptedException e) {
@@ -196,6 +267,34 @@ public class MockDeviceClient implements SmartLifecycle {
             log.error("MockDevice 上线失败，imei={}", profile.imei(), e);
             return false;
         }
+    }
+
+    private void closeChannelQuietly(Channel channel, String imei) {
+        try {
+            channel.close().syncUninterruptibly();
+            log.info("MockDevice 已下线，imei={}", imei);
+        } catch (Exception e) {
+            log.warn("关闭 MockDevice channel 异常，imei={}", imei, e);
+        }
+    }
+
+    private List<String> normalizeImeis(List<String> imeiList) {
+        if (imeiList == null || imeiList.isEmpty()) {
+            return List.of();
+        }
+        return new LinkedHashSet<>(imeiList).stream()
+                .map(imei -> imei == null ? "" : imei.trim())
+                .filter(imei -> imei.matches("\\d{8}"))
+                .toList();
+    }
+
+    private MockDeviceControlResponse buildResponse(String summary, int totalCount, int successCount, int skippedCount) {
+        MockDeviceControlResponse response = new MockDeviceControlResponse();
+        response.setTotalCount(totalCount);
+        response.setSuccessCount(successCount);
+        response.setSkippedCount(skippedCount);
+        response.setSummary(summary);
+        return response;
     }
 
     /**
@@ -396,11 +495,7 @@ public class MockDeviceClient implements SmartLifecycle {
 
     private void shutdownQuietly() {
         for (Map.Entry<String, Channel> entry : deviceChannels.entrySet()) {
-            try {
-                entry.getValue().close().syncUninterruptibly();
-            } catch (Exception e) {
-                log.warn("关闭 MockDevice channel 异常，imei={}", entry.getKey(), e);
-            }
+            closeChannelQuietly(entry.getValue(), entry.getKey());
         }
         deviceChannels.clear();
 
@@ -412,9 +507,50 @@ public class MockDeviceClient implements SmartLifecycle {
         } catch (Exception e) {
             log.warn("关闭 MockDeviceClient workerGroup 异常", e);
         }
+        bootstrap = null;
 
         running = false;
         log.info("MockDeviceClient 已停止");
+    }
+
+    public static class MockDeviceControlResponse {
+
+        private Integer totalCount;
+        private Integer successCount;
+        private Integer skippedCount;
+        private String summary;
+
+        public Integer getTotalCount() {
+            return totalCount;
+        }
+
+        public void setTotalCount(Integer totalCount) {
+            this.totalCount = totalCount;
+        }
+
+        public Integer getSuccessCount() {
+            return successCount;
+        }
+
+        public void setSuccessCount(Integer successCount) {
+            this.successCount = successCount;
+        }
+
+        public Integer getSkippedCount() {
+            return skippedCount;
+        }
+
+        public void setSkippedCount(Integer skippedCount) {
+            this.skippedCount = skippedCount;
+        }
+
+        public String getSummary() {
+            return summary;
+        }
+
+        public void setSummary(String summary) {
+            this.summary = summary;
+        }
     }
 
     private record MockDeviceProfile(String imei, String currentFirmwareVersion, String deviceType) {
