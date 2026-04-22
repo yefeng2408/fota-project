@@ -48,7 +48,7 @@ public class FirmwarePackageController {
 
     private final MinioClient minioClient;
 
-    @Value("${minio.bucket}")
+    @Value("${minio.bucket-name}")
     private String minioBucket;
 
     @GetMapping

@@ -37,6 +37,7 @@ build/
 
 ### Mac OS ###
 .DS_Store
+.env
 
 ### minio
 docker/data/minio/

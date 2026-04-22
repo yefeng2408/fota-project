@@ -15,12 +15,11 @@ minio:
   endpoint: http://127.0.0.1:9000
   access-key: minioadmin
   secret-key: minioadmin
-  bucket: device-fireware
+  device-bucket-name: device-fireware
 
 
 netty:
   device-gateway-server:
     host: 127.0.0.1
     port: 7611
-
 

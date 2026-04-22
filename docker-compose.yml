@@ -4,9 +4,9 @@ services:
     container_name: fota-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root123456
-      MYSQL_DATABASE: fota_web_platform
-      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-fota_web_platform}
+      TZ: ${TZ:-Asia/Shanghai}
     command:
       --default-authentication-plugin=mysql_native_password
       --character-set-server=utf8mb4
@@ -15,7 +15,7 @@ services:
       - ./data/mysql:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot123456"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-root123456}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -42,13 +42,13 @@ services:
     container_name: fota-minio
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
-      TZ: Asia/Shanghai
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      TZ: ${TZ:-Asia/Shanghai}
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - ./data/minio:/data
     healthcheck:
@@ -75,27 +75,27 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      TZ: Asia/Shanghai
-      JAVA_OPTS: "-Xms256m -Xmx512m"
+      TZ: ${TZ:-Asia/Shanghai}
+      JAVA_OPTS: ${JAVA_OPTS_WEB:--Xms256m -Xmx512m}
 
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/fota_web_platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root123456
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-fota_web_platform}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USERNAME:-root}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
 
       SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
 
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin123
-      MINIO_BUCKET_NAME: fota-firmware
-      MINIO_DEVICE_BUCKET_NAME: device-firmware
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-fota-firmware}
+      MINIO_DEVICE_BUCKET_NAME: ${MINIO_DEVICE_BUCKET_NAME:-device-firmware}
 
       GATEWAY_HTTP_URL: http://fota-gateway-tcp-server:8081
 
-      FOTA_JWT_SECRET: your-prod-jwt-secret-change-me
+      FOTA_JWT_SECRET: ${FOTA_JWT_SECRET:-your-prod-jwt-secret-change-me}
     ports:
-      - "8080:8080"
+      - "${WEB_HTTP_PORT:-8080}:8080"
     networks:
       - fota-net
 
@@ -117,27 +117,27 @@ services:
         condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      TZ: Asia/Shanghai
-      JAVA_OPTS: "-Xms256m -Xmx512m"
+      TZ: ${TZ:-Asia/Shanghai}
+      JAVA_OPTS: ${JAVA_OPTS_GATEWAY:--Xms256m -Xmx512m}
 
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/fota_web_platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root123456
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-fota_web_platform}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USERNAME:-root}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
 
       SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
+      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
 
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin123
-      MINIO_BUCKET_NAME: fota-firmware
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-fota-firmware}
 
       DEVICE_UPGRADE_PUSH_URL: http://fota-web-http-server:8080/internal/device-upgrade/event
       DEVICE_UPGRADE_RESULT_URL: http://fota-web-http-server:8080/internal/device-upgrade/result
-      FOTA_GATEWAY_PORT: 8224
+      FOTA_GATEWAY_PORT: ${FOTA_GATEWAY_PORT:-8224}
     ports:
-      - "8224:8224"
-      - "8081:8081"
+      - "${FOTA_GATEWAY_PORT:-8224}:${FOTA_GATEWAY_PORT:-8224}"
+      - "${GATEWAY_HTTP_PORT:-8081}:8081"
     networks:
       - fota-net
 
@@ -160,20 +160,20 @@ services:
         condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      TZ: Asia/Shanghai
-      JAVA_OPTS: "-Xms128m -Xmx256m"
+      TZ: ${TZ:-Asia/Shanghai}
+      JAVA_OPTS: ${JAVA_OPTS_MOCK:--Xms128m -Xmx256m}
 
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/fota_web_platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root123456
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-fota_web_platform}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USERNAME:-root}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123456}
 
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin123
-      MINIO_BUCKET_NAME: device-firmware
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_DEVICE_BUCKET_NAME: ${MINIO_DEVICE_BUCKET_NAME:-device-firmware}
 
       MOCK_DEVICE_GATEWAY_HOST: fota-gateway-tcp-server
-      MOCK_DEVICE_GATEWAY_PORT: 8224
+      MOCK_DEVICE_GATEWAY_PORT: ${FOTA_GATEWAY_PORT:-8224}
     networks:
       - fota-net
 
@@ -187,7 +187,7 @@ services:
     depends_on:
       - fota-web-http-server
     ports:
-      - "80:80"
+      - "${NGINX_HTTP_PORT:-80}:80"
     networks:
       - fota-net
 

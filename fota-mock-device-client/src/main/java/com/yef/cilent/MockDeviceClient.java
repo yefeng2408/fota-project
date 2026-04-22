@@ -52,7 +52,7 @@ public class MockDeviceClient implements SmartLifecycle {
     private volatile boolean running;
 
     private final MinioClient minioClient;
-    @Value("${minio.bucket}")
+    @Value("${minio.device-bucket-name}")
     private String minioBucket;
 
     /**
