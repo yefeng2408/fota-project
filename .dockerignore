@@ -9,3 +9,4 @@ data
 !fota-web-http-server/target/*.jar
 !fota-gateway-tcp-server/target/*.jar
 !fota-mock-device-client/target/*.jar
+!fota-web-admin/dist/**

@@ -2,17 +2,19 @@
 rm -rf * .[!.]* ..?*
 
 #打包方式。禁止把 macOS 的扩展属性打进去.【在fota-project目录的上一级】
+# 排除fota-project根目录所有的jar包。因为服务镜像tar包是手动scp上传至目标服务器的
 COPYFILE_DISABLE=1 tar \
   --exclude='*.DS_Store' \
   --exclude='._*' \
   --exclude='node_modules' \
   --exclude='target' \
+  --exclude='*.tar' \
   -czvf fota.tar.gz fota-project
 
 #上传项目文件压缩包
 scp fota.tar.gz ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
 
-#解压上面打的包
+#在服务器上解压上面打的包
 tar -xzvf fota.tar.gz
 
 
@@ -38,7 +40,7 @@ docker save -o fota-gateway-tcp-server-v1.tar fota-gateway-tcp-server:v1
 docker save -o fota-mock-device-client-v1.tar fota-mock-device-client:v1
 
 #上传到服务器后导入。 把 .tar 文件重新导入成“服务器上的镜像”【服务器上执行】
-
+docker load -i fota-web-admin-nginx-v1.tar
 docker load -i fota-web-http-server-v1.tar
 docker load -i fota-gateway-tcp-server-v1.tar
 docker load -i fota-mock-device-client-v1.tar
@@ -54,7 +56,7 @@ docker load -i fota-mock-device-client-v1.tar
     docker save（把镜像 → tar文件）
        ↓
     scp 上传 tar 到服务器   scp fota-*.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
-                          scp fota-web-admin-nginx-v1.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
+
                           #将镜像jar包上传目标服务器。【这里要区分镜像jar文件和mvn打包的springboot jar包】
        ↓
     【服务器】
