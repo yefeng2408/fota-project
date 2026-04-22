@@ -4,6 +4,7 @@ import com.yef.fota.common.ApiResponse;
 import com.yef.fota.dto.dashboard.DashboardOverviewVO;
 import com.yef.fota.entity.DeviceUpgradeLogEntity;
 import com.yef.fota.entity.UpgradeTaskEntity;
+import com.yef.fota.service.DeviceOnlineService;
 import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.DeviceUpgradeLogService;
 import com.yef.fota.service.UpgradeTaskService;
@@ -27,12 +28,18 @@ public class DashboardController {
     private final DeviceService deviceService;
     private final UpgradeTaskService upgradeTaskService;
     private final DeviceUpgradeLogService deviceUpgradeLogService;
+    private final DeviceOnlineService deviceOnlineService;
 
     @GetMapping("/overview")
     public ApiResponse<DashboardOverviewVO> overview() {
         DashboardOverviewVO vo = new DashboardOverviewVO();
-        vo.setTotalDevices(deviceService.count());
-        vo.setOnlineDevices(0L);
+        long totalDevices = deviceService.count();
+        long onlineDevices = deviceOnlineService.countOnline();
+        long offlineDevices = Math.max(totalDevices - onlineDevices, 0L);
+
+        vo.setTotalDevices(totalDevices);
+        vo.setOnlineDevices(onlineDevices);
+        vo.setOfflineDevices(offlineDevices);
         vo.setSuccessTasks(upgradeTaskService.lambdaQuery().eq(UpgradeTaskEntity::getTaskStatus, "SUCCESS").count());
         vo.setFailedTasks(upgradeTaskService.lambdaQuery().in(UpgradeTaskEntity::getTaskStatus, List.of("FAIL", "TIMEOUT")).count());
         vo.setRecentTasks(upgradeTaskService.lambdaQuery()
@@ -66,4 +73,6 @@ public class DashboardController {
         vo.setLogTrends(trends);
         return ApiResponse.ok(vo);
     }
+
+
 }

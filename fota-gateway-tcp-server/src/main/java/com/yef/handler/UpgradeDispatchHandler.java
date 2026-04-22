@@ -6,6 +6,7 @@ import com.yef.protocol.DeviceBootUpMessage;
 import com.yef.protocol.FailMessage;
 import com.yef.protocol.HeartbeatMessage;
 import com.yef.protocol.UpgradeResultMessage;
+import com.yef.service.DeviceKeepOnlineService;
 import com.yef.service.UpgradeExecutor;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -26,9 +27,12 @@ import org.springframework.stereotype.Component;
 public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> {
 
     private final UpgradeExecutor upgradeExecutor;
+    private final DeviceKeepOnlineService deviceOnlineService;
 
-    public UpgradeDispatchHandler(UpgradeExecutor upgradeExecutor) {
+    public UpgradeDispatchHandler(UpgradeExecutor upgradeExecutor,
+                                  DeviceKeepOnlineService deviceOnlineService) {
         this.upgradeExecutor = upgradeExecutor;
+        this.deviceOnlineService = deviceOnlineService;
     }
 
     @Override
@@ -59,8 +63,11 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof IdleStateEvent && ((IdleStateEvent) evt).state() == IdleState.READER_IDLE) {
             String imei = ctx.channel().attr(ChannelAttributes.IMEI).get();
+            Long deviceId = ctx.channel().attr(ChannelAttributes.DEVICE_ID).get();
             log.info("[UpgradeDispatchHandler] reader idle, close channel, imei={}",imei);
+            deviceOnlineService.cleanupOffline();
             ctx.close();
+
             return;
         }
         super.userEventTriggered(ctx, evt);

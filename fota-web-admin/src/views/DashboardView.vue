@@ -10,7 +10,7 @@
     <div class="split-layout">
       <div class="block-card">
         <h3>最近升级任务</h3>
-        <el-table :data="overview.recentTasks || []" size="small">
+        <el-table :data="overview.recentTasks || []" size="small" witdh="100%">
           <el-table-column prop="taskId" label="任务ID" />
           <el-table-column prop="imei" label="IMEI" />
           <el-table-column prop="status" label="状态" />
@@ -35,6 +35,7 @@ import request from '../api/request'
 const overview = reactive({
   totalDevices: 0,
   onlineDevices: 0,
+  offlineDevices: 0,
   successTasks: 0,
   failedTasks: 0,
   recentTasks: [],
@@ -44,6 +45,7 @@ const overview = reactive({
 const cards = computed(() => [
   { label: '设备总数', value: overview.totalDevices },
   { label: '在线设备', value: overview.onlineDevices },
+  { label: '离线设备', value: overview.offlineDevices },
   { label: '升级成功', value: overview.successTasks },
   { label: '升级失败', value: overview.failedTasks }
 ])

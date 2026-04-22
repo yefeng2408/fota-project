@@ -11,6 +11,7 @@ public class DashboardOverviewVO {
 
     private Long totalDevices;
     private Long onlineDevices;
+    private Long offlineDevices;
     private Long successTasks;
     private Long failedTasks;
     private List<Map<String, Object>> recentTasks;

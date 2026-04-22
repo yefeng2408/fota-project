@@ -35,11 +35,11 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
 
 
     /**
-     * 升级运行态 设备基础信息 设备网关所用的key，用于分包过程中的【高频写操作】
+     * 升级运行态 设备基础信息 设备网关所用的key，用于分包过程中的【高频写操作】 +imei
      */
     private static final String UPGRADE_RUNTIME_KEY_PREFIX = "fota:upgrade:runtime:";
     /**
-     * 设备基础信息 web服务所使用的key【低频更新】
+     * 设备基础信息 web服务所使用的key【低频更新】+imei
      */
     private static final String DEVICE_CACHE_KEY_PREFIX = "fota:device:";
 
@@ -136,7 +136,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
     }
 
     private void upsertDeviceCache(DeviceEntity entity) {
-        String deviceKey = deviceCacheKey(entity.getId());
+        String deviceKey = deviceCacheKey(entity.getImei());
 
         Map<String, String> deviceCache = new HashMap<>();
         deviceCache.put("id", nullToEmpty(entity.getId()));
@@ -151,8 +151,8 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
         redisTemplate.opsForHash().putAll(deviceKey, deviceCache);
     }
 
-    private String deviceCacheKey(Long deviceId) {
-        return DEVICE_CACHE_KEY_PREFIX + deviceId;
+    private String deviceCacheKey(String imei) {
+        return DEVICE_CACHE_KEY_PREFIX + imei;
     }
 
     private String nullToEmpty(Object value) {

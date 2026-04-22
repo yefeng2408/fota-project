@@ -1,7 +1,6 @@
 package com.yef.fota.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yef.fota.annotation.OperationLog;
 import com.yef.fota.common.ApiResponse;
@@ -18,13 +17,10 @@ import com.yef.fota.service.DeviceGroupRelationService;
 import com.yef.fota.service.DeviceGroupService;
 import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.FirmwarePackageService;
-
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.validation.Valid;
-
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -51,16 +47,13 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/devices")
 public class DeviceController {
 
+
     /**
-     * 设备在线状态
-     */
-    private static final String DEVICE_ONLINE_KEY_PREFIX = "fota:device:online:";
-    /**
-     * 升级运行态 设备基础信息 设备网关所用的key，用于分包过程中的【高频写操作】
+     * 升级运行态 设备基础信息 设备网关所用的key，用于分包过程中的【高频写操作】   前缀拼接IMEI
      */
     private static final String UPGRADE_RUNTIME_KEY_PREFIX = "fota:upgrade:runtime:";
     /**
-     * 设备基础信息 web服务所使用的key【低频更新】
+     * 设备基础信息 web服务所使用的key【低频更新】   前缀拼接IMEI
      */
     private static final String DEVICE_CACHE_KEY_PREFIX = "fota:device:";
 
@@ -259,14 +252,14 @@ public class DeviceController {
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>()
                 .eq(DeviceGroupRelationEntity::getDeviceId, id));
         if (deleted) {
-            redisTemplate.delete(deviceCacheKey(id));
+            redisTemplate.delete(deviceCacheKey(entity.getImei()));
         }
         return ApiResponse.ok(null);
     }
 
 
-    private String deviceCacheKey(Long deviceId) {
-        return DEVICE_CACHE_KEY_PREFIX + deviceId;
+    private String deviceCacheKey(String imei) {
+        return DEVICE_CACHE_KEY_PREFIX + imei;
     }
 
     private int findColumnIndex(Row headerRow, DataFormatter formatter, String expectedHeader) {
@@ -339,6 +332,10 @@ public class DeviceController {
                 ? Collections.emptyMap()
                 : firmwarePackageService.listByIds(targetFirmwareIds).stream()
                 .collect(Collectors.toMap(FirmwarePackageEntity::getId, Function.identity(), (a, b) -> a));
+        //拿到所有设备在线状态
+        long now = System.currentTimeMillis();
+        Set<String> onlineDeviceIdSet = redisTemplate.opsForZSet()
+                .rangeByScore("fota:device:online:zset", now - 60_000L, now);
         return entities.stream().map(entity -> {
             DeviceVO vo = new DeviceVO();
             vo.setId(entity.getId());
@@ -357,9 +354,9 @@ public class DeviceController {
             vo.setCreatedAt(entity.getCreatedAt());
             vo.setUpdatedAt(entity.getUpdatedAt());
             vo.setIsBind(entity.getIsBind());
-            //在线状态查询redis
-            String onlineValue = redisTemplate.opsForValue().get(DEVICE_ONLINE_KEY_PREFIX + entity.getImei());
-            vo.setIsOnline(Integer.parseInt(onlineValue == null ? "0" : onlineValue));
+            //在线状态
+            boolean online = onlineDeviceIdSet != null && onlineDeviceIdSet.contains(String.valueOf(entity.getId()));
+            vo.setIsOnline(online ? 1 : 0);
             //计算是否可升级
             if (vo.getIsBind() == 1 && vo.getIsOnline() == 1 && "NO_TASK".equals(vo.getDeviceUpgradeStatus())) {
                 vo.setIsUpgradable("Y");
