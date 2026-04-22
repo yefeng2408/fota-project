@@ -19,7 +19,6 @@ tar -xzvf fota.tar.gz
 
 
 ###这份 docker-compose.yml 能跑的前提是，你要先把两个 Java 服务和 mock-device 打成镜像。
-
 #-----------------------本地 build + docker save/load--------------------------
 在 build 之前，你得先确保本地已经真的生成了 jar
 mvn clean package -DskipTests
@@ -27,17 +26,26 @@ ls fota-web-http-server/target/*.jar
 ls fota-gateway-tcp-server/target/*.jar
 ls fota-mock-device-client/target/*.jar
 
-#本地打包镜像。本地执行
+
+#x86本地打包镜像。本地执行
 docker build -t fota-web-admin-nginx:v1 -f docker/nginx/Dockerfile .
 docker build -t fota-web-http-server:v1 -f fota-web-http-server/Dockerfile .
 docker build -t fota-gateway-tcp-server:v1 -f fota-gateway-tcp-server/Dockerfile .
 docker build -t fota-mock-device-client:v1 -f fota-mock-device-client/Dockerfile .
+#arm架构
+docker buildx build --platform linux/amd64 -t fota-web-http-server:v1 -f fota-web-http-server/Dockerfile --load .
+docker buildx build --platform linux/amd64 -t fota-gateway-tcp-server:v1 -f fota-gateway-tcp-server/Dockerfile --load .
+docker buildx build --platform linux/amd64 -t fota-mock-device-client:v1 -f fota-mock-device-client/Dockerfile --load .
+docker buildx build --platform linux/amd64 -t fota-web-admin-nginx:v1 -f docker/nginx/Dockerfile --load .
+
+
 
 #导出镜像。 本地执行 把“本地镜像”导出成一个 .tar 文件，方便传输
 docker save -o fota-web-admin-nginx-v1.tar fota-web-admin-nginx:v1
 docker save -o fota-web-http-server-v1.tar fota-web-http-server:v1
 docker save -o fota-gateway-tcp-server-v1.tar fota-gateway-tcp-server:v1
 docker save -o fota-mock-device-client-v1.tar fota-mock-device-client:v1
+
 
 #上传到服务器后导入。 把 .tar 文件重新导入成“服务器上的镜像”【服务器上执行】
 docker load -i fota-web-admin-nginx-v1.tar
@@ -85,13 +93,20 @@ rm -rf ./data/mysql
 
 第四步：先只启动基础中间件
 生产部署不要一上来全起。先把底座起起来：
+
+先拉 image
+docker pull minio/minio:latest
+docker pull mysql:8.0
+docker pull redis:7.2
+
 docker compose up -d mysql redis minio
+
 看这三个是否正常
-docker logs -f fota-mysql
+docker logs -f mysql的容器id
 
 第五步：验证数据库真的起来了
 进入 mysql：
-docker exec -it fota-mysql mysql -uroot -p
+docker exec -it 容器id mysql -uroot -p
 
 然后执行：
 show databases;
@@ -105,14 +120,14 @@ docker compose up -d fota-web-http-server fota-gateway-tcp-server fota-mock-devi
 docker ps
 
 第七步：逐个看个个服务的日志
-docker logs -f fota-web-http-server
+docker logs -f 容器id
 看有没有：
 * Spring Boot started
 * 数据库连接成功
 * Redis 连接成功
 * MinIO 初始化成功
 
-docker logs -f fota-gateway-tcp-server
+docker logs -f 容器id
 看有没有：
 * Netty 端口监听成功
 * web-http-server 回调地址可达

@@ -5,14 +5,28 @@
         <strong>设备分组树</strong>
       </div>
       <el-tree
+        ref="groupTreeRef"
         :data="groupTree"
         node-key="id"
         default-expand-all
+        show-checkbox
+        check-strictly
         :props="{ label: 'label', children: 'children' }"
         @node-click="handleGroupClick"
+        @check-change="handleGroupCheckChange"
       >
         <template #default="{ data }">
-          <span>{{ data.label }} ({{ data.deviceCount || 0 }})</span>
+          <div class="group-tree-node">
+            <span>{{ data.label }} ({{ data.deviceCount || 0 }})</span>
+            <el-tag
+              v-if="selectedBatchGroup && selectedBatchGroup.id === data.id"
+              size="small"
+              type="warning"
+              effect="plain"
+            >
+              批量目标
+            </el-tag>
+          </div>
         </template>
       </el-tree>
     </div>
@@ -20,8 +34,14 @@
     <div class="block-card">
       <div class="table-toolbar">
         <div class="toolbar-left">
-          <el-input v-model="query.keyword" placeholder="按 IMEI/设备名搜索" clearable style="width: 240px" />
+          <el-input v-model="query.keyword" placeholder="按 IMEI/设备名搜索" clearable style="width: 180px" />
           <el-button @click="loadDevices">查询</el-button>
+          <el-button type="warning" :disabled="!selectedBatchGroup" @click="openBatchUpgradeDialog">
+            批量升级
+          </el-button>
+          <el-button type="primary" plain @click="openImportDialog">
+            批量添加
+          </el-button>
         </div>
         <div class="toolbar-right">
           <el-button type="primary" @click="openDialog()">新增设备</el-button>
@@ -67,8 +87,9 @@
               <el-tag
                 size="small"
                 effect="light"
-                :type="upgradeStatusTagType(row.deviceUpgradeStatus)">
-                    {{ formatUpgradeStatus(row.deviceUpgradeStatus) }}
+                :type="upgradeStatusTagType(row.deviceUpgradeStatus)"
+              >
+                {{ formatUpgradeStatus(row.deviceUpgradeStatus) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -102,30 +123,30 @@
                   更多操作
                 </el-button>
                 <template #dropdown>
-                    <el-dropdown-menu class="action-dropdown-menu">
-                      <el-dropdown-item command="edit" class="action-dropdown-item">
-                        <el-button size="small">编辑</el-button>
-                      </el-dropdown-item>
+                  <el-dropdown-menu class="action-dropdown-menu">
+                    <el-dropdown-item command="edit" class="action-dropdown-item">
+                      <el-button size="small">编辑</el-button>
+                    </el-dropdown-item>
 
-                      <el-dropdown-item command="delete" class="action-dropdown-item">
-                        <el-button size="small" type="danger" plain>删除</el-button>
-                      </el-dropdown-item>
+                    <el-dropdown-item command="delete" class="action-dropdown-item">
+                      <el-button size="small" type="danger" plain>删除</el-button>
+                    </el-dropdown-item>
 
-                      <el-dropdown-item
-                        command="cancel"
-                        class="action-dropdown-item"
+                    <el-dropdown-item
+                      command="cancel"
+                      class="action-dropdown-item"
+                      :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
+                    >
+                      <el-button
+                        size="small"
+                        type="warning"
+                        plain
                         :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
                       >
-                        <el-button
-                          size="small"
-                          type="warning"
-                          plain
-                          :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
-                        >
-                          取消升级
-                        </el-button>
-                      </el-dropdown-item>
-                    </el-dropdown-menu>
+                        取消升级
+                      </el-button>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
                 </template>
               </el-dropdown>
             </template>
@@ -201,18 +222,143 @@
       <el-button type="primary" @click="submit">保存</el-button>
     </template>
   </el-dialog>
+
+  <el-dialog v-model="batchDialogVisible" title="批量升级设备组" width="520px">
+    <el-form :model="batchUpgradeForm" label-position="top">
+      <el-form-item label="已勾选设备组">
+        <el-input :model-value="selectedBatchGroup?.label || ''" disabled />
+      </el-form-item>
+      <el-form-item label="当前分组设备数">
+        <el-input :model-value="`${selectedBatchGroup?.deviceCount || 0} 台`" disabled />
+      </el-form-item>
+      <el-form-item label="统一升级固件">
+        <el-select
+          v-model="batchUpgradeForm.firmwareId"
+          placeholder="请选择要统一下发的固件"
+          filterable
+          style="width: 100%"
+        >
+          <el-option
+            v-for="item in firmwareOptions"
+            :key="item.id"
+            :label="formatFirmwareLabel(item)"
+            :value="item.id"
+          />
+        </el-select>
+      </el-form-item>
+      <el-alert
+        type="warning"
+        show-icon
+        :closable="false"
+        title="系统会先把组内可升级设备统一绑定到所选固件，再批量发起升级请求。设备类型与固件不匹配、或当前已有升级任务的设备会自动跳过。"
+      />
+    </el-form>
+    <template #footer>
+      <el-button @click="batchDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="batchSubmitting" @click="submitBatchUpgrade">
+        确认批量升级
+      </el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="importDialogVisible" title="批量添加设备" width="560px">
+    <el-form :model="importForm" label-position="top">
+      <el-form-item label="设备分组">
+        <el-tree-select
+          v-model="importForm.deviceGroupId"
+          :data="groupTree"
+          check-strictly
+          node-key="id"
+          :props="{ label: 'label', children: 'children', value: 'id' }"
+          style="width: 100%"
+        />
+      </el-form-item>
+      <el-form-item label="设备类型">
+        <el-select v-model="importForm.deviceType" placeholder="请选择设备类型" style="width: 100%">
+          <el-option
+            v-for="item in deviceTypeOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="目标（绑定）固件">
+        <el-select
+          v-model="importForm.targetFirmwareId"
+          placeholder="请选择目标固件"
+          clearable
+          filterable
+          :empty-values="[null, undefined, '']"
+          :value-on-clear="null"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="item in importFirmwareOptions"
+            :key="item.id"
+            :label="formatFirmwareLabel(item)"
+            :value="item.id"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="Excel 文件">
+        <div class="import-actions">
+          <el-button link type="primary" @click="downloadImportTemplate">
+            下载模板
+          </el-button>
+        </div>
+        <el-upload
+          ref="importUploadRef"
+          :auto-upload="false"
+          :show-file-list="true"
+          :limit="1"
+          accept=".xls,.xlsx"
+          :on-change="handleImportFileChange"
+          :on-remove="handleImportFileRemove"
+          :before-upload="beforeImportFileUpload"
+        >
+          <el-button type="primary">上传 Excel</el-button>
+          <template #tip>
+            <div class="upload-tip">
+              仅支持 `.xls/.xlsx`，表头必须包含 `imei` 和 `设备名称`。`imei` 必须是 8 位数字，设备名称可留空。
+            </div>
+          </template>
+        </el-upload>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="importDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="importSubmitting" @click="submitImportDevices">
+        确定
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '../api/request'
 
+const groupTreeRef = ref(null)
 const groupTree = ref([])
 const firmwareOptions = ref([])
 const dialogVisible = ref(false)
+const batchDialogVisible = ref(false)
+const importDialogVisible = ref(false)
+const batchSubmitting = ref(false)
+const importSubmitting = ref(false)
+const selectedBatchGroup = ref(null)
+const importUploadRef = ref(null)
+const importFile = ref(null)
 const tableData = reactive({ total: 0, records: [] })
 const query = reactive({ current: 1, pageSize: 10, keyword: '', deviceGroupId: null })
+const batchUpgradeForm = reactive({ firmwareId: null })
+const importForm = reactive({
+  deviceGroupId: null,
+  deviceType: '',
+  targetFirmwareId: null
+})
 const deviceTypeOptions = [
   { label: 'D056', value: 'D056' },
   { label: 'D057', value: 'D057' },
@@ -230,6 +376,7 @@ const upgradeStatusTextMap = {
   PAUSED: '升级暂停',
   CANCEL_UPGRADE: '用户取消升级'
 }
+
 const form = reactive({
   id: null,
   imei: '',
@@ -332,10 +479,29 @@ function connectDeviceUpgradeWs() {
   }
 }
 
-
+function findGroupNodeById(nodes, targetId) {
+  for (const node of nodes || []) {
+    if (node.id === targetId) {
+      return node
+    }
+    const found = findGroupNodeById(node.children || [], targetId)
+    if (found) {
+      return found
+    }
+  }
+  return null
+}
 
 async function loadGroups() {
-  groupTree.value = await request.get('/api/device-groups/tree')
+  const data = await request.get('/api/device-groups/tree')
+  groupTree.value = data
+  if (!selectedBatchGroup.value?.id) {
+    return
+  }
+  const matched = findGroupNodeById(data, selectedBatchGroup.value.id)
+  selectedBatchGroup.value = matched || null
+  await nextTick()
+  groupTreeRef.value?.setCheckedKeys(matched ? [matched.id] : [])
 }
 
 async function loadDevices() {
@@ -350,8 +516,15 @@ async function loadFirmwares() {
 }
 
 function formatFirmwareLabel(item) {
-  return `${item.fileName || '未命名固件'} / ${item.version || '-'}`
+  return `${item.fileName || '未命名固件'} / ${item.version || '-'} / ${item.deviceType || '通用'}`
 }
+
+const importFirmwareOptions = computed(() => {
+  if (!importForm.deviceType) {
+    return firmwareOptions.value
+  }
+  return firmwareOptions.value.filter((item) => !item.deviceType || item.deviceType === importForm.deviceType)
+})
 
 function handleImeiInput(value) {
   form.imei = String(value || '').replace(/\D/g, '').slice(0, 8)
@@ -361,6 +534,22 @@ function handleGroupClick(node) {
   query.deviceGroupId = node.id
   query.current = 1
   loadDevices()
+}
+
+function handleGroupCheckChange(data, checked) {
+  if (checked) {
+    selectedBatchGroup.value = data
+    nextTick(() => {
+      groupTreeRef.value?.setCheckedKeys([data.id])
+    })
+    return
+  }
+  if (selectedBatchGroup.value?.id === data.id) {
+    selectedBatchGroup.value = null
+    nextTick(() => {
+      groupTreeRef.value?.setCheckedKeys([])
+    })
+  }
 }
 
 function changePage(page) {
@@ -425,16 +614,9 @@ function isFirmwareBound(row) {
   return isTruthy(row.isBind)
 }
 
-/**
- * 三个条件同时满足才能是可升级
- * is_bind = 1
- * is_online = 1
- * upgrade_status = NO_TASK 
- */
 function canStartUpgrade(row) {
   return isFirmwareBound(row) && isDeviceOnline(row) && row.deviceUpgradeStatus === 'NO_TASK'
 }
-
 
 async function startUpgrade(row) {
   try {
@@ -444,7 +626,6 @@ async function startUpgrade(row) {
       await loadDevices()
       return
     }
-    console.log('升级接口返回异常:', taskId)
     ElMessage.error('升级失败，请稍后重试')
   } catch (error) {
     console.error('升级接口调用失败:', error)
@@ -515,11 +696,131 @@ async function submit() {
   await Promise.all([loadDevices(), loadGroups()])
 }
 
+function openBatchUpgradeDialog() {
+  if (!selectedBatchGroup.value) {
+    ElMessage.warning('请先勾选一个设备组')
+    return
+  }
+  batchUpgradeForm.firmwareId = null
+  batchDialogVisible.value = true
+}
+
+function openImportDialog() {
+  importForm.deviceGroupId = selectedBatchGroup.value?.id || null
+  importForm.deviceType = ''
+  importForm.targetFirmwareId = null
+  importFile.value = null
+  importUploadRef.value?.clearFiles()
+  importDialogVisible.value = true
+}
+
+function downloadImportTemplate() {
+  window.open('/批量导入设备模板.xlsx', '_blank')
+}
+
+function beforeImportFileUpload(rawFile) {
+  const lowerName = String(rawFile?.name || '').toLowerCase()
+  const isExcel = lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx')
+  if (!isExcel) {
+    ElMessage.warning('只能上传 Excel 文件')
+  }
+  return isExcel ? false : false
+}
+
+function handleImportFileChange(uploadFile) {
+  const rawFile = uploadFile?.raw || null
+  const lowerName = String(rawFile?.name || '').toLowerCase()
+  if (!rawFile || (!lowerName.endsWith('.xls') && !lowerName.endsWith('.xlsx'))) {
+    importFile.value = null
+    importUploadRef.value?.clearFiles()
+    ElMessage.warning('只能上传 Excel 文件')
+    return
+  }
+  importFile.value = rawFile
+}
+
+function handleImportFileRemove() {
+  importFile.value = null
+}
+
+async function submitBatchUpgrade() {
+  if (!selectedBatchGroup.value?.id) {
+    ElMessage.warning('请先勾选一个设备组')
+    return
+  }
+  if (!batchUpgradeForm.firmwareId) {
+    ElMessage.warning('请选择要统一下发的固件')
+    return
+  }
+  batchSubmitting.value = true
+  try {
+    const result = await request.post('/api/batch-upgrade-tasks/start', {
+      groupId: selectedBatchGroup.value.id,
+      firmwareId: batchUpgradeForm.firmwareId
+    })
+    const message = result?.summary || '批量升级已提交'
+    if ((result?.skippedCount || 0) > 0) {
+      ElMessage.warning(message)
+    } else {
+      ElMessage.success(message)
+    }
+    batchDialogVisible.value = false
+    await Promise.all([loadDevices(), loadGroups()])
+  } finally {
+    batchSubmitting.value = false
+  }
+}
+
+async function submitImportDevices() {
+  if (!importForm.deviceGroupId) {
+    ElMessage.warning('请选择设备分组')
+    return
+  }
+  if (!importForm.deviceType) {
+    ElMessage.warning('请选择设备类型')
+    return
+  }
+  if (!importFile.value) {
+    ElMessage.warning('请上传 Excel 文件')
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('file', importFile.value)
+  formData.append('deviceGroupId', String(importForm.deviceGroupId))
+  formData.append('deviceType', importForm.deviceType)
+  if (importForm.targetFirmwareId) {
+    formData.append('targetFirmwareId', String(importForm.targetFirmwareId))
+  }
+
+  importSubmitting.value = true
+  try {
+    const result = await request.post('/api/devices/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    ElMessage.success(result?.summary || '批量导入完成')
+    importDialogVisible.value = false
+    await Promise.all([loadDevices(), loadGroups()])
+  } finally {
+    importSubmitting.value = false
+  }
+}
+
 async function remove(id) {
   await request.delete(`/api/devices/${id}`)
   ElMessage.success('删除成功')
   await Promise.all([loadDevices(), loadGroups()])
 }
+
+watch(() => importForm.deviceType, () => {
+  if (!importForm.targetFirmwareId) {
+    return
+  }
+  const matched = importFirmwareOptions.value.some((item) => item.id === importForm.targetFirmwareId)
+  if (!matched) {
+    importForm.targetFirmwareId = null
+  }
+})
 
 onMounted(async () => {
   await loadGroups()
@@ -528,7 +829,6 @@ onMounted(async () => {
   connectDeviceUpgradeWs()
 })
 
-
 onBeforeUnmount(() => {
   clearWsReconnectTimer()
   if (wsRef.value) {
@@ -536,12 +836,9 @@ onBeforeUnmount(() => {
     wsRef.value = null
   }
 })
-
-
 </script>
 
 <style scoped>
-
 .action-dropdown-menu :deep(.el-dropdown-menu__item) {
   padding: 6px 12px;
   justify-content: center;
@@ -570,10 +867,6 @@ onBeforeUnmount(() => {
   min-width: 100%;
 }
 
-.status-text {
-  white-space: nowrap;
-}
-
 .progress-cell {
   min-width: 120px;
 }
@@ -599,21 +892,20 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 3px rgba(47, 179, 68, 0.16);
 }
 
-.upgrade-flag {
+.group-tree-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-tip {
+  line-height: 1.6;
   color: #8a94a6;
-  white-space: nowrap;
 }
 
-.upgrade-flag.is-enabled {
-  color: #2fb344;
-  font-weight: 700;
+.import-actions {
+  margin-bottom: 8px;
 }
-
-.action-dropdown {
-  display: inline-block;
-  margin-top: 4px;
-}
-</style>
 
 .version-flow {
   display: inline-flex;
@@ -625,3 +917,4 @@ onBeforeUnmount(() => {
 .version-arrow {
   color: #8a94a6;
 }
+</style>

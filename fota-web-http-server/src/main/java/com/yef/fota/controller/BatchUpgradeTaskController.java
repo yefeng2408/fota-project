@@ -1,13 +1,20 @@
 package com.yef.fota.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.yef.fota.annotation.OperationLog;
+import com.yef.fota.auth.AuthContext;
 import com.yef.fota.common.ApiResponse;
 import com.yef.fota.common.PageResult;
+import com.yef.fota.dto.batch.BatchUpgradeStartRequest;
+import com.yef.fota.dto.batch.BatchUpgradeStartResponse;
 import com.yef.fota.entity.BatchUpgradeTaskEntity;
 import com.yef.fota.service.BatchUpgradeTaskService;
+import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +25,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class BatchUpgradeTaskController {
 
     private final BatchUpgradeTaskService batchUpgradeTaskService;
+
+    @PostMapping("/start")
+    @OperationLog(action = "START_BATCH_UPGRADE")
+    public ApiResponse<BatchUpgradeStartResponse> start(@RequestBody @Valid BatchUpgradeStartRequest request) {
+        return ApiResponse.ok(batchUpgradeTaskService.startBatchUpgrade(request, AuthContext.getUserId()));
+    }
 
     @GetMapping
     public ApiResponse<PageResult<BatchUpgradeTaskEntity>> page(@RequestParam(defaultValue = "1") long current,

@@ -2,6 +2,8 @@ package com.yef.fota.service;
 
 import com.yef.fota.entity.BatchUpgradeTaskEntity;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.yef.fota.dto.batch.BatchUpgradeStartRequest;
+import com.yef.fota.dto.batch.BatchUpgradeStartResponse;
 
 /**
  * <p>
@@ -13,4 +15,5 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface BatchUpgradeTaskService extends IService<BatchUpgradeTaskEntity> {
 
+    BatchUpgradeStartResponse startBatchUpgrade(BatchUpgradeStartRequest request, Long operatorId);
 }

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yef.fota.annotation.OperationLog;
 import com.yef.fota.common.ApiResponse;
 import com.yef.fota.common.PageResult;
+import com.yef.fota.dto.device.DeviceImportResponse;
 import com.yef.fota.dto.device.DeviceSaveRequest;
 import com.yef.fota.dto.device.DeviceVO;
 import com.yef.fota.entity.DeviceEntity;
@@ -25,7 +26,14 @@ import java.util.stream.Collectors;
 import javax.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,6 +44,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -107,6 +116,113 @@ public class DeviceController {
         return ApiResponse.ok(toDeviceVO(deviceEntity));
     }
 
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @OperationLog(action = "IMPORT_DEVICE")
+    public ApiResponse<DeviceImportResponse> importDevices(@RequestParam("file") MultipartFile file,
+                                                           @RequestParam Long deviceGroupId,
+                                                           @RequestParam String deviceType,
+                                                           @RequestParam(required = false) Long targetFirmwareId) throws Exception {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("请上传 Excel 文件");
+        }
+        String fileName = file.getOriginalFilename();
+        String lowerFileName = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        if (!StringUtils.hasText(fileName) || (!lowerFileName.endsWith(".xlsx") && !lowerFileName.endsWith(".xls"))) {
+            throw new BusinessException("仅支持上传 .xls 或 .xlsx 格式文件");
+        }
+        DeviceGroupEntity group = deviceGroupService.getById(deviceGroupId);
+        if (group == null) {
+            throw new BusinessException("设备分组不存在");
+        }
+        FirmwarePackageEntity targetFirmware = null;
+        if (targetFirmwareId != null) {
+            targetFirmware = firmwarePackageService.getById(targetFirmwareId);
+            if (targetFirmware == null) {
+                throw new BusinessException("目标固件不存在");
+            }
+            if (StringUtils.hasText(targetFirmware.getDeviceType()) && !targetFirmware.getDeviceType().equals(deviceType)) {
+                throw new BusinessException("所选固件与设备类型不匹配");
+            }
+        }
+
+        DeviceImportResponse response = new DeviceImportResponse();
+        DataFormatter formatter = new DataFormatter();
+        Set<String> excelImeis = new HashSet<>();
+        List<DeviceSaveRequest> requests = new ArrayList<>();
+
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = workbook.getNumberOfSheets() > 0 ? workbook.getSheetAt(0) : null;
+            if (sheet == null || sheet.getPhysicalNumberOfRows() == 0) {
+                throw new BusinessException("Excel 内容为空");
+            }
+            Row headerRow = sheet.getRow(sheet.getFirstRowNum());
+            int imeiColumnIndex = findColumnIndex(headerRow, formatter, "imei");
+            int deviceNameColumnIndex = findColumnIndex(headerRow, formatter, "设备名称");
+            if (imeiColumnIndex < 0) {
+                throw new BusinessException("Excel 表头缺少 imei 列");
+            }
+
+            int totalRows = 0;
+            for (int rowIndex = sheet.getFirstRowNum() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                Row row = sheet.getRow(rowIndex);
+                if (row == null || isRowEmpty(row, formatter)) {
+                    continue;
+                }
+                totalRows++;
+                String imei = normalizeCellValue(row.getCell(imeiColumnIndex), formatter);
+                String deviceName = deviceNameColumnIndex >= 0
+                        ? normalizeCellValue(row.getCell(deviceNameColumnIndex), formatter)
+                        : "";
+
+                if (!imei.matches("\\d{8}")) {
+                    response.setInvalidImeiCount(response.getInvalidImeiCount() + 1);
+                    continue;
+                }
+                if (!excelImeis.add(imei)) {
+                    response.setDuplicateInFileCount(response.getDuplicateInFileCount() + 1);
+                    continue;
+                }
+
+                DeviceSaveRequest request = new DeviceSaveRequest();
+                request.setImei(imei);
+                request.setDeviceName(StringUtils.hasText(deviceName) ? deviceName : imei);
+                request.setDeviceType(deviceType);
+                request.setCurrentFirmwareVersion(null);
+                request.setDeviceUpgradeStatus("NO_TASK");
+                request.setTargetFirmwareId(targetFirmware == null ? null : targetFirmware.getId());
+                request.setDeviceGroupId(deviceGroupId);
+                requests.add(request);
+            }
+            response.setTotalRows(totalRows);
+        }
+
+        if (requests.isEmpty()) {
+            response.setSummary(buildImportSummary(response));
+            return ApiResponse.ok(response);
+        }
+
+        Set<String> requestImeis = requests.stream().map(DeviceSaveRequest::getImei).collect(Collectors.toSet());
+        Set<String> existsImeis = deviceService.lambdaQuery()
+                .in(DeviceEntity::getImei, requestImeis)
+                .list()
+                .stream()
+                .map(DeviceEntity::getImei)
+                .collect(Collectors.toSet());
+
+        List<DeviceSaveRequest> importableRequests = requests.stream()
+                .filter(request -> !existsImeis.contains(request.getImei()))
+                .collect(Collectors.toList());
+
+        response.setDuplicateInDatabaseCount(existsImeis.size());
+
+        for (DeviceSaveRequest request : importableRequests) {
+            deviceService.addDevice(request);
+        }
+        response.setImportedCount(importableRequests.size());
+        response.setSummary(buildImportSummary(response));
+        return ApiResponse.ok(response);
+    }
+
     @PutMapping("/{id}")
     @OperationLog(action = "UPDATE_DEVICE")
     public ApiResponse<DeviceVO> update(@PathVariable Long id, @RequestBody @Valid DeviceSaveRequest request) {
@@ -151,6 +267,52 @@ public class DeviceController {
 
     private String deviceCacheKey(Long deviceId) {
         return DEVICE_CACHE_KEY_PREFIX + deviceId;
+    }
+
+    private int findColumnIndex(Row headerRow, DataFormatter formatter, String expectedHeader) {
+        if (headerRow == null) {
+            return -1;
+        }
+        for (Cell cell : headerRow) {
+            String cellValue = normalizeCellValue(cell, formatter).trim();
+            if (expectedHeader.equalsIgnoreCase(cellValue)) {
+                return cell.getColumnIndex();
+            }
+        }
+        return -1;
+    }
+
+    private String normalizeCellValue(Cell cell, DataFormatter formatter) {
+        if (cell == null) {
+            return "";
+        }
+        return formatter.formatCellValue(cell).trim();
+    }
+
+    private boolean isRowEmpty(Row row, DataFormatter formatter) {
+        if (row == null) {
+            return true;
+        }
+        int firstCell = row.getFirstCellNum();
+        int lastCell = row.getLastCellNum();
+        if (firstCell < 0 || lastCell < 0) {
+            return true;
+        }
+        for (int i = firstCell; i < lastCell; i++) {
+            if (StringUtils.hasText(normalizeCellValue(row.getCell(i), formatter))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String buildImportSummary(DeviceImportResponse response) {
+        return String.format("导入完成：总行数 %d，成功 %d，Excel 内重复 %d，数据库重复 %d，无效 IMEI %d",
+                response.getTotalRows(),
+                response.getImportedCount(),
+                response.getDuplicateInFileCount(),
+                response.getDuplicateInDatabaseCount(),
+                response.getInvalidImeiCount());
     }
 
 

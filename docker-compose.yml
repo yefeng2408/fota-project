@@ -2,6 +2,7 @@ services:
 
   mysql:
     image: mysql:8.0
+    #image: registry.cn-hangzhou.aliyuncs.com/library/mysql:8.0
     container_name: fota-mysql
     restart: unless-stopped
     environment:
@@ -25,6 +26,7 @@ services:
 
   redis:
     image: redis:7.2
+    #image: registry.cn-hangzhou.aliyuncs.com/library/redis:7.2
     container_name: fota-redis
     restart: unless-stopped
     command: redis-server --appendonly yes
@@ -40,6 +42,7 @@ services:
 
   minio:
     image: minio/minio:latest
+    #image: quay.io/minio/minio:latest
     container_name: fota-minio
     restart: unless-stopped
     environment:

@@ -18,5 +18,7 @@ public interface UpgradeTaskService extends IService<UpgradeTaskEntity> {
 
     Long startUpgrade(DeviceEntity deviceEntity,FirmwarePackageEntity firmware);
 
+    Long startUpgrade(DeviceEntity deviceEntity, FirmwarePackageEntity firmware, Long batchId, Long operatorId);
+
     void updateDeviceUpgradeFinalResult(UpdateDeviceUpgradeFinalResult result);
 }

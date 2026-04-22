@@ -42,12 +42,20 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
     @Transactional(rollbackFor = Exception.class)
     @Override
     public Long startUpgrade(DeviceEntity device,FirmwarePackageEntity firmware) {
+        return startUpgrade(device, firmware, null, null);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public Long startUpgrade(DeviceEntity device, FirmwarePackageEntity firmware, Long batchId, Long operatorId) {
         UpgradeTaskEntity task = new UpgradeTaskEntity();
         //雪花id，保证全局唯一
         task.setTaskId(IdWorker.getId());
         task.setDeviceId(device.getId());
         task.setImei(device.getImei());
         task.setFirmwareId(firmware.getId());
+        task.setBatchId(batchId);
+        task.setOperatorId(operatorId);
         task.setTaskStatus("UPGRADE_REQUESTED");
         task.setCreatedAt(LocalDateTime.now());
         task.setUpdatedAt(LocalDateTime.now());
