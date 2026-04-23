@@ -9,7 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * @description: 指令下发服务
+ * @description: 指令下发服务。由平台下发指令到设备网关
  * @author: 叶丰
  * @date: 2026/04/15 22:34
  */

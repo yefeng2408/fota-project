@@ -1,7 +1,5 @@
 package com.yef.fota.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.yef.fota.api.dto.GatewayUpgradeRequest;
 import com.yef.fota.api.dto.UpdateDeviceUpgradeFinalResult;
@@ -10,15 +8,18 @@ import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.entity.UpgradeTaskEntity;
 import com.yef.fota.mapper.UpgradeTaskMapper;
-import com.yef.fota.service.FirmwarePackageService;
+import com.yef.fota.service.DeviceService;
+import com.yef.fota.service.DeviceUpgradeLockService;
 import com.yef.fota.service.UpgradeTaskService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.yef.fota.exception.BusinessException;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import org.springframework.util.StringUtils;
 
 /**
  * <p>
@@ -31,12 +32,17 @@ import java.time.LocalDateTime;
 @Service
 public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, UpgradeTaskEntity> implements UpgradeTaskService {
 
-    private final UpgradeTaskMapper upgradeTaskMapper;
     private final GatewayCommandService gatewayCommandService;
+    private final DeviceUpgradeLockService deviceUpgradeLockService;
+    private final DeviceService deviceService;
 
-    public UpgradeTaskServiceImpl(UpgradeTaskMapper upgradeTaskMapper, GatewayCommandService gatewayCommandService) {
-        this.upgradeTaskMapper = upgradeTaskMapper;
+    public UpgradeTaskServiceImpl(UpgradeTaskMapper upgradeTaskMapper,
+                                  GatewayCommandService gatewayCommandService,
+                                  DeviceUpgradeLockService deviceUpgradeLockService,
+                                  DeviceService deviceService) {
         this.gatewayCommandService = gatewayCommandService;
+        this.deviceUpgradeLockService = deviceUpgradeLockService;
+        this.deviceService = deviceService;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -51,6 +57,13 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         UpgradeTaskEntity task = new UpgradeTaskEntity();
         //雪花id，保证全局唯一
         task.setTaskId(IdWorker.getId());
+        String lockToken = String.valueOf(task.getTaskId());
+
+        boolean lockAcquired = deviceUpgradeLockService.acquireLock(device.getImei(), lockToken);
+        if (!lockAcquired) {
+            throw new BusinessException("设备升级流程已在执行中，请勿重复下发升级指令");
+        }
+
         task.setDeviceId(device.getId());
         task.setImei(device.getImei());
         task.setFirmwareId(firmware.getId());
@@ -59,12 +72,19 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         task.setTaskStatus("UPGRADE_REQUESTED");
         task.setCreatedAt(LocalDateTime.now());
         task.setUpdatedAt(LocalDateTime.now());
-        this.save(task);
-
-        GatewayUpgradeRequest gatewayRequest = getUpgradeRequest(task, device, firmware);
-
-        gatewayCommandService.sendUpgradeRequest(gatewayRequest);
-        return task.getId();
+        try {
+            boolean saved = this.save(task);
+            if (!saved) {
+                throw new BusinessException("创建升级任务失败");
+            }
+            GatewayUpgradeRequest gatewayRequest = getUpgradeRequest(task, device, firmware);
+            gatewayRequest.setLockToken(lockToken);
+            gatewayCommandService.sendUpgradeRequest(gatewayRequest);
+            return task.getId();
+        } catch (RuntimeException ex) {
+            deviceUpgradeLockService.releaseLock(device.getImei(), lockToken);
+            throw ex;
+        }
     }
 
 
@@ -76,6 +96,7 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         gatewayRequest.setTaskId(task.getTaskId());
         gatewayRequest.setDeviceId(device.getId());
         gatewayRequest.setImei(device.getImei());
+        gatewayRequest.setLockToken(String.valueOf(task.getTaskId()));
         gatewayRequest.setFirmwareId(firmware.getId());
 
         byte[] firmwareNameBytes = firmware.getFileName().getBytes(StandardCharsets.UTF_8);
@@ -100,12 +121,37 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
 
     @Override
     public void updateDeviceUpgradeFinalResult(UpdateDeviceUpgradeFinalResult result) {
-        UpgradeTaskEntity upgradeTask =new UpgradeTaskEntity();
-        BeanUtils.copyProperties(result, upgradeTask);
-        Wrapper<UpgradeTaskEntity> queryWrapper = new QueryWrapper<>();
+        if (result == null || !StringUtils.hasText(result.getImei()) || !StringUtils.hasText(result.getTaskId())) {
+            return;
+        }
 
-        //this.baseMapper.update();
+        deviceUpgradeLockService.releaseLock(result.getImei(), result.getTaskId());
 
+        Long taskId;
+        try {
+            taskId = Long.valueOf(result.getTaskId());
+        } catch (NumberFormatException ex) {
+            return;
+        }
+
+        LocalDateTime now = result.getEndTime() == null ? LocalDateTime.now() : result.getEndTime();
+        this.update(new LambdaUpdateWrapper<UpgradeTaskEntity>()
+                .eq(UpgradeTaskEntity::getTaskId, taskId)
+                .set(StringUtils.hasText(result.getTaskStatus()), UpgradeTaskEntity::getTaskStatus, result.getTaskStatus())
+                .set(result.getProgress() != null, UpgradeTaskEntity::getProgress, result.getProgress())
+                .set(result.getCurrentPacket() > 0, UpgradeTaskEntity::getCurrentPacket, result.getCurrentPacket())
+                .set(result.getTotalPacket() > 0, UpgradeTaskEntity::getTotalPacket, result.getTotalPacket())
+                .set(StringUtils.hasText(result.getFailReason()), UpgradeTaskEntity::getFailReason, result.getFailReason())
+                .set(UpgradeTaskEntity::getEndTime, now)
+                .set(UpgradeTaskEntity::getUpdatedAt, now));
+
+        deviceService.update(new LambdaUpdateWrapper<DeviceEntity>()
+                .eq(DeviceEntity::getImei, result.getImei())
+                .set(StringUtils.hasText(result.getTaskStatus()), DeviceEntity::getDeviceUpgradeStatus, result.getTaskStatus())
+                .set("SUCCESS".equals(result.getTaskStatus()) && StringUtils.hasText(result.getTargetFirmwareVersion()),
+                        DeviceEntity::getCurrentFirmwareVersion,
+                        result.getTargetFirmwareVersion())
+                .set(DeviceEntity::getUpdatedAt, now));
     }
 
 

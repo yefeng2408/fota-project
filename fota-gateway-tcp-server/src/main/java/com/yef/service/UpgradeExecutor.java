@@ -31,15 +31,18 @@ public class UpgradeExecutor {
     private final PacketSender packetSender;
 
     private final DeviceUpgradeEventPushClient deviceUpgradeEventPushClient;
+    private final DeviceUpgradeLockService deviceUpgradeLockService;
 
 
     public UpgradeExecutor(StringRedisTemplate redisTemplate, MinioClient minioClient,
                            PacketSender packetSender,
-                           DeviceUpgradeEventPushClient deviceUpgradeEventPushClient) {
+                           DeviceUpgradeEventPushClient deviceUpgradeEventPushClient,
+                           DeviceUpgradeLockService deviceUpgradeLockService) {
         this.redisTemplate = redisTemplate;
         this.minioClient = minioClient;
         this.packetSender = packetSender;
         this.deviceUpgradeEventPushClient = deviceUpgradeEventPushClient;
+        this.deviceUpgradeLockService = deviceUpgradeLockService;
 
     }
 
@@ -73,27 +76,49 @@ public class UpgradeExecutor {
         packetSender.sendToDevice(messageAck.imei(), messageAck);
 
         String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + message.imei();
+        Map<Object, Object> runtimeMap = redisTemplate.opsForHash().entries(runtimeKey);
+        String lockToken = runtimeMap == null ? null : String.valueOf(runtimeMap.get("lockToken"));
+        String targetFirmwareVersion = runtimeMap == null ? null : String.valueOf(runtimeMap.get("targetFirmwareVersion"));
+        String finalStatus = message.getResult() == 0 ? "SUCCESS" : "FAIL";
+
         Map<String, String> runtimeHash = new HashMap<>();
         long now = System.currentTimeMillis();
         runtimeHash.put("endAt", String.valueOf(now));
         runtimeHash.put("progress", "100");
         runtimeHash.put("packetTime", String.valueOf(now));
         runtimeHash.put("lastPacketAt", String.valueOf(now));
-        runtimeHash.put("status", "SUCCESS");
+        runtimeHash.put("status", finalStatus);
         redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
+        if (lockToken != null && !lockToken.isBlank() && !"null".equalsIgnoreCase(lockToken)) {
+            deviceUpgradeLockService.releaseLock(message.imei(), lockToken);
+        }
+        deviceUpgradeLockService.clearActive(message.imei());
 
         deviceUpgradeEventPushClient.push(
                 new DeviceUpgradeEventRequest(
                         message.imei(),
-                        "SUCCESS",
+                        finalStatus,
                         100,
                         null,
                         null
                 )
         );
 
-        //更新upgrade_task
-
+        deviceUpgradeEventPushClient.updateFinalUpgradeTaskRecord(
+                new com.yef.req.UpdateDeviceUpgradeFinalResult(
+                        message.imei(),
+                        String.valueOf(message.getTaskId()),
+                        finalStatus,
+                        100,
+                        null,
+                        targetFirmwareVersion,
+                        0,
+                        0,
+                        finalStatus.equals("SUCCESS") ? null : String.valueOf(message.getErrorCode()),
+                        null,
+                        java.time.LocalDateTime.now()
+                )
+        );
 
     }
 

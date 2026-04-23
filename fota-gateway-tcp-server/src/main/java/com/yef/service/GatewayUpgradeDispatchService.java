@@ -27,11 +27,14 @@ public class GatewayUpgradeDispatchService {
 
     private final SessionManager sessionManager;
     private final StringRedisTemplate redisTemplate;
+    private final DeviceUpgradeLockService deviceUpgradeLockService;
 
     public GatewayUpgradeDispatchService(SessionManager sessionManager,
-                                         StringRedisTemplate redisTemplate) {
+                                         StringRedisTemplate redisTemplate,
+                                         DeviceUpgradeLockService deviceUpgradeLockService) {
         this.sessionManager = sessionManager;
         this.redisTemplate = redisTemplate;
+        this.deviceUpgradeLockService = deviceUpgradeLockService;
     }
 
     public void sendUpgradeRequest(PlatformUpgradeRequest req) {
@@ -59,8 +62,9 @@ public class GatewayUpgradeDispatchService {
         Map<String, Object> runtimeHash = new HashMap<>();
         runtimeHash.put("imei", nullToEmpty(req.getImei()));
         runtimeHash.put("taskId", nullToEmpty(String.valueOf(req.getTaskId())));
+        runtimeHash.put("lockToken", nullToEmpty(req.getLockToken()));
         runtimeHash.put("packetNo", String.valueOf(0));
-        runtimeHash.put("status", "NO_TASK");
+        runtimeHash.put("status", "UPGRADE_REQUESTED");
         runtimeHash.put("totalPacket", nullToEmpty(String.valueOf(req.getTotalPacket())));
         runtimeHash.put("chunkSize", nullToEmpty(String.valueOf(req.getChunkSize())));
         runtimeHash.put("startAt",String.valueOf(System.currentTimeMillis()));
@@ -70,8 +74,10 @@ public class GatewayUpgradeDispatchService {
         runtimeHash.put("md5", nullToEmpty(req.getMd5()));
         runtimeHash.put("bucketName",req.getBucketName());
         runtimeHash.put("objectName",req.getObjectName());
+        runtimeHash.put("targetFirmwareVersion", req.getFirmwareVersionName());
 
         redisTemplate.opsForHash().putAll(UPGRADE_RUNTIME_KEY_PREFIX+req.getImei(),runtimeHash);
+        deviceUpgradeLockService.markActive(req.getImei());
 
         /**
          * 网关级别的key，用于分包过程中的【高频写操作】

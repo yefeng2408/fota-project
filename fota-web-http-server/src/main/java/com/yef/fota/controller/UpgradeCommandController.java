@@ -47,7 +47,7 @@ public class UpgradeCommandController {
     private final GatewayCommandService gatewayCommandService;
 
     /**
-     * 下发0x81请求升级指令
+     * 开始升级。 下发0x81请求升级指令
      * @param request
      * @return
      */

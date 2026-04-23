@@ -16,6 +16,8 @@ public class GatewayUpgradeRequest {
     private Long taskId;
     private Long deviceId;
     private String imei;
+    //任务id。作为锁的token
+    private String lockToken;
 
     private byte firmwareNameLen;
     private String firmwareName;

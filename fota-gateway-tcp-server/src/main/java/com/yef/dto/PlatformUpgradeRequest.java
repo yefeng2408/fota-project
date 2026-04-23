@@ -15,6 +15,7 @@ public class PlatformUpgradeRequest {
     private Long taskId;
     private Long deviceId;
     private String imei;
+    private String lockToken;
     private byte firmwareNameLen;
     private String firmwareName;
     private byte firmwareVersionLen;
