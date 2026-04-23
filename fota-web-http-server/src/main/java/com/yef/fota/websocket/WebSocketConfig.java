@@ -8,12 +8,13 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.io.IOException;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -26,7 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final Set<WebSocketSession> sessions = ConcurrentHashMap.newKeySet();
+    private static final int SEND_TIME_LIMIT_MS = 10_000;
+    private static final int BUFFER_SIZE_LIMIT_BYTES = 512 * 1024;
+
+    private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
     private final WebSocketHandler deviceUpgradeWebSocketHandler = new DeviceUpgradeWebSocketHandler();
 
     @Override
@@ -47,16 +51,18 @@ public class WebSocketConfig implements WebSocketConfigurer {
         }
 
         TextMessage message = new TextMessage(payload);
-        sessions.removeIf(session -> !session.isOpen());
-        for (WebSocketSession session : sessions) {
+        sessions.entrySet().removeIf(entry -> !entry.getValue().isOpen());
+
+        for (Map.Entry<String, WebSocketSession> entry : sessions.entrySet()) {
+            WebSocketSession session = entry.getValue();
             try {
                 session.sendMessage(message);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 try {
                     session.close(CloseStatus.SERVER_ERROR);
                 } catch (IOException ignored) {
                 }
-                sessions.remove(session);
+                sessions.remove(entry.getKey());
             }
         }
     }
@@ -65,18 +71,23 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
         @Override
         public void afterConnectionEstablished(WebSocketSession session) {
-            sessions.add(session);
+            WebSocketSession safeSession = new ConcurrentWebSocketSessionDecorator(
+                    session,
+                    SEND_TIME_LIMIT_MS,
+                    BUFFER_SIZE_LIMIT_BYTES
+            );
+            sessions.put(session.getId(), safeSession);
             System.out.println("WebSocket connected, sessionId=" + session.getId() + ", currentSessions=" + sessions.size());
         }
 
         @Override
         public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-            sessions.remove(session);
+            sessions.remove(session.getId());
         }
 
         @Override
         public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
-            sessions.remove(session);
+            sessions.remove(session.getId());
             if (session.isOpen()) {
                 session.close(CloseStatus.SERVER_ERROR);
             }

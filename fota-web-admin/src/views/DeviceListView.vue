@@ -115,18 +115,28 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="升级进度" width="160">
-            <template #default="{ row }">
-              <div class="progress-cell">
-                <el-progress
-                  :percentage="normalizeProgress(row.progress)"
-                  :stroke-width="12"
-                  :show-text="true"
-                  :status="progressBarStatus(row)"
-                />
-              </div>
-            </template>
-          </el-table-column>
+<el-table-column label="升级进度" width="160">
+  <template #default="{ row }">
+    <div class="progress-cell">
+        <el-progress
+          :percentage="normalizeProgress(row.progress)"
+          :stroke-width="12"
+          :show-text="true"
+          :status="progressBarStatus(row)"
+          :striped="row.deviceUpgradeStatus === 'UPGRADING'"
+          :striped-flow="row.deviceUpgradeStatus === 'UPGRADING'"
+          :duration="2"
+          :class="[
+            'custom-progress',
+            {
+              'is-upgrading': row.deviceUpgradeStatus === 'UPGRADING',
+              'is-success': row.deviceUpgradeStatus === 'SUCCESS' || row.deviceUpgradeStatus === 'DONE'
+            }
+          ]"
+        />
+      </div>
+    </template>
+  </el-table-column>
 
           <el-table-column label="操作" width="100" fixed="right">
             <template #default="{ row }">
@@ -1030,4 +1040,43 @@ onBeforeUnmount(() => {
 .version-arrow {
   color: #8a94a6;
 }
+
+
+/* 自定义进度条样式 */
+:deep(.custom-progress .el-progress-bar__outer) {
+  background-color: #ebeef5;
+  border-radius: 999px;
+}
+
+:deep(.custom-progress .el-progress-bar__inner) {
+  border-radius: 999px;
+  transition: all 0.3s ease;
+}
+
+/* 升级中：橙色条纹流动 */
+:deep(.custom-progress.is-upgrading .el-progress-bar__inner) {
+  --el-fill-color-light: #f5a623;
+  --el-color-warning: #f5a623;
+  background: repeating-linear-gradient(
+    45deg,
+    #f5a623,
+    #f5a623 10px,
+    #f8b84e 10px,
+    #f8b84e 20px
+  ) !important;
+  background-size: 40px 40px;
+}
+
+/* 升级成功：绿色纯色 */
+:deep(.custom-progress.is-success .el-progress-bar__inner) {
+  background: #67c23a !important;
+}
+
+:deep(.custom-progress .el-progress__text) {
+  font-size: 12px;
+  color: #606266;
+  min-width: 40px;
+}
+
 </style>
+
