@@ -153,7 +153,7 @@ public class UpgradeExecutor {
             nextPacketNo = 1;
         } else if (ack.getAckType() == FotaProtocolConstants.ACK_TYPE_PACKET) {
             nextPacketNo = ack.getPacketNo() + 1;
-            log.info("[UpgradeExecutor]---------> send 0x82 UpgradePacket, packetNo:{}", packetNo);
+            //log.info("[UpgradeExecutor]---------> send 0x82 UpgradePacket, packetNo:{}", packetNo);
         } else {
             return;
         }
@@ -253,5 +253,16 @@ public class UpgradeExecutor {
         }
 
     }
+
+    /**
+     *  设备回传 ackType =4  CANCEL_ACK （对应着下行0x87消息类型）
+     * @param ack
+     */
+    public void sendCancelAckToPlatform(AckMessage ack) {
+        String imei = ack.imei();
+
+    }
+
+
 
 }

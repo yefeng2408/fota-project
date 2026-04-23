@@ -10,10 +10,10 @@
 
     <div class="firmware-table-scroll">
       <el-table :data="tableData.records" class="firmware-table">
-        <el-table-column prop="version" label="版本号" width="110" />
-        <el-table-column prop="deviceType" label="设备类型" width="120" />
-        <el-table-column prop="fileName" label="文件名" min-width="180" show-overflow-tooltip />
-        <el-table-column label="文件下载地址" width="140" show-overflow-tooltip>
+        <el-table-column prop="version" label="版本号" width="100" />
+        <el-table-column prop="deviceType" label="设备类型" width="100" />
+        <el-table-column prop="fileName" label="文件名" min-width="60" show-overflow-tooltip />
+        <el-table-column label="文件下载地址" width="120" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tooltip v-if="row.downloadUrl" :content="row.fileUrl || row.downloadUrl" placement="top" effect="light">
               <el-link type="primary" :href="row.downloadUrl" target="_blank">下载</el-link>
@@ -21,12 +21,12 @@
             <span v-else>{{ row.fileUrl || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="fileSize" label="大小" width="110" />
-        <el-table-column prop="md5" label="MD5" min-width="240" show-overflow-tooltip />
-        <el-table-column prop="chunkSize" label="分包大小" width="120" />
-        <el-table-column prop="totalPacket" label="分包数量" width="120" />
-        <el-table-column prop="status" label="状态" width="90" />
-        <el-table-column prop="remark" label="备注" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="fileSize" label="大小（M）" width="110" />
+        <el-table-column prop="md5" label="MD5" min-width="100" show-overflow-tooltip />
+        <el-table-column prop="chunkSize" label="分包大小（byte）" width="120" />
+        <el-table-column prop="totalPacket" label="分包数量" width="100" />
+        <!-- <el-table-column prop="status" label="状态" width="90" /> -->
+        <el-table-column prop="remark" label="备注" min-width="80" show-overflow-tooltip />
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button link type="danger" @click="remove(row.id)">删除</el-button>

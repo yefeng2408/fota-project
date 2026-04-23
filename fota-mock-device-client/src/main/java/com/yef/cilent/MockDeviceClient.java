@@ -340,7 +340,7 @@ public class MockDeviceClient implements SmartLifecycle {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            log.info("MockDevice 收到网关消息，imei={}，msg={}", profile.imei(), msg);
+            /*log.info("MockDevice 收到网关消息，imei={}，msg={}", profile.imei(), msg);*/
 
             if (msg instanceof FotaProtocol.PlatformAckDTO ack) {
                 log.info("MockDevice 收到平台ACK，taskId={}，refMessageType={}，ackStatus={}，reasonCode={}",
@@ -407,8 +407,8 @@ public class MockDeviceClient implements SmartLifecycle {
             }
             upgradeContext.chunks().putIfAbsent(packet.packetNo(), packet.chunkData());
             ctx.writeAndFlush(new FotaProtocol.Ack(profile.imei(), packet.taskId(), packet.packetNo(), FotaProtocol.ACK_TYPE_PACKET));
-            log.info(">>>>>>>>>>>>>>>>>MockDevice 已接收分包，imei={}，taskId={}，packetNo={}/{}",
-                    profile.imei(), packet.taskId(), packet.packetNo(), packet.totalPacket());
+            /*log.info(">>>>>>>>>>>>>>>>>MockDevice 已接收分包，imei={}，taskId={}，packetNo={}/{}",
+                    profile.imei(), packet.taskId(), packet.packetNo(), packet.totalPacket());*/
 
             if (upgradeContext.chunks().size() == upgradeContext.totalPacket()) {
                 byte[] firmware = merge(upgradeContext);

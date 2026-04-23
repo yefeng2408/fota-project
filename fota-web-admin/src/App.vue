@@ -1,10 +1,19 @@
 <template>
   <router-view v-if="isLoginPage" />
-  <div v-else class="shell">
+  <div v-else :class="['shell', { 'sidebar-collapsed': isSidebarCollapsed }]">
     <aside class="sidebar">
+      <button
+        :aria-label="isSidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        class="sidebar-toggle"
+        type="button"
+        @click="toggleSidebar"
+      >
+        {{ isSidebarCollapsed ? '›' : '‹' }}
+      </button>
+
       <div class="brand">
         <div class="brand-mark">FP</div>
-        <div>
+        <div class="brand-copy">
           <div class="brand-title">FOTA 管理平台</div>
           <div class="brand-subtitle">设备升级控制平台</div>
         </div>
@@ -60,11 +69,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
+const SIDEBAR_STORAGE_KEY = 'fota_sidebar_collapsed'
 
 const titleMap = {
   '/dashboard': '首页概览',
@@ -82,10 +92,16 @@ const titleMap = {
 
 const isLoginPage = computed(() => route.path === '/login')
 const pageTitle = computed(() => titleMap[route.path] || 'FOTA 管理后台')
+const isSidebarCollapsed = ref(localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1')
 const currentUser = computed(() => {
   const raw = localStorage.getItem('fota_user')
   return raw ? JSON.parse(raw) : null
 })
+
+function toggleSidebar() {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value
+  localStorage.setItem(SIDEBAR_STORAGE_KEY, isSidebarCollapsed.value ? '1' : '0')
+}
 
 function logout() {
   localStorage.removeItem('fota_token')

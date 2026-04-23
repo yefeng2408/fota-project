@@ -15,12 +15,15 @@ import io.minio.http.Method;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.validation.Valid;
 
@@ -64,6 +67,7 @@ public class FirmwarePackageController {
         List<FirmwarePackageVO> records = page.getRecords().stream()
                 .map(this::toVO)
                 .collect(Collectors.toList());
+
         return ApiResponse.ok(new PageResult<>(page.getCurrent(), page.getSize(), page.getTotal(), records));
     }
 
@@ -88,7 +92,6 @@ public class FirmwarePackageController {
         entity.setFileUrl(objectName);
         entity.setFileSize(file.getSize());
         entity.setChunkSize(chunkSize);
-        //entity.setChunkCount((int) Math.ceil(file.getSize() * 1.0 / chunkSize));
         entity.setTotalPacket((int) Math.ceil(file.getSize() * 1.0 / chunkSize));
         entity.setForceUpgrade(forceUpgrade);
         entity.setStatus(status);
@@ -163,9 +166,13 @@ public class FirmwarePackageController {
         vo.setFileName(entity.getFileName());
         vo.setFileUrl(entity.getFileUrl());
         vo.setDownloadUrl(buildDownloadUrl(entity.getFileUrl()));
-        vo.setFileSize(entity.getFileSize());
+        double size = (double)entity.getFileSize() / 1024 / 1024;
+        BigDecimal bd = BigDecimal.valueOf(size);
+        bd = bd.setScale(2, RoundingMode.HALF_UP);
+        float result = bd.floatValue();
+        System.out.println(result);
+        vo.setFileSize(result);
         vo.setChunkSize(entity.getChunkSize());
-        //vo.setChunkCount(entity.getChunkCount());
         vo.setTotalPacket(entity.getTotalPacket());
         vo.setMd5(entity.getMd5());
         vo.setForceUpgrade(entity.getForceUpgrade());

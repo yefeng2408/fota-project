@@ -48,6 +48,8 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
             if(ack.getAckType()==1 || ack.getAckType()==2){
                 //收到0x81的应答。开始对固件进行分包下发0x82消息
                 upgradeExecutor.sendSpiltPacket(ack);
+            }else if (ack.getAckType()==4){
+                upgradeExecutor.sendCancelAckToPlatform(ack);
             }
         } else if (msg instanceof FailMessage) {
             FailMessage fail = (FailMessage) msg;
@@ -64,8 +66,7 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
         if (evt instanceof IdleStateEvent && ((IdleStateEvent) evt).state() == IdleState.READER_IDLE) {
             String imei = ctx.channel().attr(ChannelAttributes.IMEI).get();
             Long deviceId = ctx.channel().attr(ChannelAttributes.DEVICE_ID).get();
-            log.info("[UpgradeDispatchHandler] reader idle, close channel, imei={}",imei);
-            deviceOnlineService.cleanupOffline();
+            log.warn("[UpgradeDispatchHandler] reader idle, close channel, imei={}",imei);
             ctx.close();
 
             return;

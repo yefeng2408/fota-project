@@ -1,19 +1,27 @@
 package com.yef.session;
 
+import com.yef.service.DeviceKeepOnlineService;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelId;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
+/**
+ * @description: 连接管理
+ * @author: 叶丰
+ * @date: 2026/4/23 09:43
+ */
+@Slf4j
 @Component
 public class SessionManager {
 
     /**
      * session 绑定是协议层事件，不是 TCP 建连事件
-     * 对应着终端 IMEI。IMEI -> Session
+     * IMEI -> Session
      */
-    private final Map<String, DeviceSession> sessionByImei= new ConcurrentHashMap<>();
+    private final Map<String, DeviceSession> sessionByImei = new ConcurrentHashMap<>();
 
     /**
      * session 绑定是协议层事件，不是 TCP 建连事件
@@ -22,9 +30,15 @@ public class SessionManager {
     private final Map<ChannelId, DeviceSession> sessionByChannelId = new ConcurrentHashMap<>();
 
     /**
-     * 平台内部设备ID -> Session。
+     * deviceId -> Session
      */
     private final Map<Long, DeviceSession> sessionByDeviceId = new ConcurrentHashMap<>();
+
+    private final DeviceKeepOnlineService deviceKeepOnlineService;
+
+    public SessionManager(DeviceKeepOnlineService deviceKeepOnlineService) {
+        this.deviceKeepOnlineService = deviceKeepOnlineService;
+    }
 
 
     /**
@@ -127,20 +141,22 @@ public class SessionManager {
      * - idle 超时关闭
      */
     public void remove(Channel channel) {
+
         if (channel == null) {
             return;
         }
-
         DeviceSession session = sessionByChannelId.remove(channel.id());
         if (session != null) {
+            //先置为离线
+            deviceKeepOnlineService.onDeviceOffline(session.getDeviceId());
+            //再清理session
             sessionByImei.remove(session.getImei(), session);
             if (session.getDeviceId() != null) {
                 sessionByDeviceId.remove(session.getDeviceId(), session);
             }
-
-            System.out.println("[SessionManager] remove session, imei=" + session.getImei()
-                    + ", channelId=" + channel.id().asShortText());
+            log.info("[SessionManager] remove session, imei:{}", session.getImei());
         }
+
     }
 
     /**

@@ -184,6 +184,7 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
                 .eq(DeviceEntity::getId, device.getId())
                 .set(DeviceEntity::getTargetFirmwareId, firmware.getId())
                 .set(DeviceEntity::getIsBind, 1)
+                .set(DeviceEntity::getDeviceUpgradeStatus, "NO_TASK")
                 .set(DeviceEntity::getUpdatedAt, now));
 
         deviceFirmwareBindingService.update(new LambdaUpdateWrapper<DeviceFirmwareBindingEntity>()

@@ -24,6 +24,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,10 +40,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/device-groups")
 public class DeviceGroupController {
 
+    /**
+     * 升级运行态 设备基础信息 设备网关所用的key，用于分包过程中的【高频写操作】   前缀拼接IMEI
+     */
+    private static final String UPGRADE_RUNTIME_KEY_PREFIX = "fota:upgrade:runtime:";
+    /**
+     * 设备基础信息 web服务所使用的key【低频更新】   前缀拼接IMEI
+     */
+    private static final String DEVICE_CACHE_KEY_PREFIX = "fota:device:";
+    /**
+     * 在线状态
+     */
+    private static final String DEVICE_ONLINE_ZSET_KEY = "fota:device:online:zset";
     private final DeviceGroupService deviceGroupService;
     private final DeviceGroupRelationService deviceGroupRelationService;
     private final DeviceService deviceService;
     private final UserDeviceGroupService userDeviceGroupService;
+    private final StringRedisTemplate redisTemplate;
 
     @GetMapping("/tree")
     public ApiResponse<List<DeviceGroupTreeVO>> tree() {
@@ -104,20 +119,44 @@ public class DeviceGroupController {
 
     @DeleteMapping("/{id}")
     @OperationLog(action = "DELETE_DEVICE_GROUP")
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        if (deviceGroupService.getById(id) == null) {
+            throw new BusinessException("设备分组不存在");
+        }
+
         Set<Long> allGroupIds = collectSubGroupIds(id);
         List<DeviceGroupRelationEntity> relations = deviceGroupRelationService.lambdaQuery()
                 .in(DeviceGroupRelationEntity::getDeviceGroupId, allGroupIds)
                 .list();
         List<Long> deviceIds = relations.stream().map(DeviceGroupRelationEntity::getDeviceId).collect(Collectors.toList());
+
+        List<String> imeiByDeviceIds = deviceService.getImeiByDeviceIds(deviceIds);
         if (!deviceIds.isEmpty()) {
             deviceService.removeByIds(deviceIds);
         }
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>().in(DeviceGroupRelationEntity::getDeviceGroupId, allGroupIds));
         userDeviceGroupService.remove(new LambdaQueryWrapper<UserDeviceGroupEntity>().in(UserDeviceGroupEntity::getDeviceGroupId, allGroupIds));
         deviceGroupService.removeByIds(allGroupIds);
+
+        for(Long deleteId : deviceIds) {
+            redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(deleteId));
+        }
+
+        for (String imei : imeiByDeviceIds) {
+            //删除缓存数据
+            redisTemplate.delete(deviceCacheKey(imei));
+            redisTemplate.delete(UPGRADE_RUNTIME_KEY_PREFIX+imei);
+        }
+
         return ApiResponse.ok(null);
     }
+
+
+    private String deviceCacheKey(String imei) {
+        return DEVICE_CACHE_KEY_PREFIX + imei;
+    }
+
 
     private Set<Long> collectSubGroupIds(Long rootId) {
         List<DeviceGroupEntity> groups = deviceGroupService.list();

@@ -56,6 +56,10 @@ public class DeviceController {
      * 设备基础信息 web服务所使用的key【低频更新】   前缀拼接IMEI
      */
     private static final String DEVICE_CACHE_KEY_PREFIX = "fota:device:";
+    /**
+     * 在线状态
+     */
+    private static final String DEVICE_ONLINE_ZSET_KEY = "fota:device:online:zset";
 
 
     private final DeviceService deviceService;
@@ -66,7 +70,7 @@ public class DeviceController {
 
     @GetMapping
     public ApiResponse<PageResult<DeviceVO>> page(@RequestParam(defaultValue = "1") long current,
-                                                  @RequestParam(defaultValue = "10") long pageSize,
+                                                  @RequestParam(defaultValue = "6") long pageSize,
                                                   @RequestParam(required = false) String keyword,
                                                   @RequestParam(required = false) Long deviceGroupId) {
         Set<Long> groupDeviceIds = null;
@@ -252,15 +256,14 @@ public class DeviceController {
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>()
                 .eq(DeviceGroupRelationEntity::getDeviceId, id));
         if (deleted) {
+            //删除缓存数据
             redisTemplate.delete(deviceCacheKey(entity.getImei()));
+            redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(entity.getId()));
+            redisTemplate.delete(UPGRADE_RUNTIME_KEY_PREFIX+entity.getImei());
         }
         return ApiResponse.ok(null);
     }
 
-
-    private String deviceCacheKey(String imei) {
-        return DEVICE_CACHE_KEY_PREFIX + imei;
-    }
 
     private int findColumnIndex(Row headerRow, DataFormatter formatter, String expectedHeader) {
         if (headerRow == null) {
@@ -378,6 +381,12 @@ public class DeviceController {
             return vo;
         }).collect(Collectors.toList());
     }
+
+
+    private String deviceCacheKey(String imei) {
+        return DEVICE_CACHE_KEY_PREFIX + imei;
+    }
+
 
     private DeviceVO toDeviceVO(DeviceEntity entity) {
         return toDeviceVOs(List.of(entity)).get(0);

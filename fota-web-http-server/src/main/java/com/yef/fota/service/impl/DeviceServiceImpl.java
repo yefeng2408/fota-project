@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -117,6 +118,12 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
         String lastProgressKey =  runtimeKey + ":lastPushProgress";
         redisTemplate.delete(runtimeKey);
         redisTemplate.delete(lastProgressKey);
+    }
+
+
+    @Override
+    public List<String> getImeiByDeviceIds(List<Long> deivceIds) {
+        return this.baseMapper.getImeiList(deivceIds);
     }
 
     private Integer resolveBindStatus(Long targetFirmwareId) {

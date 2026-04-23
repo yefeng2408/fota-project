@@ -26,6 +26,14 @@
             >
               批量目标
             </el-tag>
+            <el-button
+              link
+              type="danger"
+              class="group-delete-btn"
+              @click.stop="removeGroup(data)"
+            >
+              删除
+            </el-button>
           </div>
         </template>
       </el-tree>
@@ -350,7 +358,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../api/request'
 
 const groupTreeRef = ref(null)
@@ -365,7 +373,7 @@ const selectedBatchGroup = ref(null)
 const importUploadRef = ref(null)
 const importFile = ref(null)
 const tableData = reactive({ total: 0, records: [] })
-const query = reactive({ current: 1, pageSize: 10, keyword: '', deviceGroupId: null })
+const query = reactive({ current: 1, pageSize: 6, keyword: '', deviceGroupId: null })
 const batchUpgradeForm = reactive({ firmwareId: null })
 const importForm = reactive({
   deviceGroupId: null,
@@ -505,6 +513,14 @@ function findGroupNodeById(nodes, targetId) {
   return null
 }
 
+function collectGroupIds(node) {
+  const ids = [node.id]
+  for (const child of node.children || []) {
+    ids.push(...collectGroupIds(child))
+  }
+  return ids
+}
+
 async function loadGroups() {
   const data = await request.get('/api/device-groups/tree')
   groupTree.value = data
@@ -515,6 +531,37 @@ async function loadGroups() {
   selectedBatchGroup.value = matched || null
   await nextTick()
   groupTreeRef.value?.setCheckedKeys(matched ? [matched.id] : [])
+}
+
+async function removeGroup(group) {
+  if (!group?.id) {
+    return
+  }
+  const relatedGroupIds = collectGroupIds(group)
+  await ElMessageBox.confirm(
+    '确定删除该分组吗？该分组以及其下级分组和设备都会被删除！',
+    '删除设备分组',
+    {
+      confirmButtonText: '确认删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+      confirmButtonClass: 'el-button--danger'
+    }
+  )
+
+  await request.delete(`/api/device-groups/${group.id}`)
+
+  if (selectedBatchGroup.value && relatedGroupIds.includes(selectedBatchGroup.value.id)) {
+    selectedBatchGroup.value = null
+    groupTreeRef.value?.setCheckedKeys([])
+  }
+  if (query.deviceGroupId && relatedGroupIds.includes(query.deviceGroupId)) {
+    query.deviceGroupId = null
+    query.current = 1
+  }
+
+  ElMessage.success('删除成功')
+  await Promise.all([loadGroups(), loadDevices()])
 }
 
 async function loadDevices() {
@@ -937,9 +984,27 @@ onBeforeUnmount(() => {
 }
 
 .group-tree-node {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.group-tree-node > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-delete-btn {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.group-tree-node:hover .group-delete-btn {
+  opacity: 1;
 }
 
 .toolbar-button-wrapper {

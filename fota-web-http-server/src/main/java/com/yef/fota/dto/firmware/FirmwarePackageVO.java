@@ -20,7 +20,7 @@ public class FirmwarePackageVO {
      * MinIO 临时下载地址。
      */
     private String downloadUrl;
-    private Long fileSize;
+    private float fileSize;
     private Integer chunkSize;
     private Integer totalPacket;
     private String md5;

@@ -4,6 +4,8 @@ import com.yef.fota.dto.device.DeviceSaveRequest;
 import com.yef.fota.entity.DeviceEntity;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+import java.util.List;
+
 /**
  * <p>
  * 设备表 服务类
@@ -19,4 +21,6 @@ public interface DeviceService extends IService<DeviceEntity> {
     DeviceEntity addDevice(DeviceSaveRequest request);
 
     void updateDevice(DeviceEntity entity, DeviceSaveRequest request);
+
+    List<String> getImeiByDeviceIds(List<Long> deivceIds);
 }
