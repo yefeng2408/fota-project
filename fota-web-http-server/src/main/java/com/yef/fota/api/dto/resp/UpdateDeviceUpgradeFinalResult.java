@@ -1,11 +1,10 @@
-package com.yef.fota.api.dto;
+package com.yef.fota.api.dto.resp;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.util.Date;
 
 /**
  * @description: 

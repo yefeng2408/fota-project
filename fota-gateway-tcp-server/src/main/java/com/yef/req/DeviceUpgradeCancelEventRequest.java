@@ -1,4 +1,4 @@
-package com.yef.fota.api.dto;
+package com.yef.req;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,10 +12,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class DeviceUpgradeEvent {
+public class DeviceUpgradeCancelEventRequest {
     private String imei;
     private String status;
-    private Integer progress;
-    private String currentFirmwareVersion;
-    private String targetFirmwareVersion;
 }

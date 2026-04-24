@@ -1,5 +1,6 @@
 package com.yef.service;
 
+import com.yef.req.DeviceUpgradeCancelEventRequest;
 import com.yef.req.DeviceUpgradeEventRequest;
 import com.yef.req.UpdateDeviceUpgradeFinalResult;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,9 @@ public class DeviceUpgradeEventPushClient {
     @Value("${upgrade.event.update-result-url}")
     private String updateResultUrl;
 
+    @Value("${upgrade.event.update-cancel-url}")
+    private String updateCancelUrl;
+
     public DeviceUpgradeEventPushClient(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
@@ -28,6 +32,11 @@ public class DeviceUpgradeEventPushClient {
 
     public void updateFinalUpgradeTaskRecord(UpdateDeviceUpgradeFinalResult request) {
         restTemplate.postForObject(updateResultUrl, request, Void.class);
+    }
+
+
+    public void updateCancelResult(DeviceUpgradeCancelEventRequest request) {
+        restTemplate.postForObject(updateCancelUrl, request, Void.class);
     }
 
 

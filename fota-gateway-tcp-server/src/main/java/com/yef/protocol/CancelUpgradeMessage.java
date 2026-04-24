@@ -1,10 +1,13 @@
 package com.yef.protocol;
 
+import lombok.Data;
+
+@Data
 public class CancelUpgradeMessage implements FotaMessage {
 
-    private final String imei;
-    private final long taskId;
-    private final byte reason;
+    private String imei;
+    private long taskId;
+    private byte reason;
 
     public CancelUpgradeMessage(String imei, long taskId, byte reason) {
         this.imei = imei;
@@ -27,7 +30,5 @@ public class CancelUpgradeMessage implements FotaMessage {
         return taskId;
     }
 
-    public byte getReason() {
-        return reason;
-    }
+
 }

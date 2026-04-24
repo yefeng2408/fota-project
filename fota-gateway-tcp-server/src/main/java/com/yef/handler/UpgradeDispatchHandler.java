@@ -44,18 +44,18 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
             log.info("[UpgradeDispatchHandler] heartbeat ignored, deviceId={}", deviceId);
         } else if (msg instanceof AckMessage) {
             AckMessage ack = (AckMessage) msg;
-            log.info("[UpgradeDispatchHandler] ack ignored, imei={}, taskId={}, packetNo={}", ack.imei(),ack.getTaskId(),ack.getPacketNo());
+            /*log.info("[UpgradeDispatchHandler] ack ignored, imei={}, taskId={}, packetNo={}", ack.imei(),ack.getTaskId(),ack.getPacketNo());*/
             if(ack.getAckType()==1 || ack.getAckType()==2){
                 //收到0x81的应答。开始对固件进行分包下发0x82消息
-                upgradeExecutor.sendSpiltPacket(ack);
+                upgradeExecutor.receiveUpgradeRequestAckAndSendSpiltPacket(ack);
             }else if (ack.getAckType()==4){
-                upgradeExecutor.sendCancelAckToPlatform(ack);
+                upgradeExecutor.receiveCancelAck(ack);
             }
         } else if (msg instanceof FailMessage) {
             FailMessage fail = (FailMessage) msg;
             log.warn("[UpgradeDispatchHandler] device FAIL ignored, imei={}, taskId={}, packetNo={}, errorCode={}", deviceId, fail.getTaskId(), fail.getPacketNo(), fail.getErrorCode(), fail.imei());
         } else if (msg instanceof UpgradeResultMessage) {
-            upgradeExecutor.handleUpgradeResult((UpgradeResultMessage) msg, deviceId);
+            upgradeExecutor.handleUpgradeResult((UpgradeResultMessage) msg);
         } else {
             log.info("[UpgradeDispatchHandler] ignored inbound message:{} ", msg);
         }

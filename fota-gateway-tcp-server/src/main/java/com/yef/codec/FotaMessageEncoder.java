@@ -50,8 +50,6 @@ public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
                 body.writeByte(message.refMessageType());
                 body.writeByte(message.ackStatus());
                 body.writeByte(message.reasonCode());
-            } else if (msg instanceof HeartbeatMessage) {
-                // Heartbeat body is empty.
             } else if (msg instanceof UpgradeRequestMessage) {
                 UpgradeRequestMessage message = (UpgradeRequestMessage) msg;
                 byte[] md5 = message.getMd5();
@@ -79,25 +77,10 @@ public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
                 body.writeLong(message.getTaskId());
                 body.writeInt(message.getPacketNo());
                 body.writeByte(message.getAckType());
-            } else if (msg instanceof FailMessage) {
-                FailMessage message = (FailMessage) msg;
+            }  else if (msg instanceof CancelUpgradeMessage) {
+                CancelUpgradeMessage message = (CancelUpgradeMessage) msg;
                 body.writeLong(message.getTaskId());
-                body.writeInt(message.getPacketNo());
-                body.writeByte(message.getErrorCode());
-            } else
-
-           /* if (msg instanceof UpgradeResultMessage) {
-                UpgradeResultMessage message = (UpgradeResultMessage) msg;
-                body.writeLong(message.getTaskId());
-                body.writeByte(message.getResult());
-                body.writeByte(message.getErrorCode());
-                body.writeInt(message.getCostTime());
-            } else*/ if (msg instanceof CancelUpgradeMessage) {
-                DeviceBootUpMessageAck message = (DeviceBootUpMessageAck) msg;
-                body.writeLong(message.taskId());
-                body.writeByte(message.refMessageType());
-                body.writeByte(message.ackStatus());
-                body.writeByte(message.reasonCode());
+                body.writeByte(message.getReason());
             } else {
                 throw new FotaProtocolException("unsupported outbound message: " + msg.getClass().getName());
             }

@@ -231,6 +231,12 @@ public class DeviceController {
         validateDeviceEditable(entity);
         validateImeiUnique(request.getImei(), id);
 
+        Long targetFirmwareId = request.getTargetFirmwareId();
+        FirmwarePackageEntity packageEntity = firmwarePackageService.getBaseMapper().selectById(targetFirmwareId);
+        if(packageEntity==null){
+            throw new BusinessException("所选固件不存在");
+        }
+
         request.setId(id);
         deviceService.updateDevice(entity,request);
 

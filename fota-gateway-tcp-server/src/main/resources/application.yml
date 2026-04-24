@@ -32,3 +32,4 @@ upgrade:
   event:
     push-url: http://localhost:8080/internal/device-upgrade/event
     update-result-url: http://localhost:8080/internal/device-upgrade/result
+    update-cancel-url: http://localhost:8080/internal/device-upgrade/cancel

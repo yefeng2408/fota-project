@@ -5,6 +5,7 @@ import com.yef.protocol.FotaPacketFrame;
 import com.yef.protocol.FotaProtocolConstants;
 import com.yef.protocol.LengthFieldFrameSpec;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import java.util.List;
@@ -45,6 +46,9 @@ public class FotaFrameDecoder extends MessageToMessageDecoder<ByteBuf> {
         byte messageType = in.readByte();
         byte[] body = new byte[bodyLength];
         in.readBytes(body);
+        /*ByteBuf buffer = Unpooled.buffer(bodyLength);
+        buffer.writeBytes(in.slice(0, bodyLength));*/
+
         int crc16 = in.readUnsignedShort();
         byte tail = in.readByte();
         if (tail != FotaProtocolConstants.TAIL) {

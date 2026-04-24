@@ -166,12 +166,13 @@ public class FirmwarePackageController {
         vo.setFileName(entity.getFileName());
         vo.setFileUrl(entity.getFileUrl());
         vo.setDownloadUrl(buildDownloadUrl(entity.getFileUrl()));
+
         double size = (double)entity.getFileSize() / 1024 / 1024;
         BigDecimal bd = BigDecimal.valueOf(size);
         bd = bd.setScale(2, RoundingMode.HALF_UP);
         float result = bd.floatValue();
-        System.out.println(result);
         vo.setFileSize(result);
+
         vo.setChunkSize(entity.getChunkSize());
         vo.setTotalPacket(entity.getTotalPacket());
         vo.setMd5(entity.getMd5());

@@ -328,9 +328,10 @@ public class MockDeviceClient implements SmartLifecycle {
         private final MockDeviceProfile profile;
         private final MinioClient minioClient;
         private final String minioBucket;
+        private final java.util.Set<Long> canceledTaskIds = ConcurrentHashMap.newKeySet();
         private UpgradeContext upgradeContext;
 
-        private MockDeviceDispatchHandler(MockDeviceProfile profile,
+        private  MockDeviceDispatchHandler(MockDeviceProfile profile,
                                           MinioClient minioClient,
                                           String minioBucket) {
             this.profile = profile;
@@ -340,11 +341,10 @@ public class MockDeviceClient implements SmartLifecycle {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-            /*log.info("MockDevice 收到网关消息，imei={}，msg={}", profile.imei(), msg);*/
 
             if (msg instanceof FotaProtocol.PlatformAckDTO ack) {
-                log.info("MockDevice 收到平台ACK，taskId={}，refMessageType={}，ackStatus={}，reasonCode={}",
-                        ack.taskId(), ack.refMessageType(), ack.ackStatus(), ack.reasonCode());
+                /*log.info("MockDevice 收到平台ACK，taskId={}，refMessageType={}，ackStatus={}，reasonCode={}",
+                        ack.taskId(), ack.refMessageType(), ack.ackStatus(), ack.reasonCode());*/
                 return;
             }
 
@@ -353,15 +353,28 @@ public class MockDeviceClient implements SmartLifecycle {
                 return;
             }
 
+            //接收0x82分包数据，并给网关应答
             if (msg instanceof FotaProtocol.UpgradePacketDTO packet) {
                 handleUpgradePacket(ctx, packet);
-                Thread.sleep(10);
-                return;
+                //暂停10ms，模拟设备接收数据包做处理。也防止设备上行消息给网关的压力
+                //Thread.sleep(10);
             }
 
+            //接收0x87取消升级请求。标记任务已取消，并给网关回复取消ACK
             if (msg instanceof FotaProtocol.CancelUpgradeDTO cancelUpgrade) {
-                ctx.writeAndFlush(new FotaProtocol.Ack(profile.imei(), cancelUpgrade.taskId(), 0, FotaProtocol.ACK_TYPE_CANCEL));
-                upgradeContext = null;
+                canceledTaskIds.add(cancelUpgrade.taskId());
+                if (upgradeContext != null && upgradeContext.taskId() == cancelUpgrade.taskId()) {
+                    upgradeContext = null;
+                }
+                //模拟等待
+                Thread.sleep(3000);
+                ctx.writeAndFlush(new FotaProtocol.Ack(
+                        profile.imei(),
+                        cancelUpgrade.taskId(),
+                        0,
+                        FotaProtocol.ACK_TYPE_CANCEL)
+                );
+                log.info("MockDevice 已确认取消升级，imei={}，taskId={}", profile.imei(), cancelUpgrade.taskId());
                 return;
             }
             super.channelRead(ctx, msg);
@@ -378,6 +391,7 @@ public class MockDeviceClient implements SmartLifecycle {
         }
 
         private void handleUpgradeRequest(ChannelHandlerContext ctx, FotaProtocol.UpgradeRequestDTO request) {
+            canceledTaskIds.remove(request.taskId());
             if (upgradeContext != null && upgradeContext.taskId != request.taskId()) {
                 ctx.writeAndFlush(new FotaProtocol.Fail(profile.imei(), request.taskId(), 0, 1));
                 return;
@@ -389,7 +403,8 @@ public class MockDeviceClient implements SmartLifecycle {
                     request.totalPacket(),
                     request.md5(),
                     System.currentTimeMillis(),
-                    new TreeMap<>()
+                    new TreeMap<>(),
+                    false
             );
             ctx.writeAndFlush(new FotaProtocol.Ack(profile.imei(), request.taskId(), 0, FotaProtocol.ACK_TYPE_UPGRADE_REQUEST));
             log.info("MockDevice 已接受升级请求，imei={}，taskId={}，totalPacket={}",
@@ -397,6 +412,11 @@ public class MockDeviceClient implements SmartLifecycle {
         }
 
         private void handleUpgradePacket(ChannelHandlerContext ctx, FotaProtocol.UpgradePacketDTO packet) {
+            if (canceledTaskIds.contains(packet.taskId())) {
+                log.debug("MockDevice 忽略已取消任务的分包，imei={}，taskId={}，packetNo={}",
+                        profile.imei(), packet.taskId(), packet.packetNo());
+                return;
+            }
             if (upgradeContext == null || upgradeContext.taskId() != packet.taskId()) {
                 ctx.writeAndFlush(new FotaProtocol.Fail(profile.imei(), packet.taskId(), packet.packetNo(), 2));
                 return;
@@ -428,8 +448,8 @@ public class MockDeviceClient implements SmartLifecycle {
                         costTime
                 ));
 
-                log.info("MockDevice 分包接收完成，imei={}，taskId={}，md5Matched={}",
-                        profile.imei(), packet.taskId(), md5Matched);
+                log.info("MockDevice 分包接收完成,耗时(s):{}, imei={}，taskId={}，md5Matched={}",
+                        costTime,profile.imei(), packet.taskId(), md5Matched);
                 DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
                 String versionName = upgradeContext.firmwareVersionName();
                 String firmwareName = upgradeContext.firmwareName();
@@ -447,9 +467,11 @@ public class MockDeviceClient implements SmartLifecycle {
                     log.error("设备侧固件上传minio失败，imei={}，taskId={}", profile.imei(), packet.taskId(), e);
                 }
 
+                canceledTaskIds.remove(packet.taskId());
                 upgradeContext = null;
                 try {
-                    Thread.sleep(5000);
+                    //模拟设备mcu写入 flush
+                    Thread.sleep(3000);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new RuntimeException(e);
@@ -470,7 +492,8 @@ public class MockDeviceClient implements SmartLifecycle {
                 int totalPacket,
                 byte[] expectedMd5,
                 long startTime,
-                Map<Integer, byte[]> chunks
+                Map<Integer, byte[]> chunks,
+                boolean canceled
         ) {
         }
     }

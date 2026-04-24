@@ -1,36 +1,39 @@
 package com.yef.fota.controller;
 
+import com.yef.fota.api.dto.CancelUpgradeRequest;
 import com.yef.fota.api.dto.StartUpgradeRequest;
-import com.yef.fota.api.service.GatewayCommandService;
 import com.yef.fota.common.ApiResponse;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
+import com.yef.fota.entity.UpgradeTaskEntity;
 import com.yef.fota.exception.BusinessException;
 import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.FirmwarePackageService;
 import com.yef.fota.service.UpgradeTaskService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.Arrays;
+import java.util.List;
 
 /**
- *🟢 3️⃣ ACK确认（messageType = 0x03） 多语义 ACK（Multi-semantic ACK）
- *     taskId        (8 byte)
- *     packetNo      (4 byte)
- *     ackType       (1 byte)
- *
- *                   ackType 类型说明：
- *                       ackType =1        UPGRADE_REQUEST_ACK      （上行消息。对应着下行0x81消息类型的ACK）
- *                       ackType =2        PACKET_ACK               （上行消息。对应着下行0x82消息类型的ACK）
- *                       ackType =4        CANCEL_ACK               （上行消息。对应着下行0x87消息类型的ACK）
- *                       ackType =5        HEARTBEAT                 (上行消息。平台无需回复设备的心跳消息)
- *                   说明：
- *                       - packetNo 在 ackType=1（升级请求ACK）时可为0
- *                       - packetNo 在分包ACK时必须对应具体分包序号
- *                       - PACKET_LAST_ACK 用于通知平台“分包已全部接收完成”，但不代表升级成功
+ *--------------------------- 平台下行（Platform → Device） --------------------
+ * ---------------------------------------------------------------------------
+ * | messageType | 名称              | 说明                                     |
+ * ---------------------------------------------------------------------------
+ * |             |                   | 开始升级指令                              |
+ * |             |                   | 平台触发升级流程，下发固件元信息             |
+ * | 0x81        |  UpgradeRequest   | 设备收到后需返回 ACK(ackType=1)            |
+ * |             |                   | 平台收到 ACK 后，状态进入 UPGRADING         |
+ * ---------------------------------------------------------------------------
+ * |             |                   | 取消升级指令                              |
+ * | 0x87        | CancelUpgrade     | 用户手动触发取消升级                       |
+ * |             |                   | 设备收到后应停止升级并返回 ACK(ackType=4)   |
+ * ----------------------------------------------------------------------------|
  *
  * @description: 平台指令下发
  * @author: 叶丰
@@ -40,11 +43,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/upgrade-task")
 @RequiredArgsConstructor
 public class UpgradeCommandController {
+    /**
+     * 升级状态
+     */
+    private final static List<String> UPGRADING_STATE = Arrays.asList("UPGRADE_REQUESTED,UPGRADING,WAIT_RESULT".split(","));
+    /**
+     * 升级运行态 设备基础信息 设备网关所用的key，用于分包过程中的【高频写操作】   前缀拼接IMEI
+     */
+    private static final String UPGRADE_RUNTIME_KEY_PREFIX = "fota:upgrade:runtime:";
 
     private final DeviceService deviceService;
     private final FirmwarePackageService firmwarePackageService;
     private final UpgradeTaskService upgradeTaskService;
-    private final GatewayCommandService gatewayCommandService;
+    private final StringRedisTemplate redisTemplate;
 
     /**
      * 开始升级。 下发0x81请求升级指令
@@ -80,14 +91,38 @@ public class UpgradeCommandController {
         }
 
         Long taskId = upgradeTaskService.startUpgrade(device, firmware);
-        //TODO========
         //这里如何拿到本次0x81的应答ack呢【messageType = 0x03，ackType =1】？
         // 因为我想给页面提示设备给出的应答结果，若设备的ack表示成功接受该指令，我在页面提示：“下发升级指令成功！”
+        //TODO 异步消息等设备0x03上行至网关，再由网关调用web服务接口，然后web推送websocket
         return ApiResponse.ok("已发起升级请求，等待设备确认.", taskId);
     }
 
 
+    /**
+     * 开始升级。 下发0x81请求升级指令
+     * @param request
+     * @return
+     */
+    @PostMapping("/cancel")
+    public ApiResponse<Long> cancelUpgrade(@RequestBody CancelUpgradeRequest request) {
 
+        DeviceEntity device = deviceService.getDeviceByImei(request.getImei());
+        if (device == null) {
+            throw new BusinessException("设备不存在");
+        }
+
+        UpgradeTaskEntity upgradeTask = upgradeTaskService.selectUpgradeTask(device.getImei());
+
+        Object obj = redisTemplate.opsForHash().get(UPGRADE_RUNTIME_KEY_PREFIX + request.getImei(), "status");
+        if(upgradeTask ==null || obj==null
+                || org.apache.commons.lang3.StringUtils.isBlank(String.valueOf(obj))
+                || !UPGRADING_STATE.contains(String.valueOf(obj))) {
+            throw new BusinessException("设备未处于升级状态");
+        }
+        request.setTaskId(upgradeTask.getTaskId());
+        upgradeTaskService.cancelUpgrade(request);
+        return ApiResponse.ok("已发取消级请求，等待设备确认.",null);
+    }
 
 
 

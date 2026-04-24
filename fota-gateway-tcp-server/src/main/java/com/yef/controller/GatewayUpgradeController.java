@@ -26,6 +26,7 @@ public class GatewayUpgradeController {
 
     /**
      * 网关接收平台下发的0x81请求升级指令
+     *
      * @param request
      * @return
      */
@@ -37,13 +38,14 @@ public class GatewayUpgradeController {
 
     /**
      * 网关接收平台下发的0x87取消升级指令
+     *
      * @param request
      * @return
      */
     @PostMapping("/cancel-request")
     public ApiResponse<Void> sendCancelRequest(@RequestBody PlatformCancelUpgradeRequest request) {
-        //gatewayUpgradeDispatchService.sendCancelUpgradeRequest(request);
-        return null;
+        gatewayUpgradeDispatchService.sendCancelUpgradeRequest(request);
+        return ApiResponse.ok();
     }
 
 

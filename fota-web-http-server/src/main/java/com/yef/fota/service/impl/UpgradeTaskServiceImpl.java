@@ -1,8 +1,11 @@
 package com.yef.fota.service.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.yef.fota.api.dto.CancelUpgradeRequest;
+import com.yef.fota.api.dto.GatewayCancelUpgradeRequest;
 import com.yef.fota.api.dto.GatewayUpgradeRequest;
-import com.yef.fota.api.dto.UpdateDeviceUpgradeFinalResult;
+import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
+import com.yef.fota.api.dto.resp.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.api.service.GatewayCommandService;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
@@ -15,10 +18,12 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.yef.fota.exception.BusinessException;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+
 import org.springframework.util.StringUtils;
 
 /**
@@ -80,7 +85,7 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
             GatewayUpgradeRequest gatewayRequest = getUpgradeRequest(task, device, firmware);
             gatewayRequest.setLockToken(lockToken);
             gatewayCommandService.sendUpgradeRequest(gatewayRequest);
-            return task.getId();
+            return task.getTaskId();
         } catch (RuntimeException ex) {
             deviceUpgradeLockService.releaseLock(device.getImei(), lockToken);
             throw ex;
@@ -120,7 +125,7 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
 
 
     @Override
-    public void updateDeviceUpgradeFinalResult(UpdateDeviceUpgradeFinalResult result) {
+    public void updateDeviceUpgradeFinalEventResult(UpdateDeviceUpgradeFinalResult result) {
         if (result == null || !StringUtils.hasText(result.getImei()) || !StringUtils.hasText(result.getTaskId())) {
             return;
         }
@@ -154,6 +159,28 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
                 .set(DeviceEntity::getUpdatedAt, now));
     }
 
+
+    @Override
+    public void updateCancelFinalEventResult(DeviceUpgradeCancelEventResult result) {
+        LocalDateTime now = LocalDateTime.now();
+        deviceService.update(new LambdaUpdateWrapper<DeviceEntity>()
+                .eq(DeviceEntity::getImei, result.getImei())
+                .set(StringUtils.hasText(result.getStatus()), DeviceEntity::getDeviceUpgradeStatus, result.getStatus())
+                .set(DeviceEntity::getUpdatedAt, now));
+    }
+
+    @Override
+    public void cancelUpgrade(CancelUpgradeRequest request) {
+        GatewayCancelUpgradeRequest cancelUpgradeRequest = new GatewayCancelUpgradeRequest();
+        BeanUtils.copyProperties(request, cancelUpgradeRequest);
+        gatewayCommandService.sendCancelUpgradeRequest(cancelUpgradeRequest);
+    }
+
+
+    @Override
+    public UpgradeTaskEntity selectUpgradeTask(String imei) {
+        return this.baseMapper.selectUpgradeTask(imei);
+    }
 
 
 }

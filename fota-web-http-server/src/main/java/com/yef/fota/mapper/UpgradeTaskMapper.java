@@ -17,8 +17,6 @@ import java.util.List;
 @Mapper
 public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
 
-
-
     @Update("""
         UPDATE upgrade_task
         SET status = #{status},
@@ -36,6 +34,15 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
     @Delete("delete from upgrade_task where task_id=#{taskId}")
     int delByTaskId(@Param("taskId") Long taskId);
 
+
+    @Select("select * from upgrade_task" +
+            " where imei = #{imei}" +
+            " and task_status in ('UPGRADE_REQUESTED','UPGRADING','WAIT_RESULT')" +
+            " order by id desc limit 1")
+    UpgradeTaskEntity  selectUpgradeTask(String imei);
+
+
     @Select("select * from upgrade_task")
     List<UpgradeTaskEntity> selectAll();
+
 }

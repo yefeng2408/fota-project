@@ -1,6 +1,8 @@
 package com.yef.fota.service;
 
-import com.yef.fota.api.dto.UpdateDeviceUpgradeFinalResult;
+import com.yef.fota.api.dto.CancelUpgradeRequest;
+import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
+import com.yef.fota.api.dto.resp.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.entity.UpgradeTaskEntity;
@@ -20,5 +22,15 @@ public interface UpgradeTaskService extends IService<UpgradeTaskEntity> {
 
     Long startUpgrade(DeviceEntity deviceEntity, FirmwarePackageEntity firmware, Long batchId, Long operatorId);
 
-    void updateDeviceUpgradeFinalResult(UpdateDeviceUpgradeFinalResult result);
+
+    void updateDeviceUpgradeFinalEventResult(UpdateDeviceUpgradeFinalResult result);
+
+    void updateCancelFinalEventResult(DeviceUpgradeCancelEventResult result);
+
+
+
+    void cancelUpgrade(CancelUpgradeRequest request);
+
+    UpgradeTaskEntity selectUpgradeTask(String imei);
+
 }

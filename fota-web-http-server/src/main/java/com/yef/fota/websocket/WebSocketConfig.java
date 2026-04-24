@@ -2,7 +2,8 @@ package com.yef.fota.websocket;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yef.fota.api.dto.DeviceUpgradeEvent;
+import com.yef.fota.api.dto.DeviceUpgradeEventRequest;
+import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -39,7 +40,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
                 .setAllowedOrigins("*");
     }
 
-    public void pushDeviceUpgradeEvent(DeviceUpgradeEvent event) {
+    public void pushDeviceUpgradeEvent(DeviceUpgradeEventRequest event) {
         if (event == null) {
             return;
         }
@@ -66,6 +67,38 @@ public class WebSocketConfig implements WebSocketConfigurer {
             }
         }
     }
+
+
+    public void pushDeviceUpgradeCancelEvent(DeviceUpgradeCancelEventResult event) {
+        if (event == null) {
+            return;
+        }
+        final String payload;
+        try {
+            payload = objectMapper.writeValueAsString(event);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("设备升级事件序列化失败", e);
+        }
+
+        TextMessage message = new TextMessage(payload);
+        sessions.entrySet().removeIf(entry -> !entry.getValue().isOpen());
+
+        for (Map.Entry<String, WebSocketSession> entry : sessions.entrySet()) {
+            WebSocketSession session = entry.getValue();
+            try {
+                session.sendMessage(message);
+            } catch (Exception e) {
+                try {
+                    session.close(CloseStatus.SERVER_ERROR);
+                } catch (IOException ignored) {
+                }
+                sessions.remove(entry.getKey());
+            }
+        }
+    }
+
+
+
 
     private class DeviceUpgradeWebSocketHandler extends TextWebSocketHandler {
 

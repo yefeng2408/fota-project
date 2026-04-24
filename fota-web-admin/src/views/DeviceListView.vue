@@ -406,7 +406,7 @@ const upgradeStatusTextMap = {
   TIMEOUT: '升级超时',
   PAUSED: '升级暂停',
   CANCELING: '取消中',
-  CANCEL_UPGRADE: '已取消升级'
+  CANCEL_UPGRADE: '已取消'
 }
 
 const form = reactive({
@@ -722,11 +722,6 @@ async function cancelUpgrade(row) {
     return
   }
 
-  const taskId = row.lastUpgradeTaskId || row.taskId || row.upgradeTaskId
-  if (!taskId) {
-    ElMessage.warning('未找到当前升级任务ID，无法取消升级')
-    return
-  }
 
   await ElMessageBox.confirm(
     `确定取消设备 ${row.imei} 的当前升级任务吗？`,
@@ -740,7 +735,6 @@ async function cancelUpgrade(row) {
 
   await request.post('/api/upgrade-task/cancel', {
     imei: row.imei,
-    taskId,
     reason: 0
   })
 

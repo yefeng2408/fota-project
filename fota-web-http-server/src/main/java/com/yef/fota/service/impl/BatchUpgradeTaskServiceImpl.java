@@ -65,6 +65,7 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
         this.redisTemplate = redisTemplate;
     }
 
+
     @Transactional(rollbackFor = Exception.class)
     @Override
     public BatchUpgradeStartResponse startBatchUpgrade(BatchUpgradeStartRequest request, Long operatorId) {
@@ -128,6 +129,7 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
 
         int startedCount = 0;
         int skippedCount = 0;
+        Map<String,Long> taskIds = new HashMap<>(deviceIds.size());
         for (DeviceEntity device : devices) {
             if (!canBatchUpgrade(device, onlineDeviceIdSet, firmware)) {
                 skippedCount++;
@@ -135,7 +137,8 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
             }
 
             bindFirmwareForBatch(device, firmware, operatorId, currentBindingMap.get(device.getId()));
-            upgradeTaskService.startUpgrade(device, firmware, batchTask.getId(), operatorId);
+            Long taskId = upgradeTaskService.startUpgrade(device, firmware, batchTask.getId(), operatorId);
+            taskIds.put(device.getImei(), taskId);
             markBindingTriggered(device.getId(), firmware.getId());
             startedCount++;
         }
@@ -147,6 +150,7 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
 
         BatchUpgradeStartResponse response = new BatchUpgradeStartResponse();
         response.setBatchTaskId(batchTask.getId());
+        response.setTaskIds(taskIds);
         response.setGroupId(group.getId());
         response.setFirmwareId(firmware.getId());
         response.setTotalCount(devices.size());

@@ -1,14 +1,16 @@
 package com.yef.service;
 
+import com.yef.dto.PlatformCancelUpgradeRequest;
 import com.yef.dto.PlatformUpgradeRequest;
 import com.yef.exception.FotaProtocolException;
+import com.yef.protocol.CancelUpgradeMessage;
 import com.yef.protocol.UpgradeRequestMessage;
 import com.yef.session.DeviceSession;
 import com.yef.session.SessionManager;
 import io.netty.channel.Channel;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -17,6 +19,7 @@ import java.util.Map;
  * @author: 叶丰
  * @date: 2026/04/16 09:43
  */
+@Slf4j
 @Service
 public class GatewayUpgradeDispatchService {
 
@@ -79,26 +82,25 @@ public class GatewayUpgradeDispatchService {
         redisTemplate.opsForHash().putAll(UPGRADE_RUNTIME_KEY_PREFIX+req.getImei(),runtimeHash);
         deviceUpgradeLockService.markActive(req.getImei());
 
-        /**
-         * 网关级别的key，用于分包过程中的【高频写操作】
-         * TODO fota:upgrade:runtime:{imei}
-         * taskId=90001
-         * status=UPGRADING
-         * currentPacketNo=128
-         * ackedPacketCount=128
-         * totalPacket=3000
-         * chunkSize=1024
-         * progress=4
-         * lastPacketAt=1710000000000
-         * packetTime=1710000000000
-         * version=2
-         * startedAt=1710000000000
-         * firmwareId=5001
-         * fileSize=4500000
-         * md5=54ccbea961b3df0f19b99c8c4...
-         * seqId=208
-         */
     }
+
+
+
+    public void sendCancelUpgradeRequest(PlatformCancelUpgradeRequest request) {
+        log.info("------>取消升级接受http入参sendCancelUpgradeRequest，taskId:{}",request.getTaskId());
+        DeviceSession session = sessionManager.getByImei(request.getImei());
+        if (session == null || session.getChannel() == null || !session.getChannel().isActive()) {
+            throw new FotaProtocolException("设备不在线，无法下发取消升级指令");
+        }
+        //组装 CancelUpgradeMessage(0x87)，然后触发写出站事件 writeAndFlush
+        CancelUpgradeMessage message = new CancelUpgradeMessage(request.getImei(),request.getTaskId(),request.getReason());
+
+        Channel channel = session.getChannel();
+        channel.writeAndFlush(message);
+
+    }
+
+
 
     private byte[] hexMd5ToBytes(String md5) {
         if (md5 == null || md5.length() != 32) {
@@ -116,16 +118,10 @@ public class GatewayUpgradeDispatchService {
         return bytes;
     }
 
-   /* public void sendCancelUpgradeRequest(GatewayCancelUpgradeRequest request) {
-        DeviceSession session = sessionManager.getByImei(request.getImei());
-        if (session == null || session.getChannel() == null || !session.getChannel().isActive()) {
-            throw new GatewayBusinessException("设备不在线，无法下发取消升级指令");
-        }
-        // TODO: 组装 CancelUpgradeMessage(0x87)，然后 writeAndFlush
-    }*/
-
 
     private String nullToEmpty(Object value) {
         return value == null ? "" : String.valueOf(value);
     }
+
+
 }

@@ -7,12 +7,14 @@ import com.yef.fota.dto.device.DeviceSaveRequest;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.DeviceGroupEntity;
 import com.yef.fota.entity.DeviceGroupRelationEntity;
+import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.exception.BusinessException;
 import com.yef.fota.mapper.DeviceMapper;
 import com.yef.fota.service.DeviceGroupRelationService;
 import com.yef.fota.service.DeviceGroupService;
 import com.yef.fota.service.DeviceService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.yef.fota.service.FirmwarePackageService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,14 +49,17 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
     private final StringRedisTemplate redisTemplate;
     private final DeviceGroupService deviceGroupService;
     private final DeviceGroupRelationService deviceGroupRelationService;
+    private final FirmwarePackageService firmwarePackageService;
 
 
     public DeviceServiceImpl(StringRedisTemplate redisTemplate,
                              DeviceGroupService deviceGroupService,
-                             DeviceGroupRelationService deviceGroupRelationService) {
+                             DeviceGroupRelationService deviceGroupRelationService,
+                             FirmwarePackageService firmwarePackageService) {
         this.redisTemplate = redisTemplate;
         this.deviceGroupService = deviceGroupService;
         this.deviceGroupRelationService = deviceGroupRelationService;
+        this.firmwarePackageService = firmwarePackageService;
     }
 
     @Override
@@ -95,7 +100,13 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
         entity.setCurrentFirmwareVersion(request.getCurrentFirmwareVersion());
         if (!Objects.equals(entity.getTargetFirmwareId(), request.getTargetFirmwareId())) {
             entity.setDeviceUpgradeStatus("NO_TASK");
+            //删除旧的升级任务缓存的key
+            String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + entity.getImei();
+            String lastProgressKey =  runtimeKey + ":lastPushProgress";
+            redisTemplate.delete(runtimeKey);
+            redisTemplate.delete(lastProgressKey);
         }
+
         entity.setTargetFirmwareId(request.getTargetFirmwareId());
         entity.setIsBind(resolveBindStatus(request.getTargetFirmwareId()));
         entity.setUpdatedAt(LocalDateTime.now());
@@ -112,12 +123,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>().eq(DeviceGroupRelationEntity::getDeviceId, id));
         saveRelation(id, request.getDeviceGroupId());
         upsertDeviceCache(entity);
-        //删除旧的升级任务缓存的key
 
-        String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + entity.getImei();
-        String lastProgressKey =  runtimeKey + ":lastPushProgress";
-        redisTemplate.delete(runtimeKey);
-        redisTemplate.delete(lastProgressKey);
     }
 
 

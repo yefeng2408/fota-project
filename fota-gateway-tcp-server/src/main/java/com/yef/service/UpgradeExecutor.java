@@ -1,5 +1,6 @@
 package com.yef.service;
 
+import com.alibaba.fastjson.JSON;
 import com.yef.protocol.*;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -7,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import com.yef.protocol.outMsg.DeviceBootUpMessageAck;
 import com.yef.protocol.outMsg.UpgradeResultMessageAck;
+import com.yef.req.DeviceUpgradeCancelEventRequest;
 import com.yef.req.DeviceUpgradeEventRequest;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
@@ -34,7 +36,8 @@ public class UpgradeExecutor {
     private final DeviceUpgradeLockService deviceUpgradeLockService;
 
 
-    public UpgradeExecutor(StringRedisTemplate redisTemplate, MinioClient minioClient,
+    public UpgradeExecutor(StringRedisTemplate redisTemplate,
+                           MinioClient minioClient,
                            PacketSender packetSender,
                            DeviceUpgradeEventPushClient deviceUpgradeEventPushClient,
                            DeviceUpgradeLockService deviceUpgradeLockService) {
@@ -61,7 +64,7 @@ public class UpgradeExecutor {
 
 
     //网关对设备升级结果的上行消息0x06做出应答【写出站消息】
-    public void handleUpgradeResult(UpgradeResultMessage message, Long deviceId) {
+    public void handleUpgradeResult(UpgradeResultMessage message) {
 
         log.info("[UpgradeExecutor] upgrade result. imei:{} ,taskId:{}, result:{}, errorCode:{}"
                 , message.imei(), message.getTaskId(), message.getResult(), message.getErrorCode());
@@ -88,6 +91,7 @@ public class UpgradeExecutor {
         runtimeHash.put("packetTime", String.valueOf(now));
         runtimeHash.put("lastPacketAt", String.valueOf(now));
         runtimeHash.put("status", finalStatus);
+        runtimeHash.put("costTime", String.valueOf(message.getCostTime()));
         redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
         if (lockToken != null && !lockToken.isBlank() && !"null".equalsIgnoreCase(lockToken)) {
             deviceUpgradeLockService.releaseLock(message.imei(), lockToken);
@@ -128,7 +132,7 @@ public class UpgradeExecutor {
      *
      * @param ack
      */
-    public void sendSpiltPacket(AckMessage ack) {
+    public void receiveUpgradeRequestAckAndSendSpiltPacket(AckMessage ack) {
         String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + ack.imei();
         Map<Object, Object> runtimeMap = redisTemplate.opsForHash().entries(runtimeKey);
         if (runtimeMap == null || runtimeMap.isEmpty()) {
@@ -254,15 +258,16 @@ public class UpgradeExecutor {
 
     }
 
-    /**
-     *  设备回传 ackType =4  CANCEL_ACK （对应着下行0x87消息类型）
-     * @param ack
-     */
-    public void sendCancelAckToPlatform(AckMessage ack) {
-        String imei = ack.imei();
 
+    //
+    public void receiveCancelAck(AckMessage ack) {
+        log.info("=======>device-upgrade-event-ack:{}", JSON.toJSONString(ack));
+        String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + ack.imei();
+        redisTemplate.opsForHash().put(runtimeKey,"status","CANCEL_UPGRADE");
+
+        DeviceUpgradeCancelEventRequest request = new DeviceUpgradeCancelEventRequest();
+        request.setImei(ack.imei());
+        request.setStatus("CANCEL_UPGRADE");
+        deviceUpgradeEventPushClient.updateCancelResult(request);
     }
-
-
-
 }
