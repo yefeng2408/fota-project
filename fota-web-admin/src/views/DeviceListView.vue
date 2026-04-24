@@ -166,13 +166,13 @@
                     <el-dropdown-item
                       command="cancel"
                       class="action-dropdown-item"
-                      :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
+                      :disabled="!canCancelUpgrade(row)"
                     >
                       <el-button
                         size="small"
                         type="warning"
                         plain
-                        :disabled="row.deviceUpgradeStatus !== 'UPGRADING'"
+                        :disabled="!canCancelUpgrade(row)"
                       >
                         取消升级
                       </el-button>
@@ -281,7 +281,7 @@
         type="warning"
         show-icon
         :closable="false"
-        title="系统会先把组内可升级设备统一绑定到所选固件，再批量发起升级请求。设备类型与固件不匹配、或当前已有升级任务的设备会自动跳过。"
+        title="平台会先把组内可升级设备统一绑定到所选固件，再批量发起升级请求。设备类型与固件不匹配、或当前已有升级任务的设备会自动跳过此次升级。"
       />
     </el-form>
     <template #footer>
@@ -405,7 +405,8 @@ const upgradeStatusTextMap = {
   FAIL: '升级失败',
   TIMEOUT: '升级超时',
   PAUSED: '升级暂停',
-  CANCEL_UPGRADE: '用户取消升级'
+  CANCELING: '取消中',
+  CANCEL_UPGRADE: '已取消升级'
 }
 
 const form = reactive({
@@ -688,6 +689,14 @@ function isFirmwareBound(row) {
   return isTruthy(row.isBind)
 }
 
+
+function canCancelUpgrade(row) {
+
+  return ['UPGRADE_REQUESTED', 'UPGRADING', 'WAIT_RESULT'].includes(row?.deviceUpgradeStatus)
+
+}
+
+//必须是以绑定固件 && 在线 && 没有正在进行的升级任务，才允许发起升级
 function canStartUpgrade(row) {
   return isFirmwareBound(row) && isDeviceOnline(row) && row.deviceUpgradeStatus === 'NO_TASK'
 }
@@ -706,9 +715,40 @@ async function startUpgrade(row) {
   }
 }
 
-function cancelUpgrade(row) {
-  ElMessage.info(`设备 ${row.imei} 正在升级，等待接入取消升级接口`)
+
+async function cancelUpgrade(row) {
+  if (!row?.imei) {
+    ElMessage.warning('设备 IMEI 不能为空')
+    return
+  }
+
+  const taskId = row.lastUpgradeTaskId || row.taskId || row.upgradeTaskId
+  if (!taskId) {
+    ElMessage.warning('未找到当前升级任务ID，无法取消升级')
+    return
+  }
+
+  await ElMessageBox.confirm(
+    `确定取消设备 ${row.imei} 的当前升级任务吗？`,
+    '取消升级确认',
+    {
+      confirmButtonText: '确认取消',
+      cancelButtonText: '暂不取消',
+      type: 'warning'
+    }
+  )
+
+  await request.post('/api/upgrade-task/cancel', {
+    imei: row.imei,
+    taskId,
+    reason: 0
+  })
+
+  row.deviceUpgradeStatus = 'CANCELING'
+  ElMessage.success('已发送取消升级请求，等待设备确认')
 }
+
+
 
 function handleAction(command, row) {
   if (command === 'edit') {
@@ -1061,8 +1101,8 @@ onBeforeUnmount(() => {
     45deg,
     #f5a623,
     #f5a623 10px,
-    #f8b84e 10px,
-    #f8b84e 20px
+    #fac776 10px,
+    #fac776 20px
   ) !important;
   background-size: 40px 40px;
 }
