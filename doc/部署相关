@@ -22,6 +22,7 @@ tar -xzvf fota.tar.gz
 #-----------------------本地 build + docker save/load--------------------------
 在 build 之前，你得先确保本地已经真的生成了 jar
 mvn clean package -DskipTests
+
 ls fota-web-http-server/target/*.jar
 ls fota-gateway-tcp-server/target/*.jar
 ls fota-mock-device-client/target/*.jar
@@ -47,7 +48,8 @@ docker save -o fota-gateway-tcp-server-v1.tar fota-gateway-tcp-server:v1
 docker save -o fota-mock-device-client-v1.tar fota-mock-device-client:v1
 
 
-#上传到服务器后导入。 把 .tar 文件重新导入成“服务器上的镜像”【服务器上执行】
+#上传到服务器后导入【scp fota-*.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/】。
+#将 .tar 文件重新导入成“服务器上的镜像”【服务器上执行】
 docker load -i fota-web-admin-nginx-v1.tar
 docker load -i fota-web-http-server-v1.tar
 docker load -i fota-gateway-tcp-server-v1.tar

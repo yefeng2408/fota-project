@@ -201,7 +201,6 @@
                 <version>${spring-boot.version}</version>
                 <configuration>
                     <mainClass>com.yef.FotaWebHttpServerApplication</mainClass>
-                    <skip>true</skip>
                 </configuration>
                 <executions>
                     <execution>

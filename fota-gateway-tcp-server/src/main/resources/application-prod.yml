@@ -38,6 +38,7 @@ upgrade:
   event:
     push-url: ${DEVICE_UPGRADE_PUSH_URL}
     update-result-url: ${DEVICE_UPGRADE_RESULT_URL}
+    update-cancel-url: ${DEVICE_UPGRADE_CANCEL_URL}
 
 # =========================
 # 日志（先简单版）

@@ -147,7 +147,6 @@
                 <version>${spring-boot.version}</version>
                 <configuration>
                     <mainClass>com.yef.FotaGatewayTcpServerApplication</mainClass>
-                    <skip>true</skip>
                 </configuration>
                 <executions>
                     <execution>

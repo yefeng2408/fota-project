@@ -11,7 +11,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 
 /**
- * @description: 网关出站编码，提前将响应设备的ACK消息格式提前组装。主要是给上行消息做应答
+ * @description: 网关出站编码
  * @author: 叶丰
  * @date: 2026/4/17 18:22
  */

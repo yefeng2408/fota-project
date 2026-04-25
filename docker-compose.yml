@@ -33,7 +33,8 @@ services:
     volumes:
       - ./data/redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "/usr/local/bin/redis-cli ping"]
+      #test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -108,7 +109,7 @@ services:
       minio:
         condition: service_started
       fota-web-http-server:
-        condition: service_healthy
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: ${TZ:-Asia/Shanghai}
@@ -128,6 +129,7 @@ services:
 
       DEVICE_UPGRADE_PUSH_URL: http://fota-web-http-server:8080/internal/device-upgrade/event
       DEVICE_UPGRADE_RESULT_URL: http://fota-web-http-server:8080/internal/device-upgrade/result
+      DEVICE_UPGRADE_CANCEL_URL: http://fota-web-http-server:8080/internal/device-upgrade/cancel
       FOTA_GATEWAY_PORT: ${FOTA_GATEWAY_PORT:-8224}
     ports:
       - "${FOTA_GATEWAY_PORT:-8224}:${FOTA_GATEWAY_PORT:-8224}"
@@ -148,7 +150,7 @@ services:
       minio:
         condition: service_started
       fota-gateway-tcp-server:
-        condition: service_healthy
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: ${TZ:-Asia/Shanghai}
