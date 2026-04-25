@@ -85,4 +85,22 @@ public final class ProtocolBodyUtils {
             buf.release();
         }
     }
+
+    public static int calculateCrc16(byte version, int bodyLength, String imei, long timestamp, int seqId,
+                                     byte messageType, ByteBuf body) {
+        String imeiValue = imei == null ? "" : imei;
+        if (imeiValue.length() != 8) {
+            throw new IllegalArgumentException("imei must be 8 ascii chars: " + imeiValue);
+        }
+
+        int crc = Crc16Utils.updateByte(0xFFFF, version);
+        crc = Crc16Utils.updateInt(crc, bodyLength);
+        for (int i = 0; i < imeiValue.length(); i++) {
+            crc = Crc16Utils.updateByte(crc, imeiValue.charAt(i));
+        }
+        crc = Crc16Utils.updateLong(crc, timestamp);
+        crc = Crc16Utils.updateShort(crc, seqId);
+        crc = Crc16Utils.updateByte(crc, messageType);
+        return Crc16Utils.update(crc, body);
+    }
 }

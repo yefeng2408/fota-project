@@ -8,10 +8,8 @@ import com.yef.protocol.FotaPacketFrame;
 import com.yef.protocol.FotaProtocolConstants;
 import com.yef.protocol.HeartbeatMessage;
 import com.yef.protocol.UpgradeResultMessage;
-import com.yef.util.Crc16Utils;
 import com.yef.util.ProtocolBodyUtils;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
 
@@ -26,48 +24,42 @@ public class FotaMessageDecoder extends MessageToMessageDecoder<FotaPacketFrame>
 
     @Override
     protected void decode(ChannelHandlerContext ctx, FotaPacketFrame frame, List<Object> out) {
-        //获取payload 计算crc16 与消息体中的 crc16比较
-        byte[] payload = ProtocolBodyUtils.buildCrcPayload(
+        int calculatedCrc16 = ProtocolBodyUtils.calculateCrc16(
                 frame.version(),
-                frame.body().length,
+                Math.toIntExact(frame.bodyLength()),
                 frame.imei(),
                 frame.timestamp(),
                 frame.seqId(),
                 frame.messageType(),
                 frame.body());
-        int calculatedCrc16 = Crc16Utils.calculate(payload);
         if (calculatedCrc16 != frame.crc16()) {
             throw new FotaProtocolException("crc16 mismatch, expected=" + frame.crc16() + ", calculated=" + calculatedCrc16);
         }
 
-        ByteBuf body = Unpooled.wrappedBuffer(frame.body());
-        try {
-            switch (frame.messageType()) {
-                //0x10
-                case FotaProtocolConstants.MSG_DEVICE_BOOT_UP:
-                    out.add(decodeBootUp(frame, body));
-                    break;
-                //0x05
-                case FotaProtocolConstants.MSG_HEARTBEAT:
-                    out.add(new HeartbeatMessage(frame.imei()));
-                    break;
-                //0x06
-                case FotaProtocolConstants.MSG_UPGRADE_RESULT:
-                    out.add(decodeUpgradeResult(frame, body));
-                    break;
-                //0x03
-                case FotaProtocolConstants.MSG_ACK:
-                    out.add(decodeAck(frame, body));
-                    break;
-                //0x04
-                case FotaProtocolConstants.MSG_FAIL:
-                    out.add(decodeFail(frame, body));
-                    break;
-                default:
-                    throw new FotaProtocolException("unsupported message type: " + frame.messageType());
-            }
-        } finally {
-            body.release();
+        ByteBuf body = frame.body().duplicate();
+        switch (frame.messageType()) {
+            //0x10
+            case FotaProtocolConstants.MSG_DEVICE_BOOT_UP:
+                out.add(decodeBootUp(frame, body));
+                break;
+            //0x05
+            case FotaProtocolConstants.MSG_HEARTBEAT:
+                out.add(new HeartbeatMessage(frame.imei()));
+                break;
+            //0x06
+            case FotaProtocolConstants.MSG_UPGRADE_RESULT:
+                out.add(decodeUpgradeResult(frame, body));
+                break;
+            //0x03
+            case FotaProtocolConstants.MSG_ACK:
+                out.add(decodeAck(frame, body));
+                break;
+            //0x04
+            case FotaProtocolConstants.MSG_FAIL:
+                out.add(decodeFail(frame, body));
+                break;
+            default:
+                throw new FotaProtocolException("unsupported message type: " + frame.messageType());
         }
     }
 
