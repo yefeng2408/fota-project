@@ -407,6 +407,7 @@ const deviceTypeOptions = [
 
 const upgradeStatusTextMap = {
   NO_TASK: '未升级',
+  WAITING: '等待升级',
   UPGRADE_REQUESTED: '已下发升级请求',
   UPGRADING: '升级中',
   WAIT_RESULT: '等待升级结果',
@@ -886,6 +887,7 @@ async function submitBatchUpgrade() {
     await Promise.all([loadDevices(), loadGroups()])
   } finally {
     batchSubmitting.value = false
+    loadDevices()
   }
 }
 

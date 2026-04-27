@@ -73,7 +73,6 @@ public class UpgradeCommandController {
         if (device.getIsBind() == null || device.getIsBind() != 1) {
             throw new BusinessException("设备未绑定固件，不可升级");
         }
-
         if (!"NO_TASK".equals(device.getDeviceUpgradeStatus())) {
             throw new BusinessException("设备当前状态不可升级");
         }
@@ -82,7 +81,6 @@ public class UpgradeCommandController {
         if (firmware == null) {
             throw new BusinessException("目标固件不存在");
         }
-
         if (!StringUtils.hasText(firmware.getFileName())) {
             throw new IllegalArgumentException("固件文件名不能为空");
         }
@@ -90,6 +88,13 @@ public class UpgradeCommandController {
             throw new IllegalArgumentException("固件版本号不能为空");
         }
 
+        /*if (upgradeTaskService.countWaitingTask() >1000) {
+            throw new BusinessException("当前处于等待升级的设备数量过多，请稍后升级");
+        }*/
+
+        if (!"NO_TASK".equals(device.getDeviceUpgradeStatus())) {
+            throw new BusinessException("设备当前存在升级任务，请勿重复发起升级操作");
+        }
         Long taskId = upgradeTaskService.startUpgrade(device, firmware);
         //这里如何拿到本次0x81的应答ack呢【messageType = 0x03，ackType =1】？
         // 因为我想给页面提示设备给出的应答结果，若设备的ack表示成功接受该指令，我在页面提示：“下发升级指令成功！”
@@ -111,7 +116,7 @@ public class UpgradeCommandController {
             throw new BusinessException("设备不存在");
         }
 
-        UpgradeTaskEntity upgradeTask = upgradeTaskService.selectUpgradeTask(device.getImei());
+        UpgradeTaskEntity upgradeTask = upgradeTaskService.selectUpgradingTask(device.getImei());
 
         Object obj = redisTemplate.opsForHash().get(UPGRADE_RUNTIME_KEY_PREFIX + request.getImei(), "status");
         if(upgradeTask ==null || obj==null

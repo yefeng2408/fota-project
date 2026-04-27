@@ -40,7 +40,7 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
             " where imei = #{imei}" +
             " and task_status in ('UPGRADE_REQUESTED','UPGRADING','WAIT_RESULT')" +
             " order by id desc limit 1")
-    UpgradeTaskEntity  selectUpgradeTask(String imei);
+    UpgradeTaskEntity  selectUpgradingTaskByImei(String imei);
 
 
     @Select("select * from upgrade_task")
@@ -49,4 +49,12 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
     @Update("update upgrade_task set start_time=#{startTime} where task_id=#{taskId}")
     int updateTaskStartTime(@Param("taskId") Long taskId, @Param("startTime") LocalDateTime startTime);
 
+
+    List<UpgradeTaskEntity> selectRunnableTasks(int limit);
+
+
+    int casToRequested(Long id);
+
+
+    int countWaitingTask();
 }

@@ -28,7 +28,28 @@
     </sql>
 
 
+    <select id="selectRunnableTasks" resultType="com.yef.fota.entity.UpgradeTaskEntity">
+        SELECT *  FROM upgrade_task WHERE status IN ('WAITING' <!--,'RETRY_WAIT'--> )
+        AND (next_retry_at IS NULL OR next_retry_at &lt;= NOW())
+        ORDER BY id ASC
+        LIMIT #{limit}
+    </select>
 
+
+
+    <update id="casToRequested" parameterType="Long">
+        UPDATE upgrade_task SET task_status = 'UPGRADE_REQUESTED' <!--, start_time = NOW()-->
+
+        WHERE id = #{id}
+
+        AND task_status IN ('WAITING'<!--,'RETRY_WAIT'-->)
+
+    </update>
+
+
+    <select id="countWaitingTask" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM upgrade_task WHERE task_status = 'WAITING'
+    </select>
 
 
 </mapper>

@@ -8,7 +8,7 @@ import lombok.Data;
  * @date: 2026/04/15 22:27
  */
 @Data
-public class GatewayCancelUpgradeRequest {
+public class PlatformCancelUpgradeRequest {
 
     private String imei;
     private Long taskId;

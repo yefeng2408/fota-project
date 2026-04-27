@@ -26,6 +26,11 @@ public class BatchUpgradeTaskController {
 
     private final BatchUpgradeTaskService batchUpgradeTaskService;
 
+    /**
+     * 批量升级
+     * @param request
+     * @return
+     */
     @PostMapping("/start")
     @OperationLog(action = "START_BATCH_UPGRADE")
     public ApiResponse<BatchUpgradeStartResponse> start(@RequestBody @Valid BatchUpgradeStartRequest request) {

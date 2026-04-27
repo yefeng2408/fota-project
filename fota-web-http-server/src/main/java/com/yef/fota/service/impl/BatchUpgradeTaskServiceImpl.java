@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +49,9 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
     private final DeviceFirmwareBindingService deviceFirmwareBindingService;
     private final UpgradeTaskService upgradeTaskService;
     private final StringRedisTemplate redisTemplate;
+
+    @Value("${fota.upgrade.max-waiting-devices:1000}")
+    private int maxWaiting;
 
     public BatchUpgradeTaskServiceImpl(DeviceGroupService deviceGroupService,
                                        DeviceGroupRelationService deviceGroupRelationService,
@@ -107,6 +111,15 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
         }
         if (!list.contains(true)) {
             throw new BusinessException("当前设备组下无在线设备，无法批量升级");
+        }
+
+        //已经等待升级的设备数【device_upgrade_status=WAITING状态】
+        int waitingCount = upgradeTaskService.countWaitingTask();
+        //本次提交的升级设备数量
+        int requestCount = devices.size();
+
+        if (waitingCount + requestCount > maxWaiting) {
+            throw new BusinessException("当前等待升级的设备数量过多，请稍后再试");
         }
 
         BatchUpgradeTaskEntity batchTask = new BatchUpgradeTaskEntity();

@@ -1,9 +1,9 @@
 package com.yef.fota.api.service;
 
 import com.yef.fota.api.GatewayApiResponse;
-import com.yef.fota.api.client.GatewayApiClient;
-import com.yef.fota.api.dto.GatewayCancelUpgradeRequest;
-import com.yef.fota.api.dto.GatewayUpgradeRequest;
+import com.yef.fota.api.client.WebPlatformApiClient;
+import com.yef.fota.api.dto.PlatformCancelUpgradeRequest;
+import com.yef.fota.api.dto.PlatformUpgradeRequest;
 import com.yef.fota.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,24 +14,24 @@ import org.springframework.stereotype.Service;
  * @date: 2026/04/15 22:34
  */
 @Service
-public class GatewayCommandService {
+public class PlatformCommandService {
 
-    private final GatewayApiClient gatewayApiClient;
+    private final WebPlatformApiClient platformApiClient;
 
-    public GatewayCommandService(@Autowired GatewayApiClient gatewayApiClient) {
-        this.gatewayApiClient = gatewayApiClient;
+    public PlatformCommandService(@Autowired WebPlatformApiClient gatewayApiClient) {
+        this.platformApiClient = gatewayApiClient;
     }
 
-    public void sendUpgradeRequest(GatewayUpgradeRequest request) {
-        GatewayApiResponse<Void> response = gatewayApiClient.sendUpgradeRequest(request);
+    public void sendUpgradeRequest(PlatformUpgradeRequest request) {
+        GatewayApiResponse<Void> response = platformApiClient.sendUpgradeRequest(request);
         if (response == null || !response.success()) {
             throw new BusinessException("调用网关下发升级请求失败: " +
                     (response == null ? "response is null" : response.getMessage()));
         }
     }
 
-    public void sendCancelUpgradeRequest(GatewayCancelUpgradeRequest request) {
-        GatewayApiResponse<Void> response = gatewayApiClient.sendCancelUpgradeRequest(request);
+    public void sendCancelUpgradeRequest(PlatformCancelUpgradeRequest request) {
+        GatewayApiResponse<Void> response = platformApiClient.sendCancelUpgradeRequest(request);
         if (response == null || !response.success()) {
             throw new BusinessException("调用网关下发取消升级失败: " +
                     (response == null ? "response is null" : response.getMessage()));

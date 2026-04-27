@@ -30,7 +30,6 @@ public class DeviceUpgradeLockRenewScheduler {
         if (imeiSet == null || imeiSet.isEmpty()) {
             return;
         }
-
         for (String imei : imeiSet) {
             Map<Object, Object> runtimeMap = redisTemplate.opsForHash().entries(UPGRADE_RUNTIME_KEY_PREFIX + imei);
             if (runtimeMap == null || runtimeMap.isEmpty()) {
@@ -44,17 +43,16 @@ public class DeviceUpgradeLockRenewScheduler {
                 deviceUpgradeLockService.clearActive(imei);
                 continue;
             }
-
             if (isActiveUpgradeStatus(status)) {
                 boolean renewed = deviceUpgradeLockService.renewLock(imei, lockToken);
                 if (!renewed) {
                     log.warn("升级锁续期失败，imei={}, status={}", imei, status);
                 }
-                continue;
+            }else {
+                log.info("状态非 active，但不主动释放锁，由业务线程控制释放");
             }
-
-            deviceUpgradeLockService.releaseLock(imei, lockToken);
-            deviceUpgradeLockService.clearActive(imei);
+            /*deviceUpgradeLockService.releaseLock(imei, lockToken);
+            deviceUpgradeLockService.clearActive(imei);*/
         }
     }
 

@@ -33,6 +33,9 @@ public interface UpgradeTaskService extends IService<UpgradeTaskEntity> {
 
     void cancelUpgrade(CancelUpgradeRequest request);
 
-    UpgradeTaskEntity selectUpgradeTask(String imei);
+    UpgradeTaskEntity selectUpgradingTask(String imei);
+
+
+    int countWaitingTask();
 
 }

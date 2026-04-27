@@ -12,9 +12,9 @@ import com.yef.protocol.outMsg.UpgradeResultMessageAck;
 import com.yef.req.DeviceUpgradeCancelEventRequest;
 import com.yef.req.DeviceUpgradeEventRequest;
 import com.yef.req.DeviceUpgradeStartTimeRequest;
+import com.yef.service.redis.semaphore.UpgradeSemaphoreReleaseService;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
-import io.minio.errors.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -36,19 +36,21 @@ public class UpgradeExecutor {
 
     private final DeviceUpgradeEventPushClient deviceUpgradeEventPushClient;
     private final DeviceUpgradeLockService deviceUpgradeLockService;
+    private final UpgradeSemaphoreReleaseService upgradeSemaphoreReleaseService;
 
 
     public UpgradeExecutor(StringRedisTemplate redisTemplate,
                            MinioClient minioClient,
                            PacketSender packetSender,
                            DeviceUpgradeEventPushClient deviceUpgradeEventPushClient,
-                           DeviceUpgradeLockService deviceUpgradeLockService) {
+                           DeviceUpgradeLockService deviceUpgradeLockService,
+                           UpgradeSemaphoreReleaseService upgradeSemaphoreReleaseService) {
         this.redisTemplate = redisTemplate;
         this.minioClient = minioClient;
         this.packetSender = packetSender;
         this.deviceUpgradeEventPushClient = deviceUpgradeEventPushClient;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
-
+        this.upgradeSemaphoreReleaseService = upgradeSemaphoreReleaseService;
     }
 
     //网关对设备开机包的上行消息0x10做出应答【写出站消息】
@@ -67,10 +69,7 @@ public class UpgradeExecutor {
 
     //网关对设备升级结果的上行消息0x06做出应答【写出站消息】
     public void handleUpgradeResult(UpgradeResultMessage message) {
-
-        log.info("[UpgradeExecutor] upgrade result. imei:{} ,taskId:{}, result:{}, errorCode:{}"
-                , message.imei(), message.getTaskId(), message.getResult(), message.getErrorCode());
-
+        log.info("[UpgradeExecutor] upgrade result. imei:{} ,taskId:{}, result:{}, errorCode:{}", message.imei(), message.getTaskId(), message.getResult(), message.getErrorCode());
         UpgradeResultMessageAck messageAck = new UpgradeResultMessageAck(
                 message.imei(),
                 message.getTaskId(),
@@ -95,10 +94,13 @@ public class UpgradeExecutor {
         runtimeHash.put("status", finalStatus);
         runtimeHash.put("costTime", String.valueOf(message.getCostTime()));
         redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
+        //释放锁
         if (lockToken != null && !lockToken.isBlank() && !"null".equalsIgnoreCase(lockToken)) {
             deviceUpgradeLockService.releaseLock(message.imei(), lockToken);
         }
         deviceUpgradeLockService.clearActive(message.imei());
+        //释放信号量
+        upgradeSemaphoreReleaseService.release(message.imei());
 
         deviceUpgradeEventPushClient.pushUpgradeProgress(
                 new DeviceUpgradeEventRequest(

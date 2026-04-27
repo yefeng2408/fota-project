@@ -4,8 +4,8 @@ import com.dtflys.forest.annotation.BaseRequest;
 import com.dtflys.forest.annotation.Body;
 import com.dtflys.forest.annotation.Post;
 import com.yef.fota.api.GatewayApiResponse;
-import com.yef.fota.api.dto.GatewayCancelUpgradeRequest;
-import com.yef.fota.api.dto.GatewayUpgradeRequest;
+import com.yef.fota.api.dto.PlatformCancelUpgradeRequest;
+import com.yef.fota.api.dto.PlatformUpgradeRequest;
 
 /**
  * @description: 平台下发指令给网关，再有网关出站发消息给设备
@@ -13,7 +13,7 @@ import com.yef.fota.api.dto.GatewayUpgradeRequest;
  * @date: 2026/04/15 22:31
  */
 @BaseRequest(baseURL = "${baseUrl}")
-public interface GatewayApiClient {
+public interface WebPlatformApiClient {
 
     /**
      * 平台下发 0x81 UpgradeRequest
@@ -22,7 +22,7 @@ public interface GatewayApiClient {
             url = "/internal/device/upgrade-request",
             contentType = "application/json"
     )
-    GatewayApiResponse<Void> sendUpgradeRequest(@Body GatewayUpgradeRequest request);
+    GatewayApiResponse<Void> sendUpgradeRequest(@Body PlatformUpgradeRequest request);
 
     /**
      * 平台下发 0x87 CancelUpgrade
@@ -31,5 +31,5 @@ public interface GatewayApiClient {
             url = "/internal/device/cancel-request",
             contentType = "application/json"
     )
-    GatewayApiResponse<Void> sendCancelUpgradeRequest(@Body GatewayCancelUpgradeRequest request);
+    GatewayApiResponse<Void> sendCancelUpgradeRequest(@Body PlatformCancelUpgradeRequest request);
 }

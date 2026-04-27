@@ -11,7 +11,7 @@ import lombok.ToString;
  */
 @Data
 @ToString
-public class GatewayUpgradeRequest {
+public class PlatformUpgradeRequest {
 
     private Long taskId;
     private Long deviceId;

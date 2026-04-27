@@ -20,6 +20,9 @@ import java.util.List;
 @Mapper
 public interface DeviceMapper extends BaseMapper<DeviceEntity> {
 
+    @Select("select * from device where imei=#{imei}")
+    DeviceEntity selectDeviceByImei(@Param("imei") String imei);
+
     @Update("""
             UPDATE device
             SET device_upgrade_status = #{status},
@@ -46,6 +49,9 @@ public interface DeviceMapper extends BaseMapper<DeviceEntity> {
             "</script>"
     })
     List<String> getImeiList(@Param("deviceIds") List<Long> deviceIds);
+
+
+
 
 
 }
