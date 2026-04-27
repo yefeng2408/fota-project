@@ -17,7 +17,10 @@
       >
         <template #default="{ data }">
           <div class="group-tree-node">
-            <span>{{ data.label }} ({{ data.deviceCount || 0 }})</span>
+            <OverflowTooltipText
+              class="group-tree-node__label"
+              :text="formatGroupTreeLabel(data)"
+            />
             <el-tag
               v-if="selectedBatchGroup && selectedBatchGroup.id === data.id"
               size="small"
@@ -369,6 +372,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import OverflowTooltipText from '../components/OverflowTooltipText.vue'
 import request from '../api/request'
 
 const groupTreeRef = ref(null)
@@ -588,6 +592,10 @@ async function loadFirmwares() {
 
 function formatFirmwareLabel(item) {
   return `${item.fileName || '未命名固件'} / ${item.version || '-'} / ${item.deviceType || '通用'}`
+}
+
+function formatGroupTreeLabel(group) {
+  return `${group?.label || ''} (${Number(group?.deviceCount || 0)}台)`
 }
 
 const importFirmwareOptions = computed(() => {
@@ -1035,10 +1043,9 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.group-tree-node > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.group-tree-node__label {
+  flex: 1;
+  min-width: 0;
 }
 
 .group-delete-btn {
@@ -1113,4 +1120,3 @@ onBeforeUnmount(() => {
 }
 
 </style>
-

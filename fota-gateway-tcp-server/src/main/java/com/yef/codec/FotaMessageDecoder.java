@@ -10,8 +10,10 @@ import com.yef.protocol.HeartbeatMessage;
 import com.yef.protocol.UpgradeResultMessage;
 import com.yef.util.ProtocolBodyUtils;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
@@ -20,6 +22,8 @@ import java.util.List;
  * @author: 叶丰
  * @date: 2026/4/11 22:48
  */
+@Component
+@ChannelHandler.Sharable
 public class FotaMessageDecoder extends MessageToMessageDecoder<FotaPacketFrame> {
 
     @Override

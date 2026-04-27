@@ -7,14 +7,18 @@ import com.yef.util.Crc16Utils;
 import com.yef.util.ProtocolBodyUtils;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
+import org.springframework.stereotype.Component;
 
 /**
  * @description: 网关出站编码
  * @author: 叶丰
  * @date: 2026/4/17 18:22
  */
+@Component
+@ChannelHandler.Sharable
 public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
 
     private static final java.util.concurrent.atomic.AtomicInteger SEQ = new java.util.concurrent.atomic.AtomicInteger(0);

@@ -141,12 +141,15 @@ docker logs -f fota-mock-device-client
 
 
 推荐生产启动顺序：
+#先启动基础中间件服务
 docker compose up -d mysql redis minio
 
+#再启动业务服务
 docker compose up -d fota-web-http-server
 docker compose up -d fota-gateway-tcp-server
 docker compose up -d fota-mock-device-client
 
+#最后起ngx
 docker compose up -d nginx
 
 

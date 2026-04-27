@@ -11,9 +11,12 @@
 
     <el-tree :data="treeData" node-key="id" default-expand-all :props="{ label: 'label', children: 'children' }">
       <template #default="{ data }">
-        <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-          <span>{{ data.label }} ({{ data.deviceCount || 0 }})</span>
-          <span>
+        <div class="group-tree-node">
+          <OverflowTooltipText
+            class="group-tree-node__label"
+            :text="formatGroupTreeLabel(data)"
+          />
+          <span class="group-tree-node__actions">
             <el-button link type="primary" @click.stop="openDialog(data)">编辑</el-button>
             <el-button link type="danger" @click.stop="remove(data.id)">删除</el-button>
           </span>
@@ -45,6 +48,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import OverflowTooltipText from '../components/OverflowTooltipText.vue'
 import request from '../api/request'
 
 const treeData = ref([])
@@ -53,6 +57,10 @@ const form = reactive({ id: null, deviceGroupName: '', parentId: null })
 
 async function loadData() {
   treeData.value = await request.get('/api/device-groups/tree')
+}
+
+function formatGroupTreeLabel(group) {
+  return `${group?.label || ''} (${Number(group?.deviceCount || 0)}台)`
 }
 
 function openDialog(row) {
@@ -77,3 +85,23 @@ async function remove(id) {
 
 onMounted(loadData)
 </script>
+
+<style scoped>
+.group-tree-node {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.group-tree-node__label {
+  flex: 1;
+  min-width: 0;
+}
+
+.group-tree-node__actions {
+  flex: 0 0 auto;
+}
+</style>

@@ -13,6 +13,7 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import org.springframework.stereotype.Component;
+
 /**
  * @description: 出入站配置
  * @author: 叶丰
@@ -21,13 +22,22 @@ import org.springframework.stereotype.Component;
 @Component
 public class FotaServerChannelInitializer extends ChannelInitializer<SocketChannel> {
 
+    private final FotaFrameDecoder fotaFrameDecoder;
+    private final FotaMessageDecoder fotaMessageDecoder;
+    private final FotaMessageEncoder fotaMessageEncoder;
     private final DeviceIdentityHandler deviceIdentityHandler;
     private final UpgradeDispatchHandler upgradeDispatchHandler;
     private final ExceptionHandler exceptionHandler;
 
-    public FotaServerChannelInitializer(DeviceIdentityHandler deviceIdentityHandler,
+    public FotaServerChannelInitializer(FotaFrameDecoder fotaFrameDecoder,
+                                        FotaMessageDecoder fotaMessageDecoder,
+                                        FotaMessageEncoder fotaMessageEncoder,
+                                        DeviceIdentityHandler deviceIdentityHandler,
                                         UpgradeDispatchHandler upgradeDispatchHandler,
                                         ExceptionHandler exceptionHandler) {
+        this.fotaFrameDecoder = fotaFrameDecoder;
+        this.fotaMessageDecoder = fotaMessageDecoder;
+        this.fotaMessageEncoder = fotaMessageEncoder;
         this.deviceIdentityHandler = deviceIdentityHandler;
         this.upgradeDispatchHandler = upgradeDispatchHandler;
         this.exceptionHandler = exceptionHandler;
@@ -43,9 +53,9 @@ public class FotaServerChannelInitializer extends ChannelInitializer<SocketChann
                 LengthFieldFrameSpec.LENGTH_FIELD_LENGTH,
                 LengthFieldFrameSpec.LENGTH_ADJUSTMENT,
                 LengthFieldFrameSpec.INITIAL_BYTES_TO_STRIP));
-        pipeline.addLast("fotaFrameDecoder", new FotaFrameDecoder());
-        pipeline.addLast("fotaMessageDecoder", new FotaMessageDecoder());
-        pipeline.addLast("fotaMessageEncoder", new FotaMessageEncoder());
+        pipeline.addLast("fotaFrameDecoder", fotaFrameDecoder);
+        pipeline.addLast("fotaMessageDecoder", fotaMessageDecoder);
+        pipeline.addLast("fotaMessageEncoder", fotaMessageEncoder);
         pipeline.addLast("deviceIdentityHandler", deviceIdentityHandler);
         pipeline.addLast("upgradeDispatchHandler", upgradeDispatchHandler);
         pipeline.addLast("exceptionHandler", exceptionHandler);

@@ -5,8 +5,11 @@ import com.yef.protocol.FotaPacketFrame;
 import com.yef.protocol.FotaProtocolConstants;
 import com.yef.protocol.LengthFieldFrameSpec;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import org.springframework.stereotype.Component;
+
 import java.util.List;
 
 /**
@@ -14,6 +17,8 @@ import java.util.List;
  * @author: 叶丰
  * @date: 2026/4/11 22:46
  */
+@Component
+@ChannelHandler.Sharable
 public class FotaFrameDecoder extends MessageToMessageDecoder<ByteBuf> {
 
     @Override
