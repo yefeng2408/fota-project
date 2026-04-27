@@ -118,6 +118,7 @@ public class BatchUpgradeTaskServiceImpl extends ServiceImpl<BatchUpgradeTaskMap
         batchTask.setFailCount(0);
         batchTask.setCreatedBy(operatorId);
         batchTask.setCreatedAt(LocalDateTime.now());
+        batchTask.setRemark(request.getRemark());
         this.save(batchTask);
 
         Map<Long, DeviceFirmwareBindingEntity> currentBindingMap = deviceFirmwareBindingService.lambdaQuery()

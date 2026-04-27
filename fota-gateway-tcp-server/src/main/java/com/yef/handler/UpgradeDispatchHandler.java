@@ -39,7 +39,7 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
     protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
         Long deviceId = ctx.channel().attr(ChannelAttributes.DEVICE_ID).get();
         if (msg instanceof DeviceBootUpMessage) {
-            upgradeExecutor.onDeviceBootUp((DeviceBootUpMessage) msg, deviceId);
+            upgradeExecutor.onDeviceBootUp((DeviceBootUpMessage) msg);
         } else if (msg instanceof HeartbeatMessage) {
             log.info("[UpgradeDispatchHandler] heartbeat ignored, deviceId={}", deviceId);
         } else if (msg instanceof AckMessage) {

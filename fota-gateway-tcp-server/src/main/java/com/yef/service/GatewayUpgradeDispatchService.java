@@ -9,6 +9,7 @@ import com.yef.session.DeviceSession;
 import com.yef.session.SessionManager;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
@@ -62,6 +63,15 @@ public class GatewayUpgradeDispatchService {
         Channel channel = session.getChannel();
         channel.writeAndFlush(message);
         //网关收到平台下发0x81消息。初始化记录分包的key【fota:upgrade:runtime:{imei}】
+        Map<String, Object> runtimeHash = getRuntimeHash(req);
+
+        redisTemplate.opsForHash().putAll(UPGRADE_RUNTIME_KEY_PREFIX+req.getImei(),runtimeHash);
+        deviceUpgradeLockService.markActive(req.getImei());
+
+    }
+
+    @NotNull
+    private Map<String, Object> getRuntimeHash(PlatformUpgradeRequest req) {
         Map<String, Object> runtimeHash = new HashMap<>();
         runtimeHash.put("imei", nullToEmpty(req.getImei()));
         runtimeHash.put("taskId", nullToEmpty(String.valueOf(req.getTaskId())));
@@ -70,20 +80,16 @@ public class GatewayUpgradeDispatchService {
         runtimeHash.put("status", "UPGRADE_REQUESTED");
         runtimeHash.put("totalPacket", nullToEmpty(String.valueOf(req.getTotalPacket())));
         runtimeHash.put("chunkSize", nullToEmpty(String.valueOf(req.getChunkSize())));
-        runtimeHash.put("startAt",String.valueOf(System.currentTimeMillis()));
+        runtimeHash.put("startAt",String.valueOf(0));
         runtimeHash.put("endAt",String.valueOf(0));
         runtimeHash.put("progress",String.valueOf(0));
         runtimeHash.put("fileSize", String.valueOf(nullToEmpty(req.getFileSize())));
         runtimeHash.put("md5", nullToEmpty(req.getMd5()));
-        runtimeHash.put("bucketName",req.getBucketName());
-        runtimeHash.put("objectName",req.getObjectName());
+        runtimeHash.put("bucketName", req.getBucketName());
+        runtimeHash.put("objectName", req.getObjectName());
         runtimeHash.put("targetFirmwareVersion", req.getFirmwareVersionName());
-
-        redisTemplate.opsForHash().putAll(UPGRADE_RUNTIME_KEY_PREFIX+req.getImei(),runtimeHash);
-        deviceUpgradeLockService.markActive(req.getImei());
-
+        return runtimeHash;
     }
-
 
 
     public void sendCancelUpgradeRequest(PlatformCancelUpgradeRequest request) {

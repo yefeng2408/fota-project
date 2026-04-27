@@ -22,7 +22,9 @@
       <el-table-column prop="successCount" label="成功数" />
       <el-table-column prop="failCount" label="失败数" />
       <el-table-column prop="createdBy" label="创建人" />
+      <el-table-column prop="remark" label="任务备注" />
       <el-table-column prop="createdAt" label="创建时间" min-width="180" />
+      
     </el-table>
 
     <el-pagination

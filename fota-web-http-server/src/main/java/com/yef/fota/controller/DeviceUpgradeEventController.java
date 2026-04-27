@@ -3,6 +3,7 @@ package com.yef.fota.controller;
 import com.alibaba.fastjson.JSON;
 import com.yef.fota.api.dto.DeviceUpgradeEventRequest;
 import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
+import com.yef.fota.api.dto.resp.DeviceUpgradeStartTimeEventResult;
 import com.yef.fota.api.dto.resp.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.service.UpgradeTaskService;
 import com.yef.fota.websocket.WebSocketConfig;
@@ -27,17 +28,28 @@ public class DeviceUpgradeEventController {
     private final WebSocketConfig webSocketConfig;
     private final UpgradeTaskService upgradeTaskService;
 
+    /**
+     * 推送升级进度 progress
+     * @param event
+     */
     @PostMapping("/event")
     public void pushEvent(@RequestBody DeviceUpgradeEventRequest event) {
         webSocketConfig.pushDeviceUpgradeEvent(event);
     }
 
-
+    /**
+     * 推送升级结果
+     * @param result
+     */
     @PostMapping("/result")
     public void pushResult(@RequestBody UpdateDeviceUpgradeFinalResult result) {
         upgradeTaskService.updateDeviceUpgradeFinalEventResult(result);
     }
 
+    /**
+     * 推送"取消升级"的结果
+     * @param result
+     */
     @PostMapping("/cancel")
     public void pushResult(@RequestBody DeviceUpgradeCancelEventResult result) {
         log.info("device-upgrade-event-result:{}", JSON.toJSONString(result));
@@ -46,5 +58,13 @@ public class DeviceUpgradeEventController {
     }
 
 
-
+    /**
+     * 推送升级开始时间
+     * @param result
+     */
+    @PostMapping("/start-time")
+    public void pushUpgradeStartTime(@RequestBody DeviceUpgradeStartTimeEventResult result) {
+        log.info("device-upgrade-startTime-result:{}", JSON.toJSONString(result));
+        upgradeTaskService.updateUpgradeStartTime(result);
+    }
 }

@@ -36,9 +36,10 @@ minio:
 
 upgrade:
   event:
-    push-url: ${DEVICE_UPGRADE_PUSH_URL}
+    update-progress-url: ${DEVICE_UPGRADE_PUSH_URL}
     update-result-url: ${DEVICE_UPGRADE_RESULT_URL}
     update-cancel-url: ${DEVICE_UPGRADE_CANCEL_URL}
+    update-start-url: ${DEVICE_UPGRADE_START_URL}
 
 # =========================
 # 日志（先简单版）

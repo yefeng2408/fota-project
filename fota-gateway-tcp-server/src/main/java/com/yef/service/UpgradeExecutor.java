@@ -3,6 +3,7 @@ package com.yef.service;
 import com.alibaba.fastjson.JSON;
 import com.yef.protocol.*;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -10,6 +11,7 @@ import com.yef.protocol.outMsg.DeviceBootUpMessageAck;
 import com.yef.protocol.outMsg.UpgradeResultMessageAck;
 import com.yef.req.DeviceUpgradeCancelEventRequest;
 import com.yef.req.DeviceUpgradeEventRequest;
+import com.yef.req.DeviceUpgradeStartTimeRequest;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.errors.*;
@@ -50,7 +52,7 @@ public class UpgradeExecutor {
     }
 
     //网关对设备开机包的上行消息0x10做出应答【写出站消息】
-    public void onDeviceBootUp(DeviceBootUpMessage msg, Long deviceId) {
+    public void onDeviceBootUp(DeviceBootUpMessage msg) {
         DeviceBootUpMessageAck messageAck = new DeviceBootUpMessageAck(
                 msg.imei(),
                 0L,
@@ -98,7 +100,7 @@ public class UpgradeExecutor {
         }
         deviceUpgradeLockService.clearActive(message.imei());
 
-        deviceUpgradeEventPushClient.push(
+        deviceUpgradeEventPushClient.pushUpgradeProgress(
                 new DeviceUpgradeEventRequest(
                         message.imei(),
                         finalStatus,
@@ -209,6 +211,11 @@ public class UpgradeExecutor {
             runtimeHash.put("totalPacket", String.valueOf(totalPacket));
             redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
 
+            //首次下发分包。推送升级开始时间
+            if(nextPacketNo==1){
+                DeviceUpgradeStartTimeRequest startTimeRequest = new DeviceUpgradeStartTimeRequest(runtimeTaskId,LocalDateTime.now());
+                deviceUpgradeEventPushClient.updateStartTime(startTimeRequest);
+            }
 
             /*
              * WebSocketConfig 这个 bean 不能直接注册到 UpgradeExecutor，因为它们属于两个独立服务；
@@ -219,24 +226,17 @@ public class UpgradeExecutor {
              * 通过 Redis 记录上一次推送的进度值，并结合时间窗口做限流控制，仅在进度发生变化且满足时间阈值时才触发推送，
              * 从而实现高频场景下的稳定推送机制。
              */
-            //String lastPushTimeKey = runtimeKey + ":lastPushTime";
-            //String lastTimeStr = redisTemplate.opsForValue().get(lastPushTimeKey)==null?"0":String.valueOf(redisTemplate.opsForValue().get(lastPushTimeKey));
-
             String lastProgressKey = runtimeKey + ":lastPushProgress";
 
             String lastProgressStr = redisTemplate.opsForValue().get(lastProgressKey);
             int lastPushProgress = lastProgressStr == null ? -1 : Integer.parseInt(lastProgressStr);
 
-            if (progress != lastPushProgress /*||  now - Long.parseLong(lastTimeStr) > 1000*/) {
+            if (progress != lastPushProgress) {
                 // 更新已推送进度
                 redisTemplate.opsForValue().set(lastProgressKey, String.valueOf(progress));
-
                 String upgradeStatus = nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING";
-                if(Objects.equals("WAIT_RESULT",upgradeStatus )){
-                    Thread.sleep(3000);
-                }
-                // 推送
-                deviceUpgradeEventPushClient.push(
+                // 推送进度条 progress
+                deviceUpgradeEventPushClient.pushUpgradeProgress(
                         new DeviceUpgradeEventRequest(
                                 ack.imei(),
                                 upgradeStatus,

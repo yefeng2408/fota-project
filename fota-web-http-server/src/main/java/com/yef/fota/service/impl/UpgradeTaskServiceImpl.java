@@ -5,6 +5,7 @@ import com.yef.fota.api.dto.CancelUpgradeRequest;
 import com.yef.fota.api.dto.GatewayCancelUpgradeRequest;
 import com.yef.fota.api.dto.GatewayUpgradeRequest;
 import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
+import com.yef.fota.api.dto.resp.DeviceUpgradeStartTimeEventResult;
 import com.yef.fota.api.dto.resp.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.api.service.GatewayCommandService;
 import com.yef.fota.entity.DeviceEntity;
@@ -40,14 +41,17 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
     private final GatewayCommandService gatewayCommandService;
     private final DeviceUpgradeLockService deviceUpgradeLockService;
     private final DeviceService deviceService;
+    private final UpgradeTaskMapper upgradeTaskMapper;
 
-    public UpgradeTaskServiceImpl(UpgradeTaskMapper upgradeTaskMapper,
-                                  GatewayCommandService gatewayCommandService,
+    public UpgradeTaskServiceImpl(GatewayCommandService gatewayCommandService,
                                   DeviceUpgradeLockService deviceUpgradeLockService,
-                                  DeviceService deviceService) {
+                                  DeviceService deviceService,
+                                  UpgradeTaskMapper upgradeTaskMapper) {
+
         this.gatewayCommandService = gatewayCommandService;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
         this.deviceService = deviceService;
+        this.upgradeTaskMapper = upgradeTaskMapper;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -90,6 +94,11 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
             deviceUpgradeLockService.releaseLock(device.getImei(), lockToken);
             throw ex;
         }
+    }
+
+    @Override
+    public void updateUpgradeStartTime(DeviceUpgradeStartTimeEventResult result) {
+        upgradeTaskMapper.updateTaskStartTime(result.getTaskId(),result.getStartTime());
     }
 
 

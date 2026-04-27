@@ -77,4 +77,10 @@ public class BatchUpgradeTaskEntity implements Serializable {
      */
     @TableField("created_at")
     private LocalDateTime createdAt;
+
+    /**
+     * 备注
+     */
+    @TableField("remark")
+    private String remark;
 }

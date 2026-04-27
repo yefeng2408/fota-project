@@ -4,6 +4,7 @@ import com.yef.fota.entity.UpgradeTaskEntity;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -44,5 +45,8 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
 
     @Select("select * from upgrade_task")
     List<UpgradeTaskEntity> selectAll();
+
+    @Update("update upgrade_task set start_time=#{startTime} where task_id=#{taskId}")
+    int updateTaskStartTime(@Param("taskId") Long taskId, @Param("startTime") LocalDateTime startTime);
 
 }

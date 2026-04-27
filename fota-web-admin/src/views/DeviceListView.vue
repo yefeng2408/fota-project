@@ -17,10 +17,7 @@
       >
         <template #default="{ data }">
           <div class="group-tree-node">
-            <OverflowTooltipText
-              class="group-tree-node__label"
-              :text="formatGroupTreeLabel(data)"
-            />
+            <span>{{ data.label }} ({{ data.deviceCount || 0 }})</span>
             <el-tag
               v-if="selectedBatchGroup && selectedBatchGroup.id === data.id"
               size="small"
@@ -280,6 +277,15 @@
           />
         </el-select>
       </el-form-item>
+      <!--加一个备注的输入框。要求：备注内容将作为升级任务的描述信息，必填项，且长度限制在100个字符以内 -->
+      <el-form-item label="任务备注">
+        <el-input
+          v-model="batchUpgradeForm.remark"
+          placeholder="请输入任务备注"
+          maxlength="100"
+          show-word-limit
+        />
+      </el-form-item>
       <el-alert
         type="warning"
         show-icon
@@ -372,7 +378,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import OverflowTooltipText from '../components/OverflowTooltipText.vue'
 import request from '../api/request'
 
 const groupTreeRef = ref(null)
@@ -592,10 +597,6 @@ async function loadFirmwares() {
 
 function formatFirmwareLabel(item) {
   return `${item.fileName || '未命名固件'} / ${item.version || '-'} / ${item.deviceType || '通用'}`
-}
-
-function formatGroupTreeLabel(group) {
-  return `${group?.label || ''} (${Number(group?.deviceCount || 0)}台)`
 }
 
 const importFirmwareOptions = computed(() => {
@@ -872,7 +873,8 @@ async function submitBatchUpgrade() {
   try {
     const result = await request.post('/api/batch-upgrade-tasks/start', {
       groupId: selectedBatchGroup.value.id,
-      firmwareId: batchUpgradeForm.firmwareId
+      firmwareId: batchUpgradeForm.firmwareId,
+      remark: batchUpgradeForm.remark || ''
     })
     const message = result?.summary || '批量升级已提交'
     if ((result?.skippedCount || 0) > 0) {
@@ -1043,9 +1045,10 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.group-tree-node__label {
-  flex: 1;
-  min-width: 0;
+.group-tree-node > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .group-delete-btn {
@@ -1120,3 +1123,4 @@ onBeforeUnmount(() => {
 }
 
 </style>
+
