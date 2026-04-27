@@ -2,12 +2,12 @@ package com.yef.fota.service.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.yef.fota.api.dto.CancelUpgradeRequest;
-import com.yef.fota.api.dto.GatewayCancelUpgradeRequest;
-import com.yef.fota.api.dto.GatewayUpgradeRequest;
+import com.yef.fota.api.dto.PlatformCancelUpgradeRequest;
+import com.yef.fota.api.dto.PlatformUpgradeRequest;
 import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
 import com.yef.fota.api.dto.resp.DeviceUpgradeStartTimeEventResult;
 import com.yef.fota.api.dto.resp.UpdateDeviceUpgradeFinalResult;
-import com.yef.fota.api.service.GatewayCommandService;
+import com.yef.fota.api.service.PlatformCommandService;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.entity.UpgradeTaskEntity;
@@ -24,7 +24,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-
 import org.springframework.util.StringUtils;
 
 /**
@@ -38,17 +37,17 @@ import org.springframework.util.StringUtils;
 @Service
 public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, UpgradeTaskEntity> implements UpgradeTaskService {
 
-    private final GatewayCommandService gatewayCommandService;
+    private final PlatformCommandService platformCommandService;
     private final DeviceUpgradeLockService deviceUpgradeLockService;
     private final DeviceService deviceService;
     private final UpgradeTaskMapper upgradeTaskMapper;
 
-    public UpgradeTaskServiceImpl(GatewayCommandService gatewayCommandService,
+    public UpgradeTaskServiceImpl(PlatformCommandService platformCommandService,
                                   DeviceUpgradeLockService deviceUpgradeLockService,
                                   DeviceService deviceService,
                                   UpgradeTaskMapper upgradeTaskMapper) {
 
-        this.gatewayCommandService = gatewayCommandService;
+        this.platformCommandService = platformCommandService;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
         this.deviceService = deviceService;
         this.upgradeTaskMapper = upgradeTaskMapper;
@@ -68,17 +67,16 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         task.setTaskId(IdWorker.getId());
         String lockToken = String.valueOf(task.getTaskId());
 
-        boolean lockAcquired = deviceUpgradeLockService.acquireLock(device.getImei(), lockToken);
+       /* boolean lockAcquired = deviceUpgradeLockService.acquireLock(device.getImei(), lockToken);
         if (!lockAcquired) {
             throw new BusinessException("设备升级流程已在执行中，请勿重复下发升级指令");
-        }
-
+        }*/
         task.setDeviceId(device.getId());
         task.setImei(device.getImei());
         task.setFirmwareId(firmware.getId());
         task.setBatchId(batchId);
         task.setOperatorId(operatorId);
-        task.setTaskStatus("UPGRADE_REQUESTED");
+        task.setTaskStatus("WAITING");
         task.setCreatedAt(LocalDateTime.now());
         task.setUpdatedAt(LocalDateTime.now());
         try {
@@ -86,9 +84,9 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
             if (!saved) {
                 throw new BusinessException("创建升级任务失败");
             }
-            GatewayUpgradeRequest gatewayRequest = getUpgradeRequest(task, device, firmware);
+            PlatformUpgradeRequest gatewayRequest = getUpgradeRequest(task, device, firmware);
             gatewayRequest.setLockToken(lockToken);
-            gatewayCommandService.sendUpgradeRequest(gatewayRequest);
+            platformCommandService.sendUpgradeRequest(gatewayRequest);
             return task.getTaskId();
         } catch (RuntimeException ex) {
             deviceUpgradeLockService.releaseLock(device.getImei(), lockToken);
@@ -103,10 +101,10 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
 
 
     @NotNull
-    private GatewayUpgradeRequest getUpgradeRequest(UpgradeTaskEntity task, DeviceEntity device,
+    public static PlatformUpgradeRequest getUpgradeRequest(UpgradeTaskEntity task, DeviceEntity device,
                                                     FirmwarePackageEntity firmware) {
 
-        GatewayUpgradeRequest gatewayRequest = new GatewayUpgradeRequest();
+        PlatformUpgradeRequest gatewayRequest = new PlatformUpgradeRequest();
         gatewayRequest.setTaskId(task.getTaskId());
         gatewayRequest.setDeviceId(device.getId());
         gatewayRequest.setImei(device.getImei());
@@ -180,16 +178,20 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
 
     @Override
     public void cancelUpgrade(CancelUpgradeRequest request) {
-        GatewayCancelUpgradeRequest cancelUpgradeRequest = new GatewayCancelUpgradeRequest();
+        PlatformCancelUpgradeRequest cancelUpgradeRequest = new PlatformCancelUpgradeRequest();
         BeanUtils.copyProperties(request, cancelUpgradeRequest);
-        gatewayCommandService.sendCancelUpgradeRequest(cancelUpgradeRequest);
+        platformCommandService.sendCancelUpgradeRequest(cancelUpgradeRequest);
     }
 
 
     @Override
-    public UpgradeTaskEntity selectUpgradeTask(String imei) {
-        return this.baseMapper.selectUpgradeTask(imei);
+    public UpgradeTaskEntity selectUpgradingTask(String imei) {
+        return this.baseMapper.selectUpgradingTaskByImei(imei);
     }
 
 
+    @Override
+    public int countWaitingTask(){
+        return this.baseMapper.countWaitingTask();
+    }
 }
