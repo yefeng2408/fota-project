@@ -9,6 +9,7 @@ import com.yef.fota.exception.BusinessException;
 import com.yef.fota.mapper.FirmwarePackageMapper;
 import com.yef.fota.mapper.UpgradeTaskMapper;
 import com.yef.fota.redis.semaphore.UpgradeSemaphoreService;
+import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.DeviceUpgradeLockService;
 import com.yef.fota.service.impl.UpgradeTaskServiceImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import javax.annotation.Resource;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -51,14 +53,17 @@ public class UpgradeScheduler {
     private DeviceUpgradeLockService lockService;
 
     @Resource
+    private DeviceService deviceService;
+
+    @Resource
     private PlatformCommandService platformCommandService;
 
     //处于升级中的设备最大数，类似于线程池最大线程数
-    @Value("${fota.upgrade.max-active-devices:500}")
+    @Value("${fota.upgrade.max-active-devices:100}")
     private int maxActive;
 
     //每次调度最多放多少设备进入升级，类似于线程池的每次 submit 数量
-    @Value("${fota.upgrade.dispatch-batch-size:50}")
+    @Value("${fota.upgrade.dispatch-batch-size:10}")
     private int batchSize;
 
 
@@ -79,15 +84,10 @@ public class UpgradeScheduler {
             return;
         }
 
-        //目标固件
-        FirmwarePackageEntity packageEntity = firmwarePackageMapper.selectById(tasks.get(0).getFirmwareId());
-        if(packageEntity==null){
-            throw new BusinessException("目标固件不存在");
-        }
-
         for (UpgradeTaskEntity taskEntity : tasks) {
 
             String imei = taskEntity.getImei();
+            String lockToken = String.valueOf(taskEntity.getTaskId());
 
             // 1️⃣ 获取信号量
             if (!semaphore.tryAcquire(imei, maxActive)) {
@@ -95,7 +95,7 @@ public class UpgradeScheduler {
             }
 
             // 2️⃣ 单设备锁
-            boolean locked = lockService.acquireLock(imei, taskEntity.getImei());
+            boolean locked = lockService.acquireLock(imei, lockToken);
             if (!locked) {
                 //若未能抢到设备升级资格，则释放前面抢到的信号量资源。避免浪费信号量资源
                 semaphore.release(imei);
@@ -107,19 +107,44 @@ public class UpgradeScheduler {
             if (updated == 0) {
                 //如果当前线程CAS失败，则释放刚刚抢到的 信号量资源和 设备锁。防止信号量“假满”【semaphore fake full】
                 //dispatch 释放锁，并不是释放“正在升级的设备锁”，只是释放名额
-                lockService.releaseLock(imei, String.valueOf(taskEntity.getTaskId()));
+                lockService.releaseLock(imei, lockToken);
                 semaphore.release(imei);
                 continue;
             }
 
-            // 4️⃣ 下发升级请求（0x81）
-            DeviceEntity deviceEntity = new DeviceEntity();
-            deviceEntity.setId(taskEntity.getDeviceId());
-            deviceEntity.setImei(imei);
-            PlatformUpgradeRequest upgradeRequest = UpgradeTaskServiceImpl.getUpgradeRequest(taskEntity, deviceEntity, packageEntity);
+            LocalDateTime now = LocalDateTime.now();
+            deviceService.lambdaUpdate()
+                    .eq(DeviceEntity::getId, taskEntity.getDeviceId())
+                    .set(DeviceEntity::getDeviceUpgradeStatus, "UPGRADE_REQUESTED")
+                    .set(DeviceEntity::getLastUpgradeTaskId, taskEntity.getTaskId())
+                    .set(DeviceEntity::getUpdatedAt, now)
+                    .update();
 
-            platformCommandService.sendUpgradeRequest(upgradeRequest);
-            log.info("调度升级设备 imei={}", imei);
+            try {
+                FirmwarePackageEntity packageEntity = firmwarePackageMapper.selectById(taskEntity.getFirmwareId());
+                if (packageEntity == null) {
+                    throw new BusinessException("目标固件不存在, firmwareId=" + taskEntity.getFirmwareId());
+                }
+
+                // 4️⃣ 下发升级请求（0x81）
+                DeviceEntity deviceEntity = new DeviceEntity();
+                deviceEntity.setId(taskEntity.getDeviceId());
+                deviceEntity.setImei(imei);
+                PlatformUpgradeRequest upgradeRequest = UpgradeTaskServiceImpl.getUpgradeRequest(taskEntity, deviceEntity, packageEntity);
+
+                platformCommandService.sendUpgradeRequest(upgradeRequest);
+                log.info("调度升级设备 imei={}, taskId={}", imei, taskEntity.getTaskId());
+            } catch (RuntimeException ex) {
+                taskMapper.rollbackToWaiting(taskEntity.getId());
+                deviceService.lambdaUpdate()
+                        .eq(DeviceEntity::getId, taskEntity.getDeviceId())
+                        .set(DeviceEntity::getDeviceUpgradeStatus, "WAITING")
+                        .set(DeviceEntity::getUpdatedAt, LocalDateTime.now())
+                        .update();
+                lockService.releaseLock(imei, lockToken);
+                semaphore.release(imei);
+                log.error("调度升级失败，已回滚到 WAITING, imei={}, taskId={}", imei, taskEntity.getTaskId(), ex);
+            }
         }
     }
 }

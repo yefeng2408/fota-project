@@ -29,9 +29,10 @@
 
 
     <select id="selectRunnableTasks" resultType="com.yef.fota.entity.UpgradeTaskEntity">
-        SELECT *  FROM upgrade_task WHERE status IN ('WAITING' <!--,'RETRY_WAIT'--> )
-        AND (next_retry_at IS NULL OR next_retry_at &lt;= NOW())
-        ORDER BY id ASC
+        SELECT *
+        FROM upgrade_task
+        WHERE task_status = 'WAITING'
+        ORDER BY created_at ASC, id ASC
         LIMIT #{limit}
     </select>
 
@@ -44,6 +45,14 @@
 
         AND task_status IN ('WAITING'<!--,'RETRY_WAIT'-->)
 
+    </update>
+
+    <update id="rollbackToWaiting" parameterType="Long">
+        UPDATE upgrade_task
+        SET task_status = 'WAITING',
+            updated_at = NOW()
+        WHERE id = #{id}
+          AND task_status = 'UPGRADE_REQUESTED'
     </update>
 
 

@@ -12,6 +12,7 @@ import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.entity.UpgradeTaskEntity;
 import com.yef.fota.mapper.UpgradeTaskMapper;
+import com.yef.fota.redis.semaphore.UpgradeSemaphoreService;
 import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.DeviceUpgradeLockService;
 import com.yef.fota.service.UpgradeTaskService;
@@ -39,16 +40,19 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
 
     private final PlatformCommandService platformCommandService;
     private final DeviceUpgradeLockService deviceUpgradeLockService;
+    private final UpgradeSemaphoreService upgradeSemaphoreService;
     private final DeviceService deviceService;
     private final UpgradeTaskMapper upgradeTaskMapper;
 
     public UpgradeTaskServiceImpl(PlatformCommandService platformCommandService,
                                   DeviceUpgradeLockService deviceUpgradeLockService,
+                                  UpgradeSemaphoreService upgradeSemaphoreService,
                                   DeviceService deviceService,
                                   UpgradeTaskMapper upgradeTaskMapper) {
 
         this.platformCommandService = platformCommandService;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
+        this.upgradeSemaphoreService = upgradeSemaphoreService;
         this.deviceService = deviceService;
         this.upgradeTaskMapper = upgradeTaskMapper;
     }
@@ -84,12 +88,15 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
             if (!saved) {
                 throw new BusinessException("创建升级任务失败");
             }
-            PlatformUpgradeRequest gatewayRequest = getUpgradeRequest(task, device, firmware);
-            gatewayRequest.setLockToken(lockToken);
-            platformCommandService.sendUpgradeRequest(gatewayRequest);
+
+            deviceService.update(new LambdaUpdateWrapper<DeviceEntity>()
+                    .eq(DeviceEntity::getId, device.getId())
+                    .set(DeviceEntity::getDeviceUpgradeStatus, "WAITING")
+                    .set(DeviceEntity::getLastUpgradeTaskId, task.getTaskId())
+                    .set(DeviceEntity::getUpdatedAt, LocalDateTime.now()));
+
             return task.getTaskId();
         } catch (RuntimeException ex) {
-            deviceUpgradeLockService.releaseLock(device.getImei(), lockToken);
             throw ex;
         }
     }
@@ -138,6 +145,7 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         }
 
         deviceUpgradeLockService.releaseLock(result.getImei(), result.getTaskId());
+        upgradeSemaphoreService.release(result.getImei());
 
         Long taskId;
         try {
@@ -169,6 +177,21 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
 
     @Override
     public void updateCancelFinalEventResult(DeviceUpgradeCancelEventResult result) {
+        if (result == null || !StringUtils.hasText(result.getImei())) {
+            return;
+        }
+
+        UpgradeTaskEntity upgradeTask = this.baseMapper.selectUpgradingTaskByImei(result.getImei());
+        if (upgradeTask != null && upgradeTask.getTaskId() != null) {
+            deviceUpgradeLockService.releaseLock(result.getImei(), String.valueOf(upgradeTask.getTaskId()));
+            this.update(new LambdaUpdateWrapper<UpgradeTaskEntity>()
+                    .eq(UpgradeTaskEntity::getTaskId, upgradeTask.getTaskId())
+                    .set(StringUtils.hasText(result.getStatus()), UpgradeTaskEntity::getTaskStatus, result.getStatus())
+                    .set(UpgradeTaskEntity::getEndTime, LocalDateTime.now())
+                    .set(UpgradeTaskEntity::getUpdatedAt, LocalDateTime.now()));
+        }
+        upgradeSemaphoreService.release(result.getImei());
+
         LocalDateTime now = LocalDateTime.now();
         deviceService.update(new LambdaUpdateWrapper<DeviceEntity>()
                 .eq(DeviceEntity::getImei, result.getImei())

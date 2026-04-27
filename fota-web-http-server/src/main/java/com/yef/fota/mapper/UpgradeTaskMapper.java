@@ -55,6 +55,7 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
 
     int casToRequested(Long id);
 
+    int rollbackToWaiting(Long id);
 
     int countWaitingTask();
 }
