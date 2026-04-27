@@ -82,7 +82,7 @@ const titleMap = {
   '/device-groups': '设备分组',
   '/device-firmware-bindings': '设备绑定固件',
   '/firmwares': '固件管理',
-  '/upgrade-tasks': '升级管理',
+  '/upgrade-tasks': '升级任务',
   '/batch-upgrade-tasks': '批量任务',
   '/upgrade-task-processes': '任务进度',
   '/upgrade-logs': '升级日志',
