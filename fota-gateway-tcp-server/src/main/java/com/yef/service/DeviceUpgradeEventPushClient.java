@@ -7,7 +7,11 @@ import com.yef.req.UpdateDeviceUpgradeFinalResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-
+/**
+ * @description: 基于升级状态流转 状态变化的事件消息推送
+ * @author: 叶丰
+ * @date: 2026/4/28 20:34
+ */
 @Service
 public class DeviceUpgradeEventPushClient {
 

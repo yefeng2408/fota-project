@@ -69,12 +69,7 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
         UpgradeTaskEntity task = new UpgradeTaskEntity();
         //雪花id，保证全局唯一
         task.setTaskId(IdWorker.getId());
-        String lockToken = String.valueOf(task.getTaskId());
 
-       /* boolean lockAcquired = deviceUpgradeLockService.acquireLock(device.getImei(), lockToken);
-        if (!lockAcquired) {
-            throw new BusinessException("设备升级流程已在执行中，请勿重复下发升级指令");
-        }*/
         task.setDeviceId(device.getId());
         task.setImei(device.getImei());
         task.setFirmwareId(firmware.getId());
@@ -144,9 +139,6 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
             return;
         }
 
-        deviceUpgradeLockService.releaseLock(result.getImei(), result.getTaskId());
-        upgradeSemaphoreService.release(result.getImei());
-
         Long taskId;
         try {
             taskId = Long.valueOf(result.getTaskId());
@@ -172,6 +164,9 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
                         DeviceEntity::getCurrentFirmwareVersion,
                         result.getTargetFirmwareVersion())
                 .set(DeviceEntity::getUpdatedAt, now));
+
+        deviceUpgradeLockService.releaseLock(result.getImei(), result.getTaskId());
+        upgradeSemaphoreService.release(result.getImei());
     }
 
 
@@ -183,20 +178,21 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
 
         UpgradeTaskEntity upgradeTask = this.baseMapper.selectUpgradingTaskByImei(result.getImei());
         if (upgradeTask != null && upgradeTask.getTaskId() != null) {
-            deviceUpgradeLockService.releaseLock(result.getImei(), String.valueOf(upgradeTask.getTaskId()));
             this.update(new LambdaUpdateWrapper<UpgradeTaskEntity>()
                     .eq(UpgradeTaskEntity::getTaskId, upgradeTask.getTaskId())
                     .set(StringUtils.hasText(result.getStatus()), UpgradeTaskEntity::getTaskStatus, result.getStatus())
                     .set(UpgradeTaskEntity::getEndTime, LocalDateTime.now())
                     .set(UpgradeTaskEntity::getUpdatedAt, LocalDateTime.now()));
+            deviceUpgradeLockService.releaseLock(result.getImei(), String.valueOf(upgradeTask.getTaskId()));
         }
-        upgradeSemaphoreService.release(result.getImei());
 
         LocalDateTime now = LocalDateTime.now();
         deviceService.update(new LambdaUpdateWrapper<DeviceEntity>()
                 .eq(DeviceEntity::getImei, result.getImei())
                 .set(StringUtils.hasText(result.getStatus()), DeviceEntity::getDeviceUpgradeStatus, result.getStatus())
                 .set(DeviceEntity::getUpdatedAt, now));
+
+        upgradeSemaphoreService.release(result.getImei());
     }
 
     @Override

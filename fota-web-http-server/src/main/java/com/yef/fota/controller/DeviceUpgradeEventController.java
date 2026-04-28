@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * @description: websocket 事件推送
+ * @description: websocket 来自设备网关的事件推送
  * @author: 叶丰
  * @date: 2026/4/21 11:02
  */
@@ -29,7 +29,7 @@ public class DeviceUpgradeEventController {
     private final UpgradeTaskService upgradeTaskService;
 
     /**
-     * 推送升级进度 progress
+     * 推送升级进度 progress进度条
      * @param event
      */
     @PostMapping("/event")
@@ -67,4 +67,5 @@ public class DeviceUpgradeEventController {
         log.info("device-upgrade-startTime-result:{}", JSON.toJSONString(result));
         upgradeTaskService.updateUpgradeStartTime(result);
     }
+
 }

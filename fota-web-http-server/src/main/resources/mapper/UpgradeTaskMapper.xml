@@ -4,38 +4,42 @@
 
     <!-- 通用查询映射结果 -->
     <resultMap id="BaseResultMap" type="com.yef.fota.entity.UpgradeTaskEntity">
-        <id column="id" property="id" />
-        <result column="task_id" property="taskId" />
-        <result column="device_id" property="deviceId" />
-        <result column="imei" property="imei" />
-        <result column="firmware_id" property="firmwareId" />
-        <result column="batch_id" property="batchId" />
-        <result column="task_status" property="taskStatus" />
-        <result column="progress" property="progress" />
-        <result column="current_packet" property="currentPacket" />
-        <result column="total_packet" property="totalPacket" />
-        <result column="fail_reason" property="failReason" />
-        <result column="operator_id" property="operatorId" />
-        <result column="start_time" property="startTime" />
-        <result column="end_time" property="endTime" />
-        <result column="created_at" property="createdAt" />
-        <result column="updated_at" property="updatedAt" />
+        <id column="id" property="id"/>
+        <result column="task_id" property="taskId"/>
+        <result column="device_id" property="deviceId"/>
+        <result column="imei" property="imei"/>
+        <result column="firmware_id" property="firmwareId"/>
+        <result column="batch_id" property="batchId"/>
+        <result column="task_status" property="taskStatus"/>
+        <result column="progress" property="progress"/>
+        <result column="current_packet" property="currentPacket"/>
+        <result column="total_packet" property="totalPacket"/>
+        <result column="fail_reason" property="failReason"/>
+        <result column="operator_id" property="operatorId"/>
+        <result column="start_time" property="startTime"/>
+        <result column="end_time" property="endTime"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+
+        <result column="retry_count" property="retryCount"/>
+        <result column="max_retry" property="maxRetry"/>
+        <result column="next_retry_at" property="nextRetryAt"/>
     </resultMap>
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, task_id, device_id, imei, firmware_id, batch_id, task_status, progress, current_packet, total_packet, fail_reason, operator_id, start_time, end_time, created_at, updated_at
+        id, task_id, device_id, imei, firmware_id, batch_id, task_status, progress, current_packet, total_packet,
+        fail_reason, operator_id, start_time, end_time, created_at, updated_at
     </sql>
 
 
     <select id="selectRunnableTasks" resultType="com.yef.fota.entity.UpgradeTaskEntity">
-        SELECT *
-        FROM upgrade_task
-        WHERE task_status = 'WAITING'
-        ORDER BY created_at ASC, id ASC
+        SELECT * FROM upgrade_task
+        WHERE
+            task_status in ('WAITING','RETRY_WAITING') AND (next_retry_at IS NULL OR next_retry_at &lt;= NOW())
+        ORDER BY id desc
         LIMIT #{limit}
     </select>
-
 
 
     <update id="casToRequested" parameterType="Long">
@@ -43,22 +47,45 @@
 
         WHERE id = #{id}
 
-        AND task_status IN ('WAITING'<!--,'RETRY_WAIT'-->)
+        AND task_status IN ('WAITING','RETRY_WAITING')
 
     </update>
 
-    <update id="rollbackToWaiting" parameterType="Long">
+ <!--   <update id="rollbackToWaiting" parameterType="Long">
         UPDATE upgrade_task
         SET task_status = 'WAITING',
-            updated_at = NOW()
+        updated_at = NOW()
         WHERE id = #{id}
-          AND task_status = 'UPGRADE_REQUESTED'
-    </update>
+        AND task_status = 'UPGRADE_REQUESTED'
+    </update>-->
 
 
     <select id="countWaitingTask" resultType="java.lang.Integer">
         SELECT COUNT(*) FROM upgrade_task WHERE task_status = 'WAITING'
     </select>
+
+
+    <update id="markFail">
+        UPDATE
+            upgrade_task
+        SET
+            task_status = 'FAIL',
+            last_error_msg = #{errorMsg},
+            end_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+
+    <update id="updateRetry">
+        UPDATE
+            upgrade_task
+        SET
+            task_status = 'RETRY_WAITING',
+            retry_count = #{retryCount},
+            next_retry_at = #{nextRetryAt},
+            last_error_msg = #{error}
+        WHERE id = #{id}
+    </update>
 
 
 </mapper>

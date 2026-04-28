@@ -131,10 +131,6 @@ public class DeviceGroupController {
                 .list();
         List<Long> deviceIds = relations.stream().map(DeviceGroupRelationEntity::getDeviceId).collect(Collectors.toList());
 
-        List<String> imeiByDeviceIds = deviceService.getImeiByDeviceIds(deviceIds);
-        if (!deviceIds.isEmpty()) {
-            deviceService.removeByIds(deviceIds);
-        }
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>().in(DeviceGroupRelationEntity::getDeviceGroupId, allGroupIds));
         userDeviceGroupService.remove(new LambdaQueryWrapper<UserDeviceGroupEntity>().in(UserDeviceGroupEntity::getDeviceGroupId, allGroupIds));
         deviceGroupService.removeByIds(allGroupIds);
@@ -143,10 +139,16 @@ public class DeviceGroupController {
             redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(deleteId));
         }
 
-        for (String imei : imeiByDeviceIds) {
-            //删除缓存数据
-            redisTemplate.delete(deviceCacheKey(imei));
-            redisTemplate.delete(UPGRADE_RUNTIME_KEY_PREFIX+imei);
+        if(deviceIds!=null&&deviceIds.size()>0){
+            List<String> imeiByDeviceIds = deviceService.getImeiByDeviceIds(deviceIds);
+            if (!deviceIds.isEmpty()) {
+                deviceService.removeByIds(deviceIds);
+            }
+            for (String imei : imeiByDeviceIds) {
+                //删除缓存数据
+                redisTemplate.delete(deviceCacheKey(imei));
+                redisTemplate.delete(UPGRADE_RUNTIME_KEY_PREFIX+imei);
+            }
         }
 
         return ApiResponse.ok(null);

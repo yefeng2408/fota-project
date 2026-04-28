@@ -393,7 +393,7 @@ const importUploadRef = ref(null)
 const importFile = ref(null)
 const tableData = reactive({ total: 0, records: [] })
 const query = reactive({ current: 1, pageSize: 6, keyword: '', deviceGroupId: null })
-const batchUpgradeForm = reactive({ firmwareId: null })
+const batchUpgradeForm = reactive({ firmwareId: null, remark: '' })
 const importForm = reactive({
   deviceGroupId: null,
   deviceType: '',
@@ -408,6 +408,7 @@ const deviceTypeOptions = [
 const upgradeStatusTextMap = {
   NO_TASK: '未升级',
   WAITING: '等待升级',
+  RETRY_WAITING: '等待重试',
   UPGRADE_REQUESTED: '已下发升级请求',
   UPGRADING: '升级中',
   WAIT_RESULT: '等待升级结果',
@@ -650,7 +651,14 @@ function upgradeStatusTagType(status) {
   if (status === 'SUCCESS' || status === 'DONE') {
     return 'success'
   }
-  if (status === 'UPGRADING' || status === 'UPGRADE_REQUESTED' || status === 'WAIT_RESULT') {
+  if (
+    status === 'WAITING' ||
+    status === 'RETRY_WAITING' ||
+    status === 'UPGRADING' ||
+    status === 'UPGRADE_REQUESTED' ||
+    status === 'WAIT_RESULT' ||
+    status === 'CANCELING'
+  ) {
     return 'warning'
   }
   if (status === 'FAIL' || status === 'TIMEOUT' || status === 'CANCEL_UPGRADE' || status === 'CANCELLED') {
@@ -820,6 +828,7 @@ function openBatchUpgradeDialog() {
     return
   }
   batchUpgradeForm.firmwareId = null
+  batchUpgradeForm.remark = ''
   batchDialogVisible.value = true
 }
 
@@ -884,10 +893,13 @@ async function submitBatchUpgrade() {
       ElMessage.success(message)
     }
     batchDialogVisible.value = false
+    if (selectedBatchGroup.value?.id) {
+      query.deviceGroupId = selectedBatchGroup.value.id
+      query.current = 1
+    }
     await Promise.all([loadDevices(), loadGroups()])
   } finally {
     batchSubmitting.value = false
-    loadDevices()
   }
 }
 
@@ -1125,4 +1137,3 @@ onBeforeUnmount(() => {
 }
 
 </style>
-

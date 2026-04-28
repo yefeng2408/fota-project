@@ -3,7 +3,6 @@ package com.yef.fota.mapper;
 import com.yef.fota.entity.UpgradeTaskEntity;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.*;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -43,6 +42,11 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
     UpgradeTaskEntity  selectUpgradingTaskByImei(String imei);
 
 
+    @Select("select count(1) from upgrade_task" +
+            " where task_status in ('UPGRADE_REQUESTED','UPGRADING','WAIT_RESULT') ")
+    int  countUpgradingTask();
+
+
     @Select("select * from upgrade_task")
     List<UpgradeTaskEntity> selectAll();
 
@@ -55,7 +59,21 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
 
     int casToRequested(Long id);
 
-    int rollbackToWaiting(Long id);
+    //int rollbackToWaiting(Long id);
 
     int countWaitingTask();
+
+
+    void updateRetry(
+            @Param("id") Long id,
+            @Param("retryCount") int retryCount,
+            @Param("nextRetryAt") LocalDateTime nextRetryAt,
+            @Param("error") String error
+    );
+
+    void markFail(
+            @Param("id") Long id,
+            @Param("errorMsg") String errorMsg
+    );
+
 }

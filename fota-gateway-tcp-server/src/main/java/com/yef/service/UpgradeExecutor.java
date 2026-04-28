@@ -3,7 +3,9 @@ package com.yef.service;
 import com.alibaba.fastjson.JSON;
 import com.yef.protocol.*;
 import java.io.InputStream;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -12,7 +14,6 @@ import com.yef.protocol.outMsg.UpgradeResultMessageAck;
 import com.yef.req.DeviceUpgradeCancelEventRequest;
 import com.yef.req.DeviceUpgradeEventRequest;
 import com.yef.req.DeviceUpgradeStartTimeRequest;
-import com.yef.service.redis.semaphore.UpgradeSemaphoreReleaseService;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import lombok.extern.slf4j.Slf4j;
@@ -36,21 +37,18 @@ public class UpgradeExecutor {
 
     private final DeviceUpgradeEventPushClient deviceUpgradeEventPushClient;
     private final DeviceUpgradeLockService deviceUpgradeLockService;
-    private final UpgradeSemaphoreReleaseService upgradeSemaphoreReleaseService;
 
 
     public UpgradeExecutor(StringRedisTemplate redisTemplate,
                            MinioClient minioClient,
                            PacketSender packetSender,
                            DeviceUpgradeEventPushClient deviceUpgradeEventPushClient,
-                           DeviceUpgradeLockService deviceUpgradeLockService,
-                           UpgradeSemaphoreReleaseService upgradeSemaphoreReleaseService) {
+                           DeviceUpgradeLockService deviceUpgradeLockService) {
         this.redisTemplate = redisTemplate;
         this.minioClient = minioClient;
         this.packetSender = packetSender;
         this.deviceUpgradeEventPushClient = deviceUpgradeEventPushClient;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
-        this.upgradeSemaphoreReleaseService = upgradeSemaphoreReleaseService;
     }
 
     //网关对设备开机包的上行消息0x10做出应答【写出站消息】
@@ -81,12 +79,11 @@ public class UpgradeExecutor {
 
         String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + message.imei();
         Map<Object, Object> runtimeMap = redisTemplate.opsForHash().entries(runtimeKey);
-        String lockToken = runtimeMap == null ? null : String.valueOf(runtimeMap.get("lockToken"));
         String targetFirmwareVersion = runtimeMap == null ? null : String.valueOf(runtimeMap.get("targetFirmwareVersion"));
         String finalStatus = message.getResult() == 0 ? "SUCCESS" : "FAIL";
+        long now = System.currentTimeMillis();
 
         Map<String, String> runtimeHash = new HashMap<>();
-        long now = System.currentTimeMillis();
         runtimeHash.put("endAt", String.valueOf(now));
         runtimeHash.put("progress", "100");
         runtimeHash.put("packetTime", String.valueOf(now));
@@ -94,13 +91,9 @@ public class UpgradeExecutor {
         runtimeHash.put("status", finalStatus);
         runtimeHash.put("costTime", String.valueOf(message.getCostTime()));
         redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
-        //释放锁
-        if (lockToken != null && !lockToken.isBlank() && !"null".equalsIgnoreCase(lockToken)) {
-            deviceUpgradeLockService.releaseLock(message.imei(), lockToken);
-        }
+        // 共享设备锁和并发信号量由 web 服务在最终结果回调里统一释放。
+        // gateway 这里只清理本地 active 标记，避免续锁调度继续为终态任务保活。
         deviceUpgradeLockService.clearActive(message.imei());
-        //释放信号量
-        upgradeSemaphoreReleaseService.release(message.imei());
 
         deviceUpgradeEventPushClient.pushUpgradeProgress(
                 new DeviceUpgradeEventRequest(
@@ -124,7 +117,7 @@ public class UpgradeExecutor {
                         0,
                         finalStatus.equals("SUCCESS") ? null : String.valueOf(message.getErrorCode()),
                         null,
-                        java.time.LocalDateTime.now()
+                        LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault())
                 )
         );
 

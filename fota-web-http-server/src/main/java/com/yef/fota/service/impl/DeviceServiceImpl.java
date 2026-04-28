@@ -148,7 +148,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
         deviceGroupRelationService.save(relation);
     }
 
-    private void upsertDeviceCache(DeviceEntity entity) {
+    public void upsertDeviceCache(DeviceEntity entity) {
         String deviceKey = deviceCacheKey(entity.getImei());
 
         Map<String, String> deviceCache = new HashMap<>();

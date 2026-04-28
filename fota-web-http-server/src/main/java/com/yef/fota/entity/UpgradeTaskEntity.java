@@ -119,4 +119,16 @@ public class UpgradeTaskEntity implements Serializable {
      */
     @TableField("updated_at")
     private LocalDateTime updatedAt;
+
+
+    @TableField("retry_count")
+    private Integer retryCount;
+
+    @TableField("max_retry")
+    private Integer maxRetry;
+
+    @TableField("next_retry_at")
+    private LocalDateTime nextRetryAt;
+
+
 }
