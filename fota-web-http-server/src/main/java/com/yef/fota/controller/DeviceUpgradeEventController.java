@@ -15,11 +15,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * @description: websocket 来自设备网关的事件推送
+ * @description: 兼容旧版网关 HTTP 回调入口。主链路已经迁移到 RocketMQ + DeviceUpgradeStatusEventConsumer
  * @author: 叶丰
  * @date: 2026/4/21 11:02
  */
 @Slf4j
+@Deprecated
 @RestController
 @RequestMapping("/internal/device-upgrade")
 @RequiredArgsConstructor
@@ -34,6 +35,7 @@ public class DeviceUpgradeEventController {
      */
     @PostMapping("/event")
     public void pushEvent(@RequestBody DeviceUpgradeEventRequest event) {
+        log.warn("收到旧版 HTTP 升级进度回调，建议切换到 MQ 事件链路, imei={}", event == null ? null : event.getImei());
         webSocketConfig.pushDeviceUpgradeEvent(event);
     }
 
@@ -43,6 +45,9 @@ public class DeviceUpgradeEventController {
      */
     @PostMapping("/result")
     public void pushResult(@RequestBody UpdateDeviceUpgradeFinalResult result) {
+        log.warn("收到旧版 HTTP 升级结果回调，建议切换到 MQ 事件链路, imei={}, taskId={}",
+                result == null ? null : result.getImei(),
+                result == null ? null : result.getTaskId());
         upgradeTaskService.updateDeviceUpgradeFinalEventResult(result);
     }
 
@@ -52,7 +57,7 @@ public class DeviceUpgradeEventController {
      */
     @PostMapping("/cancel")
     public void pushResult(@RequestBody DeviceUpgradeCancelEventResult result) {
-        log.info("device-upgrade-event-result:{}", JSON.toJSONString(result));
+        log.warn("收到旧版 HTTP 取消升级回调，建议切换到 MQ 事件链路, payload={}", JSON.toJSONString(result));
         upgradeTaskService.updateCancelFinalEventResult(result);
         webSocketConfig.pushDeviceUpgradeCancelEvent(result);
     }
@@ -64,7 +69,7 @@ public class DeviceUpgradeEventController {
      */
     @PostMapping("/start-time")
     public void pushUpgradeStartTime(@RequestBody DeviceUpgradeStartTimeEventResult result) {
-        log.info("device-upgrade-startTime-result:{}", JSON.toJSONString(result));
+        log.warn("收到旧版 HTTP 升级开始时间回调，建议切换到 MQ 事件链路, payload={}", JSON.toJSONString(result));
         upgradeTaskService.updateUpgradeStartTime(result);
     }
 

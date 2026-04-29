@@ -71,3 +71,9 @@ fota:
   file-storage:
     path: /data/fota/files
 
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER}
+  consumer:
+    group: ${ROCKETMQ_CONSUMER_GROUP:fota-web-upgrade-event-consumer-group}
+  topic:
+    upgrade-event: ${ROCKETMQ_UPGRADE_EVENT_TOPIC:FOTA_UPGRADE_EVENT_TOPIC}

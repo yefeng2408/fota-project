@@ -34,12 +34,12 @@ minio:
   secret-key: ${MINIO_SECRET_KEY}
   bucket-name: ${MINIO_BUCKET_NAME}
 
-upgrade:
-  event:
-    update-progress-url: ${DEVICE_UPGRADE_PUSH_URL}
-    update-result-url: ${DEVICE_UPGRADE_RESULT_URL}
-    update-cancel-url: ${DEVICE_UPGRADE_CANCEL_URL}
-    update-start-url: ${DEVICE_UPGRADE_START_URL}
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER}
+  producer:
+    group: ${ROCKETMQ_PRODUCER_GROUP:fota-gateway-producer-group}
+  topic:
+    upgrade-event: ${ROCKETMQ_UPGRADE_EVENT_TOPIC:FOTA_UPGRADE_EVENT_TOPIC}
 
 # =========================
 # 日志（先简单版）
