@@ -12,7 +12,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class DeviceUpgradeCancelEventRequest {
+public class UpgradeCancelEventRequest {
     private String imei;
-    private String status;
+    private String upgradeStatus;
 }

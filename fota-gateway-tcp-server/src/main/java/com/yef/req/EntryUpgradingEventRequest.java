@@ -14,7 +14,8 @@ import java.time.LocalDateTime;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class DeviceUpgradeStartTimeRequest {
+public class EntryUpgradingEventRequest {
+    private String imei;
     private Long taskId;
-    private LocalDateTime startTime;
+    private String upgradeStatus;
 }

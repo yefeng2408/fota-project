@@ -29,10 +29,10 @@ public interface DeviceMapper extends BaseMapper<DeviceEntity> {
                 status_version = #{version},
                 status_event_time = #{eventTime},
                 updated_at = NOW()
-            WHERE id = #{deviceId}
+            WHERE imei = #{imei}
               AND status_version < #{version}
             """)
-    int updateUpgradeStatusIfNewer(@Param("deviceId") Long deviceId,
+    int updateUpgradeStatusIfNewer(@Param("imei") String imei,
                                    @Param("status") String status,
                                    @Param("version") Long version,
                                    @Param("eventTime") Long eventTime);

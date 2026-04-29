@@ -23,8 +23,16 @@
         <netty.sersion>4.2.7.Final</netty.sersion>
         <forest.version>1.5.36</forest.version>
         <lombok.version>1.18.44</lombok.version>
+        <rocketmq.version>2.2.3</rocketmq.version>
     </properties>
     <dependencies>
+
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-spring-boot-starter</artifactId>
+            <version>${rocketmq.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>

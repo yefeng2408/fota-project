@@ -59,6 +59,39 @@ services:
     networks:
       - fota-net
 
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.4.0
+    container_name: fota-rocketmq-namesrv
+    restart: unless-stopped
+    command: sh mqnamesrv
+    ports:
+      - "${ROCKETMQ_NAMESRV_PORT:-9876}:9876"
+    volumes:
+      - ./data/rocketmq/namesrv/logs:/home/rocketmq/logs
+    networks:
+      - fota-net
+
+  rocketmq-broker:
+    image: apache/rocketmq:5.4.0
+    container_name: fota-rocketmq-broker
+    restart: unless-stopped
+    depends_on:
+      - rocketmq-namesrv
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+      TZ: ${TZ:-Asia/Shanghai}
+    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/conf/broker.conf
+    ports:
+      - "${ROCKETMQ_BROKER_PORT:-10911}:10911"
+      - "${ROCKETMQ_BROKER_HA_PORT:-10912}:10912"
+      - "${ROCKETMQ_BROKER_VIP_PORT:-10909}:10909"
+    volumes:
+      - ./data/rocketmq/broker/logs:/home/rocketmq/logs
+      - ./data/rocketmq/broker/store:/home/rocketmq/store
+      - ./rocketmq/broker.conf:/home/rocketmq/conf/broker.conf:ro
+    networks:
+      - fota-net
+
   fota-web-http-server:
     image: fota-web-http-server:v1
     container_name: fota-web-http-server
@@ -69,6 +102,8 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_started
+      rocketmq-broker:
         condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -81,6 +116,10 @@ services:
 
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
+
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+      ROCKETMQ_PRODUCER_GROUP: fota-web-producer-group
+      ROCKETMQ_CONSUMER_GROUP: fota-web-upgrade-event-consumer-group
 
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
@@ -108,6 +147,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      rocketmq-broker:
+        condition: service_started
       fota-web-http-server:
         condition: service_started
     environment:
@@ -121,6 +162,9 @@ services:
 
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
+
+      ROCKETMQ_NAME_SERVER: rocketmq-namesrv:9876
+      ROCKETMQ_PRODUCER_GROUP: fota-gateway-producer-group
 
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}

@@ -1,6 +1,7 @@
 package com.yef.service;
 
 import com.alibaba.fastjson.JSON;
+import com.yef.producer.DeviceUpgradeEventPushClient;
 import com.yef.protocol.*;
 import java.io.InputStream;
 import java.time.Instant;
@@ -11,9 +12,11 @@ import java.util.Map;
 import java.util.Objects;
 import com.yef.protocol.outMsg.DeviceBootUpMessageAck;
 import com.yef.protocol.outMsg.UpgradeResultMessageAck;
-import com.yef.req.DeviceUpgradeCancelEventRequest;
-import com.yef.req.DeviceUpgradeEventRequest;
-import com.yef.req.DeviceUpgradeStartTimeRequest;
+import com.yef.req.EntryUpgradingEventRequest;
+import com.yef.req.UpgradeCancelEventRequest;
+import com.yef.req.UpgradeFinalResultEventRequest;
+import com.yef.req.UpgradeProgressEventRequest;
+import com.yef.req.UpgradeStartTimeEventRequest;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import lombok.extern.slf4j.Slf4j;
@@ -96,7 +99,7 @@ public class UpgradeExecutor {
         deviceUpgradeLockService.clearActive(message.imei());
 
         deviceUpgradeEventPushClient.pushUpgradeProgress(
-                new DeviceUpgradeEventRequest(
+                new UpgradeProgressEventRequest(
                         message.imei(),
                         finalStatus,
                         100,
@@ -106,7 +109,7 @@ public class UpgradeExecutor {
         );
 
         deviceUpgradeEventPushClient.updateFinalUpgradeTaskRecord(
-                new com.yef.req.UpdateDeviceUpgradeFinalResult(
+                new UpgradeFinalResultEventRequest(
                         message.imei(),
                         String.valueOf(message.getTaskId()),
                         finalStatus,
@@ -116,7 +119,6 @@ public class UpgradeExecutor {
                         0,
                         0,
                         finalStatus.equals("SUCCESS") ? null : String.valueOf(message.getErrorCode()),
-                        null,
                         LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault())
                 )
         );
@@ -161,6 +163,15 @@ public class UpgradeExecutor {
 
         if (nextPacketNo > totalPacket) {
             return;
+        }
+
+        if (nextPacketNo == 1) {
+            EntryUpgradingEventRequest request = new EntryUpgradingEventRequest(
+                    ack.imei(),
+                    runtimeTaskId,
+                    "UPGRADING"
+            );
+            deviceUpgradeEventPushClient.pushEntryIntoUpgradingStatus(request);
         }
 
         long offset = (long) (nextPacketNo - 1) * chunkSize;
@@ -208,8 +219,8 @@ public class UpgradeExecutor {
 
             //首次下发分包。推送升级开始时间
             if(nextPacketNo==1){
-                DeviceUpgradeStartTimeRequest startTimeRequest = new DeviceUpgradeStartTimeRequest(runtimeTaskId,LocalDateTime.now());
-                deviceUpgradeEventPushClient.updateStartTime(startTimeRequest);
+                UpgradeStartTimeEventRequest eventRequest = new UpgradeStartTimeEventRequest(ack.imei(),runtimeTaskId,LocalDateTime.now());
+                deviceUpgradeEventPushClient.updateStartTime(eventRequest);
             }
 
             /*
@@ -232,7 +243,7 @@ public class UpgradeExecutor {
                 String upgradeStatus = nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING";
                 // 推送进度条 progress
                 deviceUpgradeEventPushClient.pushUpgradeProgress(
-                        new DeviceUpgradeEventRequest(
+                        new UpgradeProgressEventRequest(
                                 ack.imei(),
                                 upgradeStatus,
                                 progress,
@@ -260,9 +271,9 @@ public class UpgradeExecutor {
         String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + ack.imei();
         redisTemplate.opsForHash().put(runtimeKey,"status","CANCEL_UPGRADE");
 
-        DeviceUpgradeCancelEventRequest request = new DeviceUpgradeCancelEventRequest();
+        UpgradeCancelEventRequest request = new UpgradeCancelEventRequest();
         request.setImei(ack.imei());
-        request.setStatus("CANCEL_UPGRADE");
+        request.setUpgradeStatus("CANCEL_UPGRADE");
         deviceUpgradeEventPushClient.updateCancelResult(request);
     }
 }

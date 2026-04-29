@@ -413,10 +413,10 @@ const upgradeStatusTextMap = {
   UPGRADING: '升级中',
   WAIT_RESULT: '等待升级结果',
   SUCCESS: '升级成功',
-  FAIL: '升级失败',
-  TIMEOUT: '升级超时',
-  PAUSED: '升级暂停',
-  CANCELING: '取消中',
+  FAIL: '升级失败',       //目前是web-http-server UpgradeScheduler类中的Dispatch()方法调度，超过最大重试次数【3次】后会认定为失败
+  TIMEOUT: '升级超时',   //web-http-server定时轮询，超过最大阈值则认定为超时
+  PAUSED: '升级暂停',   //该功能暂时没做
+  CANCELING: '取消中', 
   CANCEL_UPGRADE: '已取消'
 }
 
