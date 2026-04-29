@@ -70,8 +70,10 @@
             upgrade_task
         SET
             task_status = 'FAIL',
+            fail_reaon = #{errorMsg},
             last_error_msg = #{errorMsg},
             end_time = NOW()
+
         WHERE id = #{id}
     </update>
 

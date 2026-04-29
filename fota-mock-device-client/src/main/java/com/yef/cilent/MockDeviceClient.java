@@ -257,7 +257,7 @@ public class MockDeviceClient implements SmartLifecycle {
                 deviceChannels.remove(profile.imei(), channel);
                 log.info("MockDevice 连接已关闭，imei={}", profile.imei());
             });
-            log.info("MockDevice 已上线，imei={}，remoteAddress={}", profile.imei(), channel.remoteAddress());
+            //log.info("MockDevice 已上线，imei={}，remoteAddress={}", profile.imei(), channel.remoteAddress());
             return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

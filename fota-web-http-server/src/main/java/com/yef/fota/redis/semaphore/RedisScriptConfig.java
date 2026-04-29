@@ -26,9 +26,7 @@ public class RedisScriptConfig {
     @Bean("releaseScript")
     public DefaultRedisScript<Long> releaseScript() {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
-        script.setScriptText(
-                "return redis.call('SREM', KEYS[1], ARGV[1])"
-        );
+        script.setScriptText("return redis.call('SREM', KEYS[1], ARGV[1])");
         script.setResultType(Long.class);
         return script;
     }

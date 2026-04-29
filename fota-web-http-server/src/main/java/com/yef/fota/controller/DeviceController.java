@@ -262,10 +262,16 @@ public class DeviceController {
         deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>()
                 .eq(DeviceGroupRelationEntity::getDeviceId, id));
         if (deleted) {
-            //删除缓存数据
+            //删除设备
             redisTemplate.delete(deviceCacheKey(entity.getImei()));
+            //删除在离线状态
             redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(entity.getId()));
-            redisTemplate.delete(UPGRADE_RUNTIME_KEY_PREFIX+entity.getImei());
+            //删除设备升级锁
+            String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + entity.getImei();
+            redisTemplate.delete(runtimeKey);
+            //删除设备升级进度条
+            String lastProgressKey = runtimeKey + ":lastPushProgress";
+            redisTemplate.delete(lastProgressKey);
         }
         return ApiResponse.ok(null);
     }

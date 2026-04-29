@@ -29,10 +29,6 @@ public class SessionManager {
      */
     private final Map<ChannelId, DeviceSession> sessionByChannelId = new ConcurrentHashMap<>();
 
-    /**
-     * deviceId -> Session
-     */
-    private final Map<Long, DeviceSession> sessionByDeviceId = new ConcurrentHashMap<>();
 
     private final DeviceKeepOnlineService deviceKeepOnlineService;
 
@@ -75,9 +71,6 @@ public class SessionManager {
                     oldChannel.close();
                 }
                 sessionByChannelId.remove(oldChannel.id());
-                if (oldSession.getDeviceId() != null) {
-                    sessionByDeviceId.remove(oldSession.getDeviceId());
-                }
             }
         }
 
@@ -92,9 +85,7 @@ public class SessionManager {
 
         sessionByImei.put(imei, newSession);
         sessionByChannelId.put(channel.id(), newSession);
-        if (deviceId != null) {
-            sessionByDeviceId.put(deviceId, newSession);
-        }
+
     }
 
     /**
@@ -104,9 +95,6 @@ public class SessionManager {
         return sessionByImei.get(imei);
     }
 
-    public DeviceSession getByDeviceId(Long deviceId) {
-        return sessionByDeviceId.get(deviceId);
-    }
 
     /**
      * 根据 channel 获取 session
@@ -150,10 +138,8 @@ public class SessionManager {
             //先置为离线
             deviceKeepOnlineService.onDeviceOffline(session.getDeviceId());
             //再清理session
-            sessionByImei.remove(session.getImei(), session);
-            if (session.getDeviceId() != null) {
-                sessionByDeviceId.remove(session.getDeviceId(), session);
-            }
+            sessionByImei.remove(session.getImei());
+
             log.info("[SessionManager] remove session, imei:{}", session.getImei());
         }
 

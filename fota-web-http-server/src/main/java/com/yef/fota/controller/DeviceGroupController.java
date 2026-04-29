@@ -14,6 +14,7 @@ import com.yef.fota.service.DeviceGroupRelationService;
 import com.yef.fota.service.DeviceGroupService;
 import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.UserDeviceGroupService;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -135,19 +137,29 @@ public class DeviceGroupController {
         userDeviceGroupService.remove(new LambdaQueryWrapper<UserDeviceGroupEntity>().in(UserDeviceGroupEntity::getDeviceGroupId, allGroupIds));
         deviceGroupService.removeByIds(allGroupIds);
 
-        for(Long deleteId : deviceIds) {
+        for (Long deleteId : deviceIds) {
             redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(deleteId));
         }
 
-        if(deviceIds!=null&&deviceIds.size()>0){
+        if (deviceIds != null && deviceIds.size() > 0) {
             List<String> imeiByDeviceIds = deviceService.getImeiByDeviceIds(deviceIds);
             if (!deviceIds.isEmpty()) {
                 deviceService.removeByIds(deviceIds);
             }
             for (String imei : imeiByDeviceIds) {
-                //删除缓存数据
+                //删除设备
                 redisTemplate.delete(deviceCacheKey(imei));
-                redisTemplate.delete(UPGRADE_RUNTIME_KEY_PREFIX+imei);
+                //删除设备升级锁
+                String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + imei;
+                redisTemplate.delete(runtimeKey);
+                //删除设备升级进度条
+                String lastProgressKey = runtimeKey + ":lastPushProgress";
+                redisTemplate.delete(lastProgressKey);
+            }
+
+            //删除在离线状态
+            for (Long deviceId : deviceIds) {
+                redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(deviceId));
             }
         }
 

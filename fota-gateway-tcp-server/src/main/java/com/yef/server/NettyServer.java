@@ -7,6 +7,13 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.ServerChannel;
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.epoll.EpollServerSocketChannel;
+import io.netty.channel.kqueue.KQueue;
+import io.netty.channel.kqueue.KQueueEventLoopGroup;
+import io.netty.channel.kqueue.KQueueServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.NettyRuntime;
@@ -41,13 +48,26 @@ public class NettyServer implements SmartLifecycle {
         if (running) {
             return;
         }
-        bossGroup = new NioEventLoopGroup(1);
-        workerGroup = new NioEventLoopGroup(NettyRuntime.availableProcessors()*2);
+        Class<? extends ServerChannel> serverChannelClass;
+        if(Epoll.isAvailable()){
+            bossGroup = new EpollEventLoopGroup(1);
+            workerGroup = new EpollEventLoopGroup(NettyRuntime.availableProcessors()*2);
+            serverChannelClass = EpollServerSocketChannel.class;
+        }else if (KQueue.isAvailable()){
+            bossGroup = new KQueueEventLoopGroup(1);
+            workerGroup = new KQueueEventLoopGroup(NettyRuntime.availableProcessors()*2);
+            serverChannelClass = KQueueServerSocketChannel.class;
+        }else {
+            bossGroup = new NioEventLoopGroup(1);
+            workerGroup = new NioEventLoopGroup(NettyRuntime.availableProcessors()*2);
+            serverChannelClass = NioServerSocketChannel.class;
+        }
+
         try {
             ServerBootstrap bootstrap = new ServerBootstrap();
 
             bootstrap.group(bossGroup, workerGroup)
-                    .channel(NioServerSocketChannel.class)
+                    .channel(serverChannelClass)
                     .option(ChannelOption.SO_BACKLOG, 1024)
                     .childOption(ChannelOption.SO_KEEPALIVE, true)
                     .childHandler(channelInitializer);
@@ -99,11 +119,11 @@ public class NettyServer implements SmartLifecycle {
     private void shutdownGroups() {
         System.out.println("Netty server shutting down...");
         if (bossGroup != null) {
-            bossGroup.shutdownGracefully();
+            bossGroup.shutdownGracefully().syncUninterruptibly();
             bossGroup = null;
         }
         if (workerGroup != null) {
-            workerGroup.shutdownGracefully();
+            workerGroup.shutdownGracefully().syncUninterruptibly();
             workerGroup = null;
         }
     }
