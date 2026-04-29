@@ -11,7 +11,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "fota.rocketmq.upgrade-event-consumer.enabled=false"
+})
 class FotaWebHttpServerApplicationTests {
 
     private final MinioClient minioClient;

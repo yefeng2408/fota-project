@@ -55,7 +55,7 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
             FailMessage fail = (FailMessage) msg;
             log.warn("[UpgradeDispatchHandler] device FAIL ignored, imei={}, taskId={}, packetNo={}, errorCode={}", deviceId, fail.getTaskId(), fail.getPacketNo(), fail.getErrorCode(), fail.imei());
         } else if (msg instanceof UpgradeResultMessage) {
-            upgradeExecutor.handleUpgradeResult((UpgradeResultMessage) msg);
+            upgradeExecutor.receiveUpgradeResult((UpgradeResultMessage) msg);
         } else {
             log.info("[UpgradeDispatchHandler] ignored inbound message:{} ", msg);
         }

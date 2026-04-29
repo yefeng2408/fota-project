@@ -69,7 +69,7 @@ public class UpgradeExecutor {
 
 
     //网关对设备升级结果的上行消息0x06做出应答【写出站消息】
-    public void handleUpgradeResult(UpgradeResultMessage message) {
+    public void receiveUpgradeResult(UpgradeResultMessage message) {
         log.info("[UpgradeExecutor] upgrade result. imei:{} ,taskId:{}, result:{}, errorCode:{}", message.imei(), message.getTaskId(), message.getResult(), message.getErrorCode());
         UpgradeResultMessageAck messageAck = new UpgradeResultMessageAck(
                 message.imei(),

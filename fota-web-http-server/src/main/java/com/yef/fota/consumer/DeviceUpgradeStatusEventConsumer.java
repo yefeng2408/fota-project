@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -27,6 +28,12 @@ import org.springframework.util.StringUtils;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(
+        prefix = "fota.rocketmq.upgrade-event-consumer",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 @RocketMQMessageListener(
         topic = "FOTA_UPGRADE_EVENT_TOPIC",
         consumerGroup = "fota-web-upgrade-event-consumer-group"
