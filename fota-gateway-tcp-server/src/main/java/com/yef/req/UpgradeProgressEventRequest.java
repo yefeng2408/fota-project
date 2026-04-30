@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class UpgradeProgressEventRequest {
     private String imei;
+    private Long taskId;
     private String upgradeStatus;
     private Integer progress;
     private String currentFirmwareVersion;

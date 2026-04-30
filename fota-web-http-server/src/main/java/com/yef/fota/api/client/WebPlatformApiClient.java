@@ -2,6 +2,7 @@ package com.yef.fota.api.client;
 
 import com.dtflys.forest.annotation.BaseRequest;
 import com.dtflys.forest.annotation.Body;
+import com.dtflys.forest.annotation.JSONBody;
 import com.dtflys.forest.annotation.Post;
 import com.yef.fota.api.GatewayApiResponse;
 import com.yef.fota.api.dto.PlatformCancelUpgradeRequest;
@@ -20,16 +21,18 @@ public interface WebPlatformApiClient {
      */
     @Post(
             url = "/internal/device/upgrade-request",
-            contentType = "application/json"
+            contentType = "application/json",
+            headers = {"Accept: application/json"}
     )
-    GatewayApiResponse<Void> sendUpgradeRequest(@Body PlatformUpgradeRequest request);
+    GatewayApiResponse<Void> sendUpgradeRequest(@JSONBody PlatformUpgradeRequest request);
 
     /**
      * 平台下发 0x87 CancelUpgrade
      */
     @Post(
             url = "/internal/device/cancel-request",
-            contentType = "application/json"
+            contentType = "application/json",
+            headers = {"Accept: application/json"}
     )
-    GatewayApiResponse<Void> sendCancelUpgradeRequest(@Body PlatformCancelUpgradeRequest request);
+    GatewayApiResponse<Void> sendCancelUpgradeRequest(@JSONBody PlatformCancelUpgradeRequest request);
 }

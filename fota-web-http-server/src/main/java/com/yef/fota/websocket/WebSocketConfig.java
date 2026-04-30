@@ -3,7 +3,7 @@ package com.yef.fota.websocket;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yef.fota.api.dto.DeviceUpgradeEventRequest;
-import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
+import com.yef.fota.api.dto.resp.UpgradeCancelEventResult;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -69,7 +69,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
     }
 
 
-    public void pushDeviceUpgradeCancelEvent(DeviceUpgradeCancelEventResult event) {
+    public void pushDeviceUpgradeCancelEvent(UpgradeCancelEventResult event) {
         if (event == null) {
             return;
         }

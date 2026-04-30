@@ -1,9 +1,10 @@
-package com.yef.fota.redis.semaphore;
+package com.yef.semaphore;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+
 import javax.annotation.Resource;
 import java.util.Collections;
 
@@ -20,31 +21,12 @@ public class UpgradeSemaphoreService {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    @Resource(name = "acquireScript")
-    private DefaultRedisScript<Long> acquireScript;
-
     @Resource(name = "releaseScript")
     private DefaultRedisScript<Long> releaseScript;
 
 
-    //获取锁
-    public boolean tryAcquire(String imei, int max) {
-        Long result = redisTemplate.execute(
-                acquireScript,
-                Collections.singletonList(SEMAPHORE_KEY),
-                String.valueOf(max),
-                imei
-        );
-        return result != null && result == 1;
-    }
-
-
     public void release(String imei) {
         redisTemplate.execute(releaseScript, Collections.singletonList(SEMAPHORE_KEY), imei);
-    }
-
-    public int current() {
-        return redisTemplate.opsForSet().size(SEMAPHORE_KEY).intValue();
     }
 
 

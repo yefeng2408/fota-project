@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.yef.fota.api.dto.CancelUpgradeRequest;
 import com.yef.fota.api.dto.PlatformCancelUpgradeRequest;
 import com.yef.fota.api.dto.PlatformUpgradeRequest;
-import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
-import com.yef.fota.api.dto.resp.DeviceUpgradeStartTimeEventResult;
+import com.yef.fota.api.dto.resp.UpgradeCancelEventResult;
+import com.yef.fota.api.dto.resp.UpgradeStartTimeEventResult;
 import com.yef.fota.api.dto.resp.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.api.service.PlatformCommandService;
 import com.yef.fota.entity.DeviceEntity;
@@ -97,7 +97,7 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
     }
 
     @Override
-    public void updateUpgradeStartTime(DeviceUpgradeStartTimeEventResult result) {
+    public void updateUpgradeStartTime(UpgradeStartTimeEventResult result) {
         upgradeTaskMapper.updateTaskStartTime(result.getTaskId(),result.getStartTime());
     }
 
@@ -165,13 +165,13 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
                         result.getTargetFirmwareVersion())
                 .set(DeviceEntity::getUpdatedAt, now));
 
-        deviceUpgradeLockService.releaseLock(result.getImei(), result.getTaskId());
-        upgradeSemaphoreService.release(result.getImei());
+    /*    deviceUpgradeLockService.releaseLock(result.getImei(), result.getTaskId());
+        upgradeSemaphoreService.release(result.getImei());*/
     }
 
 
     @Override
-    public void updateCancelFinalEventResult(DeviceUpgradeCancelEventResult result) {
+    public void updateCancelFinalEventResult(UpgradeCancelEventResult result) {
         if (result == null || !StringUtils.hasText(result.getImei())) {
             return;
         }

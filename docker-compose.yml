@@ -171,10 +171,6 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-fota-firmware}
 
-      DEVICE_UPGRADE_PUSH_URL: http://fota-web-http-server:8080/internal/device-upgrade/event
-      DEVICE_UPGRADE_RESULT_URL: http://fota-web-http-server:8080/internal/device-upgrade/result
-      DEVICE_UPGRADE_CANCEL_URL: http://fota-web-http-server:8080/internal/device-upgrade/cancel
-      DEVICE_UPGRADE_START_URL: http://fota-web-http-server:8080/internal/device-upgrade/start-time
       FOTA_GATEWAY_PORT: ${FOTA_GATEWAY_PORT:-8224}
     ports:
       - "${FOTA_GATEWAY_PORT:-8224}:${FOTA_GATEWAY_PORT:-8224}"

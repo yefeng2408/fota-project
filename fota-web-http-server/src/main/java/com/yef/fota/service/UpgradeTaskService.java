@@ -1,8 +1,8 @@
 package com.yef.fota.service;
 
 import com.yef.fota.api.dto.CancelUpgradeRequest;
-import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
-import com.yef.fota.api.dto.resp.DeviceUpgradeStartTimeEventResult;
+import com.yef.fota.api.dto.resp.UpgradeCancelEventResult;
+import com.yef.fota.api.dto.resp.UpgradeStartTimeEventResult;
 import com.yef.fota.api.dto.resp.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
@@ -23,11 +23,11 @@ public interface UpgradeTaskService extends IService<UpgradeTaskEntity> {
 
     Long startUpgrade(DeviceEntity deviceEntity, FirmwarePackageEntity firmware, Long batchId, Long operatorId);
 
-    void updateUpgradeStartTime(DeviceUpgradeStartTimeEventResult result);
+    void updateUpgradeStartTime(UpgradeStartTimeEventResult result);
 
     void updateDeviceUpgradeFinalEventResult(UpdateDeviceUpgradeFinalResult result);
 
-    void updateCancelFinalEventResult(DeviceUpgradeCancelEventResult result);
+    void updateCancelFinalEventResult(UpgradeCancelEventResult result);
 
 
 

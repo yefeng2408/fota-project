@@ -17,6 +17,7 @@ import com.yef.req.UpgradeCancelEventRequest;
 import com.yef.req.UpgradeFinalResultEventRequest;
 import com.yef.req.UpgradeProgressEventRequest;
 import com.yef.req.UpgradeStartTimeEventRequest;
+import com.yef.semaphore.UpgradeSemaphoreService;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import lombok.extern.slf4j.Slf4j;
@@ -40,18 +41,21 @@ public class UpgradeExecutor {
 
     private final DeviceUpgradeEventPushClient deviceUpgradeEventPushClient;
     private final DeviceUpgradeLockService deviceUpgradeLockService;
+    private final UpgradeSemaphoreService upgradeSemaphoreService;
 
 
     public UpgradeExecutor(StringRedisTemplate redisTemplate,
                            MinioClient minioClient,
                            PacketSender packetSender,
                            DeviceUpgradeEventPushClient deviceUpgradeEventPushClient,
-                           DeviceUpgradeLockService deviceUpgradeLockService) {
+                           DeviceUpgradeLockService deviceUpgradeLockService,
+                           UpgradeSemaphoreService upgradeSemaphoreService) {
         this.redisTemplate = redisTemplate;
         this.minioClient = minioClient;
         this.packetSender = packetSender;
         this.deviceUpgradeEventPushClient = deviceUpgradeEventPushClient;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
+        this.upgradeSemaphoreService = upgradeSemaphoreService;
     }
 
     //网关对设备开机包的上行消息0x10做出应答【写出站消息】
@@ -70,7 +74,7 @@ public class UpgradeExecutor {
 
     //网关对设备升级结果的上行消息0x06做出应答【写出站消息】
     public void receiveUpgradeResult(UpgradeResultMessage message) {
-        log.info("[UpgradeExecutor] upgrade result. imei:{} ,taskId:{}, result:{}, errorCode:{}", message.imei(), message.getTaskId(), message.getResult(), message.getErrorCode());
+        log.info("+++++++++++++++++>>>>>>>>>[UpgradeExecutor] upgrade result UpgradeResultMessage= {}", JSON.toJSONString(message));
         UpgradeResultMessageAck messageAck = new UpgradeResultMessageAck(
                 message.imei(),
                 message.getTaskId(),
@@ -94,13 +98,11 @@ public class UpgradeExecutor {
         runtimeHash.put("status", finalStatus);
         runtimeHash.put("costTime", String.valueOf(message.getCostTime()));
         redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
-        // 共享设备锁和并发信号量由 web 服务在最终结果回调里统一释放。
-        // gateway 这里只清理本地 active 标记，避免续锁调度继续为终态任务保活。
-        deviceUpgradeLockService.clearActive(message.imei());
 
         deviceUpgradeEventPushClient.pushUpgradeProgress(
                 new UpgradeProgressEventRequest(
                         message.imei(),
+                        message.getTaskId(),
                         finalStatus,
                         100,
                         null,
@@ -122,6 +124,10 @@ public class UpgradeExecutor {
                         LocalDateTime.ofInstant(Instant.ofEpochMilli(now), ZoneId.systemDefault())
                 )
         );
+        // 释放锁
+        deviceUpgradeLockService.releaseLock(message.imei(), String.valueOf(message.getTaskId()));
+        upgradeSemaphoreService.release(message.imei());
+        deviceUpgradeLockService.clearActive(message.imei());
 
     }
 
@@ -245,6 +251,7 @@ public class UpgradeExecutor {
                 deviceUpgradeEventPushClient.pushUpgradeProgress(
                         new UpgradeProgressEventRequest(
                                 ack.imei(),
+                                ack.getTaskId(),
                                 upgradeStatus,
                                 progress,
                                 null,

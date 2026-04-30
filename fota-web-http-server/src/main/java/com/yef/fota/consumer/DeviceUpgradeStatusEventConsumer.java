@@ -1,9 +1,10 @@
 package com.yef.fota.consumer;
 
+import com.alibaba.fastjson.JSON;
 import com.yef.UpgradeEventMessage;
 import com.yef.fota.api.dto.DeviceUpgradeEventRequest;
-import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
-import com.yef.fota.api.dto.resp.DeviceUpgradeStartTimeEventResult;
+import com.yef.fota.api.dto.resp.UpgradeCancelEventResult;
+import com.yef.fota.api.dto.resp.UpgradeStartTimeEventResult;
 import com.yef.fota.api.dto.resp.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.UpgradeTaskEntity;
@@ -83,7 +84,7 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
             return;
         }
         upgradeTaskService.updateUpgradeStartTime(
-                new DeviceUpgradeStartTimeEventResult(event.getTaskId(), event.getStartTime())
+                new UpgradeStartTimeEventResult(event.getTaskId(), event.getStartTime())
         );
     }
 
@@ -167,7 +168,6 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
                     event.getEventId(), event.getImei(), event.getTaskId());
             return;
         }
-
         upgradeTaskService.updateDeviceUpgradeFinalEventResult(new UpdateDeviceUpgradeFinalResult(
                 event.getImei(),
                 String.valueOf(event.getTaskId()),
@@ -189,6 +189,7 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
                 event.getCurrentFirmwareVersion(),
                 event.getTargetFirmwareVersion()
         ));
+        log.info("------>升级完成 DeviceUpgradeStatusEventConsumer|handleFinalResult:{}", JSON.toJSONString(event));
     }
 
     private void handleCancelResult(UpgradeEventMessage event) {
@@ -198,11 +199,11 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
         }
 
         String status = StringUtils.hasText(event.getUpgradeStatus()) ? event.getUpgradeStatus() : "CANCEL_UPGRADE";
-        upgradeTaskService.updateCancelFinalEventResult(new DeviceUpgradeCancelEventResult(
+        upgradeTaskService.updateCancelFinalEventResult(new UpgradeCancelEventResult(
                 event.getImei(),
                 status
         ));
-        webSocketConfig.pushDeviceUpgradeCancelEvent(new DeviceUpgradeCancelEventResult(
+        webSocketConfig.pushDeviceUpgradeCancelEvent(new UpgradeCancelEventResult(
                 event.getImei(),
                 status
         ));

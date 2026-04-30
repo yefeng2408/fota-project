@@ -2,8 +2,8 @@ package com.yef.fota.controller;
 
 import com.alibaba.fastjson.JSON;
 import com.yef.fota.api.dto.DeviceUpgradeEventRequest;
-import com.yef.fota.api.dto.resp.DeviceUpgradeCancelEventResult;
-import com.yef.fota.api.dto.resp.DeviceUpgradeStartTimeEventResult;
+import com.yef.fota.api.dto.resp.UpgradeCancelEventResult;
+import com.yef.fota.api.dto.resp.UpgradeStartTimeEventResult;
 import com.yef.fota.api.dto.resp.UpdateDeviceUpgradeFinalResult;
 import com.yef.fota.service.UpgradeTaskService;
 import com.yef.fota.websocket.WebSocketConfig;
@@ -56,7 +56,7 @@ public class DeviceUpgradeEventController {
      * @param result
      */
     @PostMapping("/cancel")
-    public void pushResult(@RequestBody DeviceUpgradeCancelEventResult result) {
+    public void pushResult(@RequestBody UpgradeCancelEventResult result) {
         log.warn("收到旧版 HTTP 取消升级回调，建议切换到 MQ 事件链路, payload={}", JSON.toJSONString(result));
         upgradeTaskService.updateCancelFinalEventResult(result);
         webSocketConfig.pushDeviceUpgradeCancelEvent(result);
@@ -68,7 +68,7 @@ public class DeviceUpgradeEventController {
      * @param result
      */
     @PostMapping("/start-time")
-    public void pushUpgradeStartTime(@RequestBody DeviceUpgradeStartTimeEventResult result) {
+    public void pushUpgradeStartTime(@RequestBody UpgradeStartTimeEventResult result) {
         log.warn("收到旧版 HTTP 升级开始时间回调，建议切换到 MQ 事件链路, payload={}", JSON.toJSONString(result));
         upgradeTaskService.updateUpgradeStartTime(result);
     }

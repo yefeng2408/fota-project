@@ -14,5 +14,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class UpgradeCancelEventRequest {
     private String imei;
+    private Long taskId;
     private String upgradeStatus;
 }

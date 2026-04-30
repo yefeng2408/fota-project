@@ -72,7 +72,7 @@ public class DeviceUpgradeRealtimeStateService {
 
     /**
      * Gateway 侧怎么发事件
-     * 你现在网关收到 ACK / 结果上报时，可以这样处理：
+     * 现在网关收到 ACK / 结果上报时，可以这样处理：
      *
      * 1. 首次进入 UPGRADE_REQUESTED
      * Long version = realtimeStateService.nextVersion(deviceId);

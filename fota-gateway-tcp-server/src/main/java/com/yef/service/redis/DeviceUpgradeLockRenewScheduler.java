@@ -1,8 +1,10 @@
-package com.yef.service;
+package com.yef.service.redis;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import com.yef.service.DeviceUpgradeLockService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -51,6 +53,7 @@ public class DeviceUpgradeLockRenewScheduler {
             }else {
                 log.info("状态非 active，但不主动释放锁，由业务线程控制释放");
             }
+            //我将锁的释放放在web服务的
             /*deviceUpgradeLockService.releaseLock(imei, lockToken);
             deviceUpgradeLockService.clearActive(imei);*/
         }

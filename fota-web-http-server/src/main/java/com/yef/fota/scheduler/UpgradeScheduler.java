@@ -211,6 +211,7 @@ public class UpgradeScheduler implements DisposableBean {
 
             lockService.releaseLock(imei, lockToken);
             semaphore.release(imei);
+            log.warn("------>dispatchOneTask error:{}",ex.getMessage());
         }
     }
 

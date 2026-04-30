@@ -30,7 +30,11 @@ public class GatewayUpgradeController {
      * @param request
      * @return
      */
-    @PostMapping("/upgrade-request")
+    @PostMapping(
+            value = "/upgrade-request",
+            consumes = "application/json",
+            produces = "application/json"
+    )
     public ApiResponse<Void> sendUpgradeRequest(@RequestBody PlatformUpgradeRequest request) {
         gatewayUpgradeDispatchService.sendUpgradeRequest(request);
         return ApiResponse.ok();
@@ -42,7 +46,11 @@ public class GatewayUpgradeController {
      * @param request
      * @return
      */
-    @PostMapping("/cancel-request")
+    @PostMapping(
+            value = "/cancel-request",
+            consumes = "application/json",
+            produces = "application/json"
+    )
     public ApiResponse<Void> sendCancelRequest(@RequestBody PlatformCancelUpgradeRequest request) {
         gatewayUpgradeDispatchService.sendCancelUpgradeRequest(request);
         return ApiResponse.ok();

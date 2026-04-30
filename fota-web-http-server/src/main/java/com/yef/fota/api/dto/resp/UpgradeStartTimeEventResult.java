@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 /**
  * @description: 
  * @author: 叶丰
@@ -12,7 +14,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class DeviceUpgradeCancelEventResult {
-    private String imei;
-    private String status;
+public class UpgradeStartTimeEventResult {
+    private Long taskId;
+    private LocalDateTime startTime;
 }
