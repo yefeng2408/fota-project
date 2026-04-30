@@ -155,6 +155,11 @@ public class UpgradeScheduler implements DisposableBean {
             return;
         }
 
+        if (sessionLockService.isLocked(imei)) {
+            log.info("设备已处于升级会话中，web 侧直接跳过下发, imei={}, taskId={}", imei, taskEntity.getTaskId());
+            return;
+        }
+
         // 1.获取信号量
         if (!semaphore.tryAcquire(imei, maxActive)) {
             return;
@@ -204,7 +209,6 @@ public class UpgradeScheduler implements DisposableBean {
             PlatformUpgradeRequest upgradeRequest = UpgradeTaskServiceImpl.getUpgradeRequest(taskEntity, deviceEntity, packageEntity);
 
             platformCommandService.sendUpgradeRequest(upgradeRequest);
-            dispatchLockService.releaseLock(imei, lockToken);
 
             long afterHttp = System.currentTimeMillis();
             long total = afterHttp - start;

@@ -266,7 +266,7 @@ public class DeviceController {
             redisTemplate.delete(deviceCacheKey(entity.getImei()));
             //删除在离线状态
             redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(entity.getId()));
-            //删除设备升级锁
+            //删除设备升级过程中的 runtimekey
             String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + entity.getImei();
             redisTemplate.delete(runtimeKey);
             //删除设备升级进度条

@@ -75,6 +75,11 @@ public class DeviceUpgradeLockService {
         return lockToken != null && lockToken.equals(currentValue);
     }
 
+    public boolean isLocked(String imei) {
+        Boolean exists = redisTemplate.hasKey(buildLockKey(imei));
+        return Boolean.TRUE.equals(exists);
+    }
+
     public String buildLockKey(String imei) {
         return DEVICE_UPGRADE_SESSION_LOCK_KEY_PREFIX + imei;
     }
