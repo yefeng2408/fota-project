@@ -1,8 +1,5 @@
 package com.yef;
 
-import lombok.Getter;
-
-@Getter
 public class ApiResponse<T> {
 
     private final int code;
@@ -13,6 +10,18 @@ public class ApiResponse<T> {
         this.code = code;
         this.message = message;
         this.data = data;
+    }
+
+    public int getCode() {
+        return code;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public T getData() {
+        return data;
     }
 
     public static <T> ApiResponse<T> ok(T data) {
