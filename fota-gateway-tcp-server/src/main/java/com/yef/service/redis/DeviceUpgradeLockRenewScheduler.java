@@ -48,14 +48,11 @@ public class DeviceUpgradeLockRenewScheduler {
             if (isActiveUpgradeStatus(status)) {
                 boolean renewed = deviceUpgradeLockService.renewLock(imei, lockToken);
                 if (!renewed) {
-                    log.warn("升级锁续期失败，imei={}, status={}", imei, status);
+                    log.warn("升级会话锁续期失败，imei={}, status={}", imei, status);
                 }
             }else {
-                log.info("状态非 active，但不主动释放锁，由业务线程控制释放");
+                log.info("状态非 active，但不主动释放会话锁，由业务线程控制释放");
             }
-            //我将锁的释放放在web服务的
-            /*deviceUpgradeLockService.releaseLock(imei, lockToken);
-            deviceUpgradeLockService.clearActive(imei);*/
         }
     }
 

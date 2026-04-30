@@ -1,4 +1,4 @@
-package com.yef.fota.redis.semaphore;
+package com.yef.fota.redis;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

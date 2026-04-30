@@ -12,9 +12,7 @@ import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.entity.UpgradeTaskEntity;
 import com.yef.fota.mapper.UpgradeTaskMapper;
-import com.yef.fota.redis.semaphore.UpgradeSemaphoreService;
 import com.yef.fota.service.DeviceService;
-import com.yef.fota.service.DeviceUpgradeLockService;
 import com.yef.fota.service.UpgradeTaskService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -39,20 +37,14 @@ import org.springframework.util.StringUtils;
 public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, UpgradeTaskEntity> implements UpgradeTaskService {
 
     private final PlatformCommandService platformCommandService;
-    private final DeviceUpgradeLockService deviceUpgradeLockService;
-    private final UpgradeSemaphoreService upgradeSemaphoreService;
     private final DeviceService deviceService;
     private final UpgradeTaskMapper upgradeTaskMapper;
 
     public UpgradeTaskServiceImpl(PlatformCommandService platformCommandService,
-                                  DeviceUpgradeLockService deviceUpgradeLockService,
-                                  UpgradeSemaphoreService upgradeSemaphoreService,
                                   DeviceService deviceService,
                                   UpgradeTaskMapper upgradeTaskMapper) {
 
         this.platformCommandService = platformCommandService;
-        this.deviceUpgradeLockService = deviceUpgradeLockService;
-        this.upgradeSemaphoreService = upgradeSemaphoreService;
         this.deviceService = deviceService;
         this.upgradeTaskMapper = upgradeTaskMapper;
     }
@@ -165,8 +157,6 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
                         result.getTargetFirmwareVersion())
                 .set(DeviceEntity::getUpdatedAt, now));
 
-    /*    deviceUpgradeLockService.releaseLock(result.getImei(), result.getTaskId());
-        upgradeSemaphoreService.release(result.getImei());*/
     }
 
 
@@ -183,7 +173,6 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
                     .set(StringUtils.hasText(result.getStatus()), UpgradeTaskEntity::getTaskStatus, result.getStatus())
                     .set(UpgradeTaskEntity::getEndTime, LocalDateTime.now())
                     .set(UpgradeTaskEntity::getUpdatedAt, LocalDateTime.now()));
-            deviceUpgradeLockService.releaseLock(result.getImei(), String.valueOf(upgradeTask.getTaskId()));
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -191,8 +180,6 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
                 .eq(DeviceEntity::getImei, result.getImei())
                 .set(StringUtils.hasText(result.getStatus()), DeviceEntity::getDeviceUpgradeStatus, result.getStatus())
                 .set(DeviceEntity::getUpdatedAt, now));
-
-        upgradeSemaphoreService.release(result.getImei());
     }
 
     @Override

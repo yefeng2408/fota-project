@@ -6,16 +6,17 @@ import com.yef.fota.api.service.PlatformCommandService;
 import com.yef.fota.entity.DeviceEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.entity.UpgradeTaskEntity;
-import com.yef.fota.exception.BusinessException;
 import com.yef.fota.mapper.FirmwarePackageMapper;
 import com.yef.fota.mapper.UpgradeTaskMapper;
 import com.yef.fota.redis.semaphore.UpgradeSemaphoreService;
 import com.yef.fota.service.DeviceService;
-import com.yef.fota.service.DeviceUpgradeLockService;
+import com.yef.fota.redis.DeviceUpgradeDispatchLockService;
+import com.yef.fota.redis.DeviceUpgradeLockService;
 import com.yef.fota.service.impl.UpgradeTaskServiceImpl;
 import com.yef.fota.websocket.WebSocketConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -33,9 +34,9 @@ import java.util.List;
  *  FOTA升级系统采用“调度器 + 分布式信号量 + CAS状态机”的模型控制并发。
  *   1.所有设备先进入 WAITING 队列，调度器按 batchSize 批量拉取任务
  *   2.通过 Redis Set 实现分布式信号量，限制最大并发升级数
- *   3.通过 Redis 分布式锁保证单设备串行升级
- *   4.通过数据库 CAS 更新状态，确保只有一个实例真正执行任务，若 CAS 失败，立即释放已抢占资源，防止信号量与锁泄漏
- *   5.升级完成后，由 web 回调接口在落库成功后释放信号量与设备锁，同时对 WAITING 队列做限流保护，避免任务堆积
+ *   3.通过 dispatch-lock 保证单设备调度预占，通过 session-lock 保证升级会话互斥
+ *   4.通过数据库 CAS 更新状态，确保只有一个实例真正执行任务，若 CAS 失败，立即释放已抢占资源，防止信号量与预占锁泄漏
+ *   5.gateway 受理 0x81 后接管 session-lock；升级完成后由 gateway 释放 session-lock，web 只负责落库与前端广播
  *
  *   完整的升级流转过程：
  *                WAITING
@@ -78,7 +79,10 @@ public class UpgradeScheduler implements DisposableBean {
     private UpgradeSemaphoreService semaphore;
 
     @Resource
-    private DeviceUpgradeLockService lockService;
+    private DeviceUpgradeDispatchLockService dispatchLockService;
+
+    @Resource
+    private DeviceUpgradeLockService sessionLockService;
 
     @Resource
     private DeviceService deviceService;
@@ -88,6 +92,9 @@ public class UpgradeScheduler implements DisposableBean {
 
     @Resource
     private WebSocketConfig webSocketConfig;
+
+    @Resource
+    private StringRedisTemplate redisTemplate;
 
     //处于升级中的设备最大数，类似于线程池最大线程数
     @Value("${fota.upgrade.max-active-devices:100}")
@@ -153,8 +160,8 @@ public class UpgradeScheduler implements DisposableBean {
             return;
         }
 
-        // 2.单设备锁
-        boolean locked = lockService.acquireLock(imei, lockToken);
+        // 2.调度预占锁
+        boolean locked = dispatchLockService.acquireLock(imei, lockToken);
         if (!locked) {
             //若当前线程未能抢到设备升级资格，则释放前面抢到的信号量资源。避免浪费信号量资源
             semaphore.release(imei);
@@ -164,9 +171,8 @@ public class UpgradeScheduler implements DisposableBean {
         // 3.CAS更新状态
         int updated = upgradeTaskMapper.casToRequested(taskEntity.getId());
         if (updated == 0) {
-            //如果当前线程CAS失败，则释放刚刚抢到的 信号量资源和 设备锁，防止信号量“假满”【semaphore fake full】。这里的释放并不是释放设备升级过程中的锁，此时设备还未处于升级过程中。
-            //总结：dispatch 释放锁，并不是释放“正在升级的设备锁”，只是释放名额
-            lockService.releaseLock(imei, lockToken);
+            // 如果当前线程 CAS 失败，则释放刚刚抢到的信号量资源和 dispatch-lock，防止信号量“假满”。
+            dispatchLockService.releaseLock(imei, lockToken);
             semaphore.release(imei);
             return;
         }
@@ -198,6 +204,7 @@ public class UpgradeScheduler implements DisposableBean {
             PlatformUpgradeRequest upgradeRequest = UpgradeTaskServiceImpl.getUpgradeRequest(taskEntity, deviceEntity, packageEntity);
 
             platformCommandService.sendUpgradeRequest(upgradeRequest);
+            dispatchLockService.releaseLock(imei, lockToken);
 
             long afterHttp = System.currentTimeMillis();
             long total = afterHttp - start;
@@ -206,21 +213,27 @@ public class UpgradeScheduler implements DisposableBean {
 
             log.info("dispatchOneTask cost, imei={}, total={}ms, http={}ms, local={}ms", imei, total, httpCost, localCost);
         } catch (RuntimeException ex) {
-            //重试机制
-            handleRetry(taskEntity, ex.getMessage());
+            dispatchLockService.releaseLock(imei, lockToken);
+            //如果设备锁已存在，则表明设备处于升级过程中。直接return，不能重试
+            if (gatewayAccepted(imei, lockToken)) {
+                log.warn("dispatchOneTask 响应异常，但 gateway 已受理任务，imei={}, taskId={}, error={}",
+                        imei, taskEntity.getTaskId(), ex.getMessage());
+                return;
+            }
 
-            lockService.releaseLock(imei, lockToken);
+            handleRetry(taskEntity, ex.getMessage());
             semaphore.release(imei);
-            log.warn("------>dispatchOneTask error:{}",ex.getMessage());
+            log.warn("------>dispatchOneTask error:{}", ex.getMessage());
         }
     }
 
 
     /**
-     * handleRetry 不是针对“没抢到名额”的设备。没抢到信号量/设备锁的任务应该继续保持 WAITING，不进入 retry。
+     * handleRetry 不是针对“没抢到名额”的设备。没抢到信号量/dispatch-lock 的任务应该继续保持 WAITING，不进入 retry。
      *
      * handleRetry 针对的是：
-     * 已经抢到信号量 + 设备锁 + CAS 改成 UPGRADE_REQUESTED，但是调用（http）网关下发 0x81 失败。
+     * 已经抢到信号量 + dispatch-lock + CAS 改成 UPGRADE_REQUESTED，但是调用（http）网关下发 0x81 失败，
+     * 且确认 gateway 尚未受理此次升级任务。
      *
      * @param task
      * @param errorMsg
@@ -271,6 +284,14 @@ public class UpgradeScheduler implements DisposableBean {
                 null
         ));
         log.warn("任务进入重试 taskId={}, retryCount={}, nextRetryAt={}", task.getTaskId(), nextRetry, nextRetryAt);
+    }
+
+    private boolean gatewayAccepted(String imei, String lockToken) {
+        if (sessionLockService.isHeldBy(imei, lockToken)) {
+            return true;
+        }
+        Object runtimeTaskId = redisTemplate.opsForHash().get("fota:upgrade:runtime:" + imei, "taskId");
+        return runtimeTaskId != null && lockToken.equals(String.valueOf(runtimeTaskId));
     }
 
 

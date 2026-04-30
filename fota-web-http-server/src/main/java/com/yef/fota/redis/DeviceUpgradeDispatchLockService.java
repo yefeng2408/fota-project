@@ -1,20 +1,18 @@
-package com.yef.service;
+package com.yef.fota.redis;
 
 import java.util.Collections;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
+
 /**
- * @description: 升级会话锁。gateway 在真正受理 0x81 请求后创建/接管它，并在升级过程里持续续期。
- *
- * @author: 叶丰
- * @date: 2026/4/22 23:02
+ * 调度预占锁。
+ * web 在真正调用 gateway 之前先占住设备，防止同一台设备被重复调度。
  */
 @Service
-public class DeviceUpgradeLockService {
+public class DeviceUpgradeDispatchLockService {
 
-    public static final String DEVICE_UPGRADE_SESSION_LOCK_KEY_PREFIX = "fota:upgrade:session-lock:";
-    public static final String DEVICE_UPGRADE_ACTIVE_SET_KEY = "fota:upgrade:session-lock:active";
+    public static final String DEVICE_UPGRADE_DISPATCH_LOCK_KEY_PREFIX = "fota:upgrade:dispatch-lock:";
     private static final long DEFAULT_LOCK_EXPIRE_MS = 90_000L;
 
     private static final String ACQUIRE_SCRIPT = """
@@ -22,14 +20,6 @@ public class DeviceUpgradeLockService {
                 redis.call('psetex', KEYS[1], ARGV[2], ARGV[1])
                 return 1
             end
-            if redis.call('get', KEYS[1]) == ARGV[1] then
-                redis.call('pexpire', KEYS[1], ARGV[2])
-                return 1
-            end
-            return 0
-            """;
-
-    private static final String RENEW_SCRIPT = """
             if redis.call('get', KEYS[1]) == ARGV[1] then
                 redis.call('pexpire', KEYS[1], ARGV[2])
                 return 1
@@ -46,29 +36,17 @@ public class DeviceUpgradeLockService {
 
     private final StringRedisTemplate redisTemplate;
     private final DefaultRedisScript<Long> acquireRedisScript;
-    private final DefaultRedisScript<Long> renewRedisScript;
     private final DefaultRedisScript<Long> releaseRedisScript;
 
-    public DeviceUpgradeLockService(StringRedisTemplate redisTemplate) {
+    public DeviceUpgradeDispatchLockService(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
         this.acquireRedisScript = buildScript(ACQUIRE_SCRIPT);
-        this.renewRedisScript = buildScript(RENEW_SCRIPT);
         this.releaseRedisScript = buildScript(RELEASE_SCRIPT);
     }
 
     public boolean acquireLock(String imei, String lockToken) {
         Long result = redisTemplate.execute(
                 acquireRedisScript,
-                Collections.singletonList(buildLockKey(imei)),
-                lockToken,
-                String.valueOf(DEFAULT_LOCK_EXPIRE_MS)
-        );
-        return result != null && result == 1L;
-    }
-
-    public boolean renewLock(String imei, String lockToken) {
-        Long result = redisTemplate.execute(
-                renewRedisScript,
                 Collections.singletonList(buildLockKey(imei)),
                 lockToken,
                 String.valueOf(DEFAULT_LOCK_EXPIRE_MS)
@@ -85,16 +63,8 @@ public class DeviceUpgradeLockService {
         return result != null && result == 1L;
     }
 
-    public void markActive(String imei) {
-        redisTemplate.opsForSet().add(DEVICE_UPGRADE_ACTIVE_SET_KEY, imei);
-    }
-
-    public void clearActive(String imei) {
-        redisTemplate.opsForSet().remove(DEVICE_UPGRADE_ACTIVE_SET_KEY, imei);
-    }
-
     public String buildLockKey(String imei) {
-        return DEVICE_UPGRADE_SESSION_LOCK_KEY_PREFIX + imei;
+        return DEVICE_UPGRADE_DISPATCH_LOCK_KEY_PREFIX + imei;
     }
 
     private DefaultRedisScript<Long> buildScript(String scriptText) {

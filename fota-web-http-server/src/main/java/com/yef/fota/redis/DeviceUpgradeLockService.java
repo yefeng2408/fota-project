@@ -1,6 +1,5 @@
-package com.yef.fota.service;
+package com.yef.fota.redis;
 
-import java.util.Collections;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -13,7 +12,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class DeviceUpgradeLockService {
 
-    public static final String DEVICE_UPGRADE_LOCK_KEY_PREFIX = "fota:upgrade:lock:";
+    public static final String DEVICE_UPGRADE_SESSION_LOCK_KEY_PREFIX = "fota:upgrade:session-lock:";
     private static final long DEFAULT_LOCK_EXPIRE_MS = 90_000L;
 
     private static final String ACQUIRE_SCRIPT = """
@@ -45,6 +44,7 @@ public class DeviceUpgradeLockService {
         this.releaseRedisScript = buildScript(RELEASE_SCRIPT);
     }
 
+/*
     public boolean acquireLock(String imei, String lockToken) {
         return acquireLock(imei, lockToken, DEFAULT_LOCK_EXPIRE_MS);
     }
@@ -68,9 +68,15 @@ public class DeviceUpgradeLockService {
         );
         return result != null && result == 1L;
     }
+*/
+
+    public boolean isHeldBy(String imei, String lockToken) {
+        String currentValue = redisTemplate.opsForValue().get(buildLockKey(imei));
+        return lockToken != null && lockToken.equals(currentValue);
+    }
 
     public String buildLockKey(String imei) {
-        return DEVICE_UPGRADE_LOCK_KEY_PREFIX + imei;
+        return DEVICE_UPGRADE_SESSION_LOCK_KEY_PREFIX + imei;
     }
 
     private DefaultRedisScript<Long> buildScript(String scriptText) {

@@ -5,6 +5,7 @@ import com.yef.dto.PlatformUpgradeRequest;
 import com.yef.exception.FotaProtocolException;
 import com.yef.protocol.CancelUpgradeMessage;
 import com.yef.protocol.UpgradeRequestMessage;
+import com.yef.service.redis.DeviceUpgradeDispatchLockService;
 import com.yef.session.DeviceSession;
 import com.yef.session.SessionManager;
 import io.netty.channel.Channel;
@@ -32,13 +33,16 @@ public class GatewayUpgradeDispatchService {
     private final SessionManager sessionManager;
     private final StringRedisTemplate redisTemplate;
     private final DeviceUpgradeLockService deviceUpgradeLockService;
+    private final DeviceUpgradeDispatchLockService deviceUpgradeDispatchLockService;
 
     public GatewayUpgradeDispatchService(SessionManager sessionManager,
                                          StringRedisTemplate redisTemplate,
-                                         DeviceUpgradeLockService deviceUpgradeLockService) {
+                                         DeviceUpgradeLockService deviceUpgradeLockService,
+                                         DeviceUpgradeDispatchLockService deviceUpgradeDispatchLockService) {
         this.sessionManager = sessionManager;
         this.redisTemplate = redisTemplate;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
+        this.deviceUpgradeDispatchLockService = deviceUpgradeDispatchLockService;
     }
 
     public void sendUpgradeRequest(PlatformUpgradeRequest req) {
@@ -46,27 +50,35 @@ public class GatewayUpgradeDispatchService {
         if (session == null || session.getChannel() == null || !session.getChannel().isActive()) {
             throw new FotaProtocolException("设备不在线，无法下发升级请求");
         }
+        if (!deviceUpgradeLockService.acquireLock(req.getImei(), req.getLockToken())) {
+            throw new FotaProtocolException("设备升级会话已存在，拒绝重复受理");
+        }
 
-        UpgradeRequestMessage message = new UpgradeRequestMessage(
-                req.getImei(),
-                req.getTaskId(),
-                req.getFirmwareId(),
-                req.getFirmwareNameLen(),
-                req.getFirmwareName(),
-                req.getFirmwareVersionLen(),
-                req.getFirmwareVersionName(),
-                req.getTotalPacket(),
-                req.getChunkSize(),
-                req.getFileSize(),
-                hexMd5ToBytes(req.getMd5())
-        );
-        Channel channel = session.getChannel();
-        channel.writeAndFlush(message);
-        //网关收到平台下发0x81消息。初始化记录分包的key【fota:upgrade:runtime:{imei}】
-        Map<String, Object> runtimeHash = getRuntimeHash(req);
-
-        redisTemplate.opsForHash().putAll(UPGRADE_RUNTIME_KEY_PREFIX+req.getImei(),runtimeHash);
-        deviceUpgradeLockService.markActive(req.getImei());
+        try {
+            UpgradeRequestMessage message = new UpgradeRequestMessage(
+                    req.getImei(),
+                    req.getTaskId(),
+                    req.getFirmwareId(),
+                    req.getFirmwareNameLen(),
+                    req.getFirmwareName(),
+                    req.getFirmwareVersionLen(),
+                    req.getFirmwareVersionName(),
+                    req.getTotalPacket(),
+                    req.getChunkSize(),
+                    req.getFileSize(),
+                    hexMd5ToBytes(req.getMd5())
+            );
+            Channel channel = session.getChannel();
+            channel.writeAndFlush(message);
+            // 网关收到平台下发 0x81 消息。初始化 runtime，并接管升级会话锁。
+            Map<String, Object> runtimeHash = getRuntimeHash(req);
+            redisTemplate.opsForHash().putAll(UPGRADE_RUNTIME_KEY_PREFIX + req.getImei(), runtimeHash);
+            deviceUpgradeLockService.markActive(req.getImei());
+            deviceUpgradeDispatchLockService.releaseLock(req.getImei(), req.getLockToken());
+        } catch (RuntimeException ex) {
+            deviceUpgradeLockService.releaseLock(req.getImei(), req.getLockToken());
+            throw ex;
+        }
 
     }
 

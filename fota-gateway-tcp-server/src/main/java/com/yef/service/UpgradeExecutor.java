@@ -281,6 +281,14 @@ public class UpgradeExecutor {
         UpgradeCancelEventRequest request = new UpgradeCancelEventRequest();
         request.setImei(ack.imei());
         request.setUpgradeStatus("CANCEL_UPGRADE");
+        String lockToken = String.valueOf(redisTemplate.opsForHash().get(runtimeKey, "lockToken"));
+        if (!Objects.equals(lockToken, "null") && !lockToken.isBlank()) {
+            deviceUpgradeLockService.releaseLock(ack.imei(), lockToken);
+        } else if (ack.getTaskId() != null) {
+            deviceUpgradeLockService.releaseLock(ack.imei(), String.valueOf(ack.getTaskId()));
+        }
+        upgradeSemaphoreService.release(ack.imei());
+        deviceUpgradeLockService.clearActive(ack.imei());
         deviceUpgradeEventPushClient.updateCancelResult(request);
     }
 }
