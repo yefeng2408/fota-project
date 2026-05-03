@@ -12,7 +12,6 @@ import com.yef.fota.entity.DeviceGroupEntity;
 import com.yef.fota.entity.DeviceGroupRelationEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.exception.BusinessException;
-import com.yef.fota.mapper.UpgradeTaskMapper;
 import com.yef.fota.service.DeviceGroupRelationService;
 import com.yef.fota.service.DeviceGroupService;
 import com.yef.fota.service.DeviceService;
@@ -109,6 +108,15 @@ public class DeviceController {
         return ApiResponse.ok(toDeviceVO(deviceEntity));
     }
 
+    /**
+     * 批量导入设备
+     * @param file
+     * @param deviceGroupId
+     * @param deviceType
+     * @param targetFirmwareId
+     * @return
+     * @throws Exception
+     */
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @OperationLog(action = "IMPORT_DEVICE")
     public ApiResponse<DeviceImportResponse> importDevices(@RequestParam("file") MultipartFile file,
@@ -195,12 +203,7 @@ public class DeviceController {
         }
 
         Set<String> requestImeis = requests.stream().map(DeviceSaveRequest::getImei).collect(Collectors.toSet());
-        Set<String> existsImeis = deviceService.lambdaQuery()
-                .in(DeviceEntity::getImei, requestImeis)
-                .list()
-                .stream()
-                .map(DeviceEntity::getImei)
-                .collect(Collectors.toSet());
+        Set<String> existsImeis = deviceService.listExistingImeis(requestImeis);
 
         List<DeviceSaveRequest> importableRequests = requests.stream()
                 .filter(request -> !existsImeis.contains(request.getImei()))
@@ -208,10 +211,7 @@ public class DeviceController {
 
         response.setDuplicateInDatabaseCount(existsImeis.size());
 
-        for (DeviceSaveRequest request : importableRequests) {
-            deviceService.addDevice(request);
-        }
-        response.setImportedCount(importableRequests.size());
+        response.setImportedCount(deviceService.importDevices(importableRequests));
         response.setSummary(buildImportSummary(response));
         return ApiResponse.ok(response);
     }

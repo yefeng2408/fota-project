@@ -24,7 +24,7 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
      * @return
      */
     @Update("update upgrade_task set is_delete='1' where device_id = #{deviceId}")
-    int deleteUpgradeTask(Long deviceId);
+    int deleteUpgradeTask(@Param("deviceId") Long deviceId);
 
     /**
      * 批量逻辑删除
@@ -37,13 +37,13 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
             "#{id}" +
             "</foreach>" +
             "</script>")
-    int deleteBatchUpgradeTask(List<Long> deviceIds);
+    int deleteBatchUpgradeTask(@Param("deviceIds") List<Long> deviceIds);
 
     @Select("select * from upgrade_task" +
             " where imei = #{imei}" +
             " and task_status in ('UPGRADE_REQUESTED','UPGRADING','WAIT_RESULT')" +
             " order by id desc limit 1")
-    UpgradeTaskEntity  selectUpgradingTaskByImei(String imei);
+    UpgradeTaskEntity  selectUpgradingTaskByImei(@Param("imei") String imei);
 
 
     @Update("update upgrade_task set start_time=#{startTime} where task_id=#{taskId}")

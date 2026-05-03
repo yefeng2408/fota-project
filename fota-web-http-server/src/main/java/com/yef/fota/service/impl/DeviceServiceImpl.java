@@ -15,16 +15,22 @@ import com.yef.fota.service.DeviceGroupRelationService;
 import com.yef.fota.service.DeviceGroupService;
 import com.yef.fota.service.DeviceService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.yef.fota.service.FirmwarePackageService;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * <p>
@@ -53,6 +59,8 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
     private static final String DEVICE_ONLINE_ZSET_KEY = "fota:device:online:zset";
 
     private static final String SEMAPHORE_KEY = "fota:upgrade:holders";
+
+    private static final int BATCH_SIZE = 900;
 
     private final StringRedisTemplate redisTemplate;
     private final DeviceGroupService deviceGroupService;
@@ -96,6 +104,51 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
             upsertDeviceCache(entity);
         }
         return entity;
+    }
+
+    @Override
+    public Set<String> listExistingImeis(Collection<String> imeis) {
+        Set<String> existsImeis = new HashSet<>();
+        if (imeis == null || imeis.isEmpty()) {
+            return existsImeis;
+        }
+        forEachBatch(new ArrayList<>(imeis), batch -> this.lambdaQuery()
+                .select(DeviceEntity::getImei)
+                .in(DeviceEntity::getImei, batch)
+                .list()
+                .stream()
+                .map(DeviceEntity::getImei)
+                .filter(Objects::nonNull)
+                .forEach(existsImeis::add));
+        return existsImeis;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int importDevices(List<DeviceSaveRequest> requests) {
+        if (requests == null || requests.isEmpty()) {
+            return 0;
+        }
+
+        List<DeviceEntity> devices = new ArrayList<>(requests.size());
+        LocalDateTime now = LocalDateTime.now();
+        for (DeviceSaveRequest request : requests) {
+            devices.add(buildImportDevice(request, now));
+        }
+
+        this.saveBatch(devices, BATCH_SIZE);
+
+        List<DeviceGroupRelationEntity> relations = new ArrayList<>(devices.size());
+        for (int i = 0; i < devices.size(); i++) {
+            DeviceGroupRelationEntity relation = new DeviceGroupRelationEntity();
+            relation.setDeviceId(devices.get(i).getId());
+            relation.setDeviceGroupId(requests.get(i).getDeviceGroupId());
+            relation.setCreatedAt(now);
+            relations.add(relation);
+        }
+        deviceGroupRelationService.saveBatch(relations, BATCH_SIZE);
+        upsertDeviceCacheBatch(devices);
+        return devices.size();
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -184,6 +237,37 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
     public void upsertDeviceCache(DeviceEntity entity) {
         String deviceKey = deviceCacheKey(entity.getImei());
 
+        redisTemplate.opsForHash().putAll(deviceKey, buildDeviceCache(entity));
+    }
+
+    private void upsertDeviceCacheBatch(List<DeviceEntity> entities) {
+        forEachBatch(entities, batch -> redisTemplate.executePipelined(new SessionCallback<Object>() {
+            @Override
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            public Object execute(RedisOperations operations) {
+                for (DeviceEntity entity : batch) {
+                    operations.opsForHash().putAll(deviceCacheKey(entity.getImei()), buildDeviceCache(entity));
+                }
+                return null;
+            }
+        }));
+    }
+
+    private DeviceEntity buildImportDevice(DeviceSaveRequest request, LocalDateTime now) {
+        DeviceEntity entity = new DeviceEntity();
+        entity.setImei(request.getImei());
+        entity.setDeviceName(request.getDeviceName());
+        entity.setDeviceType(request.getDeviceType());
+        entity.setCurrentFirmwareVersion(request.getCurrentFirmwareVersion());
+        entity.setTargetFirmwareId(request.getTargetFirmwareId());
+        entity.setIsBind(resolveBindStatus(request.getTargetFirmwareId()));
+        entity.setDeviceUpgradeStatus("NO_TASK");
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        return entity;
+    }
+
+    private Map<String, String> buildDeviceCache(DeviceEntity entity) {
         Map<String, String> deviceCache = new HashMap<>();
         deviceCache.put("id", nullToEmpty(entity.getId()));
         deviceCache.put("imei", nullToEmpty(entity.getImei()));
@@ -192,9 +276,7 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
         deviceCache.put("currentFirmwareVersion", nullToEmpty(entity.getCurrentFirmwareVersion()));
         deviceCache.put("deviceUpgradeStatus", nullToEmpty(entity.getDeviceUpgradeStatus()));
         deviceCache.put("isBind", nullToEmpty(entity.getIsBind()));
-
-        //对象以hash的形式存储
-        redisTemplate.opsForHash().putAll(deviceKey, deviceCache);
+        return deviceCache;
     }
 
     private String deviceCacheKey(String imei) {
@@ -203,6 +285,15 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
 
     private String nullToEmpty(Object value) {
         return value == null ? "" : String.valueOf(value);
+    }
+
+    private <T> void forEachBatch(List<T> values, Consumer<List<T>> consumer) {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < values.size(); i += BATCH_SIZE) {
+            consumer.accept(values.subList(i, Math.min(i + BATCH_SIZE, values.size())));
+        }
     }
 
 }

@@ -40,9 +40,9 @@
         </el-sub-menu>
         <el-sub-menu index="upgrade">
           <template #title>升级管理</template>
-          <el-menu-item index="/upgrade-tasks">升级任务</el-menu-item>
           <el-menu-item index="/batch-upgrade-tasks">批量任务</el-menu-item>
-          <el-menu-item index="/upgrade-task-processes">任务进度</el-menu-item>
+          <el-menu-item index="/upgrade-tasks">升级任务</el-menu-item>
+          <!-- <el-menu-item index="/upgrade-task-processes">任务进度</el-menu-item> -->
         </el-sub-menu>
         <el-menu-item index="/upgrade-logs">升级日志</el-menu-item>
         <el-menu-item index="/users">用户权限</el-menu-item>

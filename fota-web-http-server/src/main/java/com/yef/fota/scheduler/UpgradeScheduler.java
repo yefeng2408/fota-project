@@ -228,7 +228,7 @@ public class UpgradeScheduler implements DisposableBean {
 
             handleRetry(taskEntity, ex.getMessage());
             semaphore.release(imei);
-            log.warn("------>dispatchOneTask error:{}", ex.getMessage());
+            log.error("------>dispatchOneTask error:{}", ex.getMessage());
         }
     }
 

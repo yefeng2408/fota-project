@@ -8,6 +8,7 @@ import lombok.Setter;
 @Setter
 public class UpgradeTaskVO {
 
+    private Long batchId;
     private Long taskId;
     private String imei;
     private String firmwareVersion;

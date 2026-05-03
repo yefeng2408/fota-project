@@ -68,6 +68,7 @@ public class UpgradeTaskController {
 
         return tasks.stream().map(task -> {
             UpgradeTaskVO vo = new UpgradeTaskVO();
+            vo.setBatchId(task.getBatchId());
             vo.setTaskId(task.getTaskId());
             vo.setImei(task.getImei());
             vo.setTaskStatus(task.getTaskStatus());
