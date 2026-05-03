@@ -13,4 +13,6 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface DeviceGroupService extends IService<DeviceGroupEntity> {
 
+    void deleteGroupCascade(Long id);
+
 }
