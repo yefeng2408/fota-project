@@ -10,6 +10,7 @@ import com.yef.fota.entity.DeviceGroupRelationEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.exception.BusinessException;
 import com.yef.fota.mapper.DeviceMapper;
+import com.yef.fota.mapper.UpgradeTaskMapper;
 import com.yef.fota.service.DeviceGroupRelationService;
 import com.yef.fota.service.DeviceGroupService;
 import com.yef.fota.service.DeviceService;
@@ -46,20 +47,27 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
      */
     private static final String DEVICE_CACHE_KEY_PREFIX = "fota:device:";
 
+    /**
+     * 在线状态
+     */
+    private static final String DEVICE_ONLINE_ZSET_KEY = "fota:device:online:zset";
+
+    private static final String SEMAPHORE_KEY = "fota:upgrade:holders";
+
     private final StringRedisTemplate redisTemplate;
     private final DeviceGroupService deviceGroupService;
     private final DeviceGroupRelationService deviceGroupRelationService;
-    private final FirmwarePackageService firmwarePackageService;
+    private final UpgradeTaskMapper upgradeTaskMapper;
 
 
     public DeviceServiceImpl(StringRedisTemplate redisTemplate,
                              DeviceGroupService deviceGroupService,
                              DeviceGroupRelationService deviceGroupRelationService,
-                             FirmwarePackageService firmwarePackageService) {
+                             UpgradeTaskMapper upgradeTaskMapper) {
         this.redisTemplate = redisTemplate;
         this.deviceGroupService = deviceGroupService;
         this.deviceGroupRelationService = deviceGroupRelationService;
-        this.firmwarePackageService = firmwarePackageService;
+        this.upgradeTaskMapper = upgradeTaskMapper;
     }
 
     @Override
@@ -88,6 +96,31 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
             upsertDeviceCache(entity);
         }
         return entity;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public int delteDevice(DeviceEntity entity) {
+        int deleted = this.baseMapper.deleteById(entity.getId());
+        deviceGroupRelationService.remove(new LambdaQueryWrapper<DeviceGroupRelationEntity>()
+                .eq(DeviceGroupRelationEntity::getDeviceId, entity.getId()));
+        //将upgrade_task表中的设备更新为逻辑删除
+        upgradeTaskMapper.deleteUpgradeTask(entity.getId());
+        if (deleted==1) {
+            //删除设备
+            redisTemplate.delete(deviceCacheKey(entity.getImei()));
+            //删除在离线状态
+            redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(entity.getId()));
+            //删除设备升级过程中的 runtimekey
+            String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + entity.getImei();
+            redisTemplate.delete(runtimeKey);
+            //删除设备升级进度条
+            String lastProgressKey = runtimeKey + ":lastPushProgress";
+            redisTemplate.delete(lastProgressKey);
+            //删除占用的信号量
+            redisTemplate.opsForSet().remove(SEMAPHORE_KEY, String.valueOf(entity.getImei()));
+        }
+        return deleted;
     }
 
     @Transactional(rollbackFor = Exception.class)

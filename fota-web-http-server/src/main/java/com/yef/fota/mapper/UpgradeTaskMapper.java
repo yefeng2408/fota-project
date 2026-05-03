@@ -17,23 +17,27 @@ import java.util.List;
 @Mapper
 public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
 
-    @Update("""
-        UPDATE upgrade_task
-        SET status = #{status},
-            status_version = #{version},
-            status_event_time = #{eventTime},
-            updated_at = NOW()
-        WHERE id = #{taskId}
-          AND status_version < #{version}
-        """)
-    int updateTaskStatusIfNewer(@Param("taskId") Long taskId,
-                                @Param("status") String status,
-                                @Param("version") Long version,
-                                @Param("eventTime") Long eventTime);
 
-    @Delete("delete from upgrade_task where task_id=#{taskId}")
-    int delByTaskId(@Param("taskId") Long taskId);
+    /**
+     * 逻辑删除设备升级任务纪录
+     * @param deviceId
+     * @return
+     */
+    @Update("update upgrade_task set is_delete='1' where device_id = #{deviceId}")
+    int deleteUpgradeTask(Long deviceId);
 
+    /**
+     * 批量逻辑删除
+     * @param deviceIds
+     * @return
+     */
+    @Update("<script>" +
+            "update upgrade_task set is_delete='1' where device_id in " +
+            "<foreach collection='deviceIds' item='id' open='(' separator=',' close=')'>" +
+            "#{id}" +
+            "</foreach>" +
+            "</script>")
+    int deleteBatchUpgradeTask(List<Long> deviceIds);
 
     @Select("select * from upgrade_task" +
             " where imei = #{imei}" +
@@ -41,14 +45,6 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
             " order by id desc limit 1")
     UpgradeTaskEntity  selectUpgradingTaskByImei(String imei);
 
-
-    @Select("select count(1) from upgrade_task" +
-            " where task_status in ('UPGRADE_REQUESTED','UPGRADING','WAIT_RESULT') ")
-    int  countUpgradingTask();
-
-
-    @Select("select * from upgrade_task")
-    List<UpgradeTaskEntity> selectAll();
 
     @Update("update upgrade_task set start_time=#{startTime} where task_id=#{taskId}")
     int updateTaskStartTime(@Param("taskId") Long taskId, @Param("startTime") LocalDateTime startTime);
@@ -59,7 +55,6 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
 
     int casToRequested(Long id);
 
-    //int rollbackToWaiting(Long id);
 
     int countWaitingTask();
 

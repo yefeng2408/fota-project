@@ -25,7 +25,6 @@ class FotaWebHttpServerApplicationTests {
 
     @Test
     void readFirewareAndChunk() {
-       // minioClient.
 
     }
 
@@ -36,12 +35,6 @@ class FotaWebHttpServerApplicationTests {
 
     @Test
     public void contextLoads() {
-        redisTemplate.delete("fota:upgrade:runtime:66666666");
-        List<UpgradeTaskEntity> upgradeTaskEntities = upgradeTaskMapper.selectAll();
-        if(!upgradeTaskEntities.isEmpty()){
-            upgradeTaskMapper.delByTaskId(upgradeTaskEntities.get(0).getTaskId());
-            System.out.println("========>delByTaskId success");
-        }
 
     }
 

@@ -20,7 +20,10 @@ public interface DeviceService extends IService<DeviceEntity> {
 
     DeviceEntity addDevice(DeviceSaveRequest request);
 
+    int delteDevice(DeviceEntity deviceEntity);
+
     void updateDevice(DeviceEntity entity, DeviceSaveRequest request);
 
     List<String> getImeiByDeviceIds(List<Long> deivceIds);
+
 }

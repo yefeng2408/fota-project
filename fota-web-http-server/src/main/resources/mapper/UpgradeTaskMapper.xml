@@ -36,7 +36,7 @@
     <select id="selectRunnableTasks" resultType="com.yef.fota.entity.UpgradeTaskEntity">
         SELECT * FROM upgrade_task
         WHERE
-            task_status in ('WAITING','RETRY_WAITING') AND (next_retry_at IS NULL OR next_retry_at &lt;= NOW())
+            task_status in ('WAITING','RETRY_WAITING') AND (next_retry_at IS NULL OR next_retry_at &lt;= NOW()) AND is_delete ='0'
         ORDER BY id desc
         LIMIT #{limit}
     </select>

@@ -10,11 +10,11 @@ import com.yef.fota.entity.DeviceGroupEntity;
 import com.yef.fota.entity.DeviceGroupRelationEntity;
 import com.yef.fota.entity.UserDeviceGroupEntity;
 import com.yef.fota.exception.BusinessException;
+import com.yef.fota.mapper.UpgradeTaskMapper;
 import com.yef.fota.service.DeviceGroupRelationService;
 import com.yef.fota.service.DeviceGroupService;
 import com.yef.fota.service.DeviceService;
 import com.yef.fota.service.UserDeviceGroupService;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -62,6 +62,7 @@ public class DeviceGroupController {
     private final DeviceService deviceService;
     private final UserDeviceGroupService userDeviceGroupService;
     private final StringRedisTemplate redisTemplate;
+    private final UpgradeTaskMapper upgradeTaskMapper;
 
     @GetMapping("/tree")
     public ApiResponse<List<DeviceGroupTreeVO>> tree() {
@@ -122,6 +123,11 @@ public class DeviceGroupController {
         return ApiResponse.ok(entity);
     }
 
+    /**
+     * 根据分组id 批量删除分组下的所有设备以及该设备分组
+     * @param id
+     * @return
+     */
     @DeleteMapping("/{id}")
     @OperationLog(action = "DELETE_DEVICE_GROUP")
     @Transactional(rollbackFor = Exception.class)
@@ -140,8 +146,13 @@ public class DeviceGroupController {
         userDeviceGroupService.remove(new LambdaQueryWrapper<UserDeviceGroupEntity>().in(UserDeviceGroupEntity::getDeviceGroupId, allGroupIds));
         deviceGroupService.removeByIds(allGroupIds);
 
-        for (Long deleteId : deviceIds) {
-            redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(deleteId));
+        int batchSize = 900;
+        for (int i = 0; i < deviceIds.size(); i += batchSize) {
+            //删除设备现在状态
+            redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(deviceIds.get(i)));
+            //批量的逻辑删除
+            List<Long> batch = deviceIds.subList(i, Math.min(i + batchSize, deviceIds.size()));
+            upgradeTaskMapper.deleteBatchUpgradeTask(batch);
         }
 
         if (deviceIds != null && deviceIds.size() > 0) {
@@ -160,11 +171,6 @@ public class DeviceGroupController {
                 redisTemplate.delete(lastProgressKey);
                 //删除占用的信号量
                 redisTemplate.opsForSet().remove(SEMAPHORE_KEY, String.valueOf(imei));
-            }
-
-            //删除在离线状态
-            for (Long deviceId : deviceIds) {
-                redisTemplate.opsForZSet().remove(DEVICE_ONLINE_ZSET_KEY, String.valueOf(deviceId));
             }
         }
 
