@@ -16,6 +16,7 @@ import com.yef.fota.service.impl.UpgradeTaskServiceImpl;
 import com.yef.fota.websocket.WebSocketConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
@@ -93,15 +94,15 @@ public class UpgradeScheduler implements DisposableBean {
     @Resource
     private WebSocketConfig webSocketConfig;
 
-    @Resource
+    @Autowired
     private StringRedisTemplate redisTemplate;
 
     //处于升级中的设备最大数，类似于线程池最大线程数
-    @Value("${fota.upgrade.max-active-devices:100}")
+    @Value("${fota.upgrade.max-active-devices:500}")
     private int maxActive;
 
     //每次调度最多放多少设备进入升级，类似于线程池的每次 submit 数量
-    @Value("${fota.upgrade.dispatch-batch-size:10}")
+    @Value("${fota.upgrade.dispatch-batch-size:200}")
     private int batchSize;
 
     private final ThreadPoolExecutor dispatchExecutor = new ThreadPoolExecutor(
@@ -119,7 +120,7 @@ public class UpgradeScheduler implements DisposableBean {
     );
 
 
-    @Scheduled(fixedDelay = 3000)
+    @Scheduled(fixedDelay = 5000)
     public void dispatch() {
         int active = semaphore.current();
         int available = maxActive - active;

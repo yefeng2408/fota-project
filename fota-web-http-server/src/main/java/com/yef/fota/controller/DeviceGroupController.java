@@ -54,6 +54,9 @@ public class DeviceGroupController {
      * 在线状态
      */
     private static final String DEVICE_ONLINE_ZSET_KEY = "fota:device:online:zset";
+
+    private static final String SEMAPHORE_KEY = "fota:upgrade:holders";
+
     private final DeviceGroupService deviceGroupService;
     private final DeviceGroupRelationService deviceGroupRelationService;
     private final DeviceService deviceService;
@@ -155,6 +158,8 @@ public class DeviceGroupController {
                 //删除设备升级进度条
                 String lastProgressKey = runtimeKey + ":lastPushProgress";
                 redisTemplate.delete(lastProgressKey);
+                //删除占用的信号量
+                redisTemplate.opsForSet().remove(SEMAPHORE_KEY, String.valueOf(imei));
             }
 
             //删除在离线状态

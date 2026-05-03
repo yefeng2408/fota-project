@@ -74,7 +74,7 @@ public class UpgradeExecutor {
 
     //网关对设备升级结果的上行消息0x06做出应答【写出站消息】
     public void receiveUpgradeResult(UpgradeResultMessage message) {
-        log.info("+++++++++++++++++>>>>>>>>>[UpgradeExecutor] upgrade result UpgradeResultMessage= {}", JSON.toJSONString(message));
+        log.debug("+++++++++++++++++>>>>>>>>>[UpgradeExecutor] upgrade result UpgradeResultMessage= {}", JSON.toJSONString(message));
         UpgradeResultMessageAck messageAck = new UpgradeResultMessageAck(
                 message.imei(),
                 message.getTaskId(),
@@ -126,6 +126,7 @@ public class UpgradeExecutor {
         );
         // 释放锁
         deviceUpgradeLockService.releaseLock(message.imei(), String.valueOf(message.getTaskId()));
+        //TODO 信号量的释放是否应该归于web服务？毕竟获取信号量也是在yuweb服务
         upgradeSemaphoreService.release(message.imei());
         deviceUpgradeLockService.clearActive(message.imei());
 

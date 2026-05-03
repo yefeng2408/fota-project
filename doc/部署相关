@@ -154,5 +154,8 @@ docker compose up -d nginx
 
 
 
+//TODO LIST: 想做一个限流。针对“升级按钮”，一个用户在3分钟内只能发起一次设备升级请求
+// MQ消息重启机制
+
 
 

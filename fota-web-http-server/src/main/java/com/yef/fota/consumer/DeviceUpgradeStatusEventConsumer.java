@@ -189,7 +189,7 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
                 event.getCurrentFirmwareVersion(),
                 event.getTargetFirmwareVersion()
         ));
-        log.info("------>升级完成 DeviceUpgradeStatusEventConsumer|handleFinalResult:{}", JSON.toJSONString(event));
+        log.debug("------>升级完成 DeviceUpgradeStatusEventConsumer|handleFinalResult:{}", JSON.toJSONString(event));
     }
 
     private void handleCancelResult(UpgradeEventMessage event) {
