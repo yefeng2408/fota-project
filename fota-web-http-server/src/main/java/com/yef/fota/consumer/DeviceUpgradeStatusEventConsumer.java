@@ -131,15 +131,14 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
         LocalDateTime now = LocalDateTime.now();
 
         if (shouldPersistRuntimeStatus(status) || progress != null) {
-            DeviceEntity device = deviceMapper.selectDeviceByImei(event.getImei());
+            /*DeviceEntity device = deviceMapper.selectDeviceByImei(event.getImei());
             if (device != null) {
                 if (shouldPersistRuntimeStatus(status)) {
                     device.setDeviceUpgradeStatus(status);
                 }
                 device.setUpdatedAt(now);
                 deviceMapper.updateById(device);
-            }
-
+            }*/
             UpgradeTaskEntity task = findRelatedTask(event);
             if (task != null) {
                 if (shouldPersistRuntimeStatus(status)) {

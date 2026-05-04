@@ -66,7 +66,7 @@ public class SessionManager {
                 return;
             }
             // 2. 如果 oldSession 存在，但旧连接不是当前连接，则关闭旧连接
-            if (oldSession.getChannel() != null) {
+            if (oldSession.getChannel() != null && oldSession.getChannel() != channel) {
                 if (oldChannel.isActive()) {
                     oldChannel.close();
                 }
@@ -144,21 +144,5 @@ public class SessionManager {
         }
 
     }
-
-    /**
-     * 判断终端是否在线
-     */
-    public boolean isOnline(String imei) {
-        DeviceSession session = sessionByImei.get(imei);
-        return session != null && session.getChannel() != null && session.getChannel().isActive();
-    }
-
-    /**
-     * 在线终端数量
-     */
-    public int onlineCount() {
-        return sessionByImei.size();
-    }
-
 
 }
