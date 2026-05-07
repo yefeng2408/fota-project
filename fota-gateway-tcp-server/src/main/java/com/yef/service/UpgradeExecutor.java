@@ -3,6 +3,7 @@ package com.yef.service;
 import com.alibaba.fastjson.JSON;
 import com.yef.cache.FirmwareCacheHolder;
 import com.yef.cache.FirmwareCacheManager;
+import com.yef.cache.FirmwareCacheRefCountUtil;
 import com.yef.producer.DeviceUpgradeEventPushClient;
 import com.yef.protocol.*;
 
@@ -139,16 +140,9 @@ public class UpgradeExecutor {
         deviceUpgradeLockService.clearActive(message.imei());
 
         Object firmwareIdObj = runtimeMap.get("firmwareId");
-        Object objectName = runtimeMap.get("objectName");
         FirmwareCacheHolder firmwareCacheHolder = firmwareCacheManager.get(Long.valueOf(firmwareIdObj.toString()));
         if(firmwareCacheHolder!=null){
-            firmwareCacheHolder.getRefCount().decrementAndGet();
-            //log.info("0x81 ack===>固件引用计数减1。当前计数refCount={}, objectName={}",firmwareCacheHolder.getRefCount().get(), objectName);
-            if(firmwareCacheHolder.getRefCount().get()==0){
-                //释放固件内存数据
-                firmwareCacheManager.remove(Long.valueOf(firmwareIdObj.toString()));
-                log.info("0x81 ack===>固件引用计数为0，释放固件内存。objectName={}", objectName);
-            }
+            FirmwareCacheRefCountUtil.decrement(Long.valueOf(firmwareIdObj.toString()));
         }
     }
 
@@ -258,17 +252,17 @@ public class UpgradeExecutor {
         String lastProgressStr = redisTemplate.opsForValue().get(lastProgressKey);
         int lastPushProgress = lastProgressStr == null ? -1 : Integer.parseInt(lastProgressStr);
 
-        int pushProgress = calcPushProgress(progress);
-        if (pushProgress > lastPushProgress) {
+        //int pushProgress = calcPushProgress(progress);
+        if (progress > lastPushProgress) {
             // 更新已推送进度：只推送 10%、20%、30% ... 100%，降低 MQ / WebSocket 压力
-            redisTemplate.opsForValue().set(lastProgressKey, String.valueOf(pushProgress));
+            redisTemplate.opsForValue().set(lastProgressKey, String.valueOf(progress));
             String upgradeStatus = nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING";
             deviceUpgradeEventPushClient.pushUpgradeProgress(
                     new UpgradeProgressEventRequest(
                             ack.imei(),
                             ack.getTaskId(),
                             upgradeStatus,
-                            pushProgress,
+                            progress,
                             null,
                             null
                     )
@@ -284,10 +278,9 @@ public class UpgradeExecutor {
      * @param ack
      */
     public void receiveCancelAck(AckMessage ack) {
-        log.info("111=======>device-upgrade-event-ack:{}", JSON.toJSONString(ack));
+        log.info("0x06=======>device-upgrade-event-ack:{}", JSON.toJSONString(ack));
         String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + ack.imei();
         Object firmwareIdObj = redisTemplate.opsForHash().get(runtimeKey, "firmwareId");
-        String objectName = redisTemplate.opsForHash().get(runtimeKey, "objectName").toString();
         redisTemplate.opsForHash().put(runtimeKey, "status", "CANCEL_UPGRADE");
 
         UpgradeCancelEventRequest request = new UpgradeCancelEventRequest();
@@ -304,12 +297,7 @@ public class UpgradeExecutor {
 
         FirmwareCacheHolder firmwareCacheHolder = firmwareCacheManager.get(Long.valueOf(firmwareIdObj.toString()));
         if(firmwareCacheHolder!=null){
-            firmwareCacheHolder.getRefCount().decrementAndGet();
-            if(firmwareCacheHolder.getRefCount().get()==0){
-                //释放固件内存数据
-                firmwareCacheManager.remove(Long.valueOf(firmwareIdObj.toString()));
-                log.info("0x87 ack===>固件引用计数为0，释放固件内存。objectName={}", objectName);
-            }
+            FirmwareCacheRefCountUtil.decrement(Long.valueOf(firmwareIdObj.toString()));
         }
 
     }

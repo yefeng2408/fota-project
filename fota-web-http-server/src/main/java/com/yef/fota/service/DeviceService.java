@@ -30,6 +30,5 @@ public interface DeviceService extends IService<DeviceEntity> {
 
     void updateDevice(DeviceEntity entity, DeviceSaveRequest request);
 
-    List<String> getImeiByDeviceIds(List<Long> deivceIds);
-
+    void updateDeviceUpgradeStatus(String imei);
 }

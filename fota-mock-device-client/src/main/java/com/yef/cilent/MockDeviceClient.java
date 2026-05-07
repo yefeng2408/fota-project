@@ -384,7 +384,7 @@ public class MockDeviceClient implements SmartLifecycle {
         public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
             if (evt instanceof IdleStateEvent idleStateEvent
                     && idleStateEvent.state() == IdleState.WRITER_IDLE) {
-                log.info("MockDevice 触发写空闲，imei={}，准备发送 0x05 Heartbeat", profile.imei());
+                log.debug("MockDevice 触发写空闲，imei={}，准备发送 0x05 Heartbeat", profile.imei());
                 ctx.writeAndFlush(new FotaProtocol.Heartbeat(profile.imei()));
             }
             super.userEventTriggered(ctx, evt);

@@ -98,29 +98,29 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
     public static PlatformUpgradeRequest getUpgradeRequest(UpgradeTaskEntity task, DeviceEntity device,
                                                     FirmwarePackageEntity firmware) {
 
-        PlatformUpgradeRequest gatewayRequest = new PlatformUpgradeRequest();
-        gatewayRequest.setTaskId(task.getTaskId());
-        gatewayRequest.setDeviceId(device.getId());
-        gatewayRequest.setImei(device.getImei());
-        gatewayRequest.setLockToken(String.valueOf(task.getTaskId()));
-        gatewayRequest.setFirmwareId(firmware.getId());
+        PlatformUpgradeRequest request = new PlatformUpgradeRequest();
+        request.setTaskId(task.getTaskId());
+        request.setDeviceId(device.getId());
+        request.setImei(device.getImei());
+        request.setLockToken(String.valueOf(task.getTaskId()));
+        request.setFirmwareId(firmware.getId());
 
         byte[] firmwareNameBytes = firmware.getFileName().getBytes(StandardCharsets.UTF_8);
         byte[] firmwareVersionBytes = firmware.getVersion().getBytes(StandardCharsets.UTF_8);
 
-        gatewayRequest.setFirmwareNameLen((byte) firmwareNameBytes.length);
-        gatewayRequest.setFirmwareName(firmware.getFileName());
+        request.setFirmwareNameLen((byte) firmwareNameBytes.length);
+        request.setFirmwareName(firmware.getFileName());
 
-        gatewayRequest.setFirmwareVersionLen((byte) firmwareVersionBytes.length);
-        gatewayRequest.setFirmwareVersionName(firmware.getVersion());
+        request.setFirmwareVersionLen((byte) firmwareVersionBytes.length);
+        request.setFirmwareVersionName(firmware.getVersion());
 
-        gatewayRequest.setChunkSize(firmware.getChunkSize());
-        gatewayRequest.setTotalPacket(firmware.getTotalPacket());
-        gatewayRequest.setFileSize(firmware.getFileSize());
-        gatewayRequest.setMd5(firmware.getMd5());
-        gatewayRequest.setBucketName(firmware.getBucketName());
-        gatewayRequest.setObjectName(firmware.getObjectName());
-        return gatewayRequest;
+        request.setChunkSize(firmware.getChunkSize());
+        request.setTotalPacket(firmware.getTotalPacket());
+        request.setFileSize(firmware.getFileSize());
+        request.setMd5(firmware.getMd5());
+        request.setBucketName(firmware.getBucketName());
+        request.setObjectName(firmware.getObjectName());
+        return request;
     }
 
 

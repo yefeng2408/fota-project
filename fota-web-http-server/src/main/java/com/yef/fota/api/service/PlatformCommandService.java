@@ -22,19 +22,21 @@ public class PlatformCommandService {
         this.platformApiClient = gatewayApiClient;
     }
 
-    public void sendUpgradeRequest(PlatformUpgradeRequest request) {
+    public GatewayApiResponse<Void> sendUpgradeRequest(PlatformUpgradeRequest request) {
         GatewayApiResponse<Void> response = platformApiClient.sendUpgradeRequest(request);
         if (response == null || !response.success()) {
             throw new BusinessException("调用网关下发升级请求失败: " +
                     (response == null ? "response is null" : response.getMessage()));
         }
+        return response;
     }
 
-    public void sendCancelUpgradeRequest(PlatformCancelUpgradeRequest request) {
+    public GatewayApiResponse<Void> sendCancelUpgradeRequest(PlatformCancelUpgradeRequest request) {
         GatewayApiResponse<Void> response = platformApiClient.sendCancelUpgradeRequest(request);
         if (response == null || !response.success()) {
             throw new BusinessException("调用网关下发取消升级失败: " +
                     (response == null ? "response is null" : response.getMessage()));
         }
+        return response;
     }
 }

@@ -51,7 +51,11 @@ public interface DeviceMapper extends BaseMapper<DeviceEntity> {
     List<String> getImeiList(@Param("deviceIds") List<Long> deviceIds);
 
 
-
-
+    @Update("""
+            UPDATE device
+            SET device_upgrade_status = 'FAIL'
+            WHERE imei = #{imei}
+            """)
+    void updateDeviceUpgradeStatusFail(@Param("imei") String imei);
 
 }

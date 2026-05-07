@@ -56,7 +56,7 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
     private static final String EVENT_PROCESSING_KEY_PREFIX = "fota:mq:event:processing:";
     //
     private static final String SEMAPHORE_RELEASED_KEY_PREFIX = "fota:upgrade:semaphore:released:";
-    private static final long EVENT_DONE_TTL_DAYS = 3;
+    private static final long EVENT_DONE_TTL_DAYS = 1;
     private static final long EVENT_PROCESSING_TTL_MINUTES = 5;
     private static final long SEMAPHORE_RELEASED_TTL_DAYS = 1;
 

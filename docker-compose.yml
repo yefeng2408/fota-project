@@ -79,6 +79,7 @@ services:
       - rocketmq-namesrv
     environment:
       NAMESRV_ADDR: rocketmq-namesrv:9876
+      JAVA_OPT_EXT: -server -Xms512m -Xmx512m -Xmn256m
       TZ: ${TZ:-Asia/Shanghai}
     command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/conf/broker.conf
     ports:

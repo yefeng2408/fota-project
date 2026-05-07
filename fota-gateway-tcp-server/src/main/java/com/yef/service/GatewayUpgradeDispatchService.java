@@ -38,7 +38,6 @@ public class GatewayUpgradeDispatchService {
     private final SessionManager sessionManager;
     private final StringRedisTemplate redisTemplate;
     private final DeviceUpgradeLockService deviceUpgradeLockService;
-    private final DeviceUpgradeDispatchLockService deviceUpgradeDispatchLockService;
     private final FirmwareCacheManager firmwareCacheManager;
 
     /**
@@ -63,13 +62,11 @@ public class GatewayUpgradeDispatchService {
                                          SessionManager sessionManager,
                                          StringRedisTemplate redisTemplate,
                                          DeviceUpgradeLockService deviceUpgradeLockService,
-                                         DeviceUpgradeDispatchLockService deviceUpgradeDispatchLockService,
                                          FirmwareCacheManager firmwareCacheManager) {
         this.minioClient = minioClient;
         this.sessionManager = sessionManager;
         this.redisTemplate = redisTemplate;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
-        this.deviceUpgradeDispatchLockService = deviceUpgradeDispatchLockService;
         this.firmwareCacheManager = firmwareCacheManager;
     }
 
@@ -108,7 +105,6 @@ public class GatewayUpgradeDispatchService {
             Channel channel = session.getChannel();
             channel.writeAndFlush(message);
             deviceUpgradeLockService.markActive(req.getImei());
-            deviceUpgradeDispatchLockService.releaseLock(req.getImei(), req.getLockToken());
         } catch (RuntimeException ex) {
             deviceUpgradeLockService.releaseLock(req.getImei(), req.getLockToken());
             throw ex;
@@ -208,6 +204,7 @@ public class GatewayUpgradeDispatchService {
         return future.thenApply(holder -> {
             if (holder != null && holder.getFirmwareFullBytes() != null) {
                 holder.getRefCount().incrementAndGet();
+                holder.setCreatedAt(System.currentTimeMillis());
                 holder.setLastAccessAt(System.currentTimeMillis());
                 log.info("固件缓存加载完成/命中, firmwareId={}, imei={}, taskId={}, fileSize={}, refCount={}",
                         firmwareId, imei, taskId, holder.getFileSize(), holder.getRefCount().get());

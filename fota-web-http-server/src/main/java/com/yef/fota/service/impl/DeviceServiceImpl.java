@@ -212,11 +212,11 @@ public class DeviceServiceImpl extends ServiceImpl<DeviceMapper, DeviceEntity> i
 
     }
 
-
     @Override
-    public List<String> getImeiByDeviceIds(List<Long> deivceIds) {
-        return this.baseMapper.getImeiList(deivceIds);
+    public void updateDeviceUpgradeStatus(String imei) {
+        this.baseMapper.updateDeviceUpgradeStatusFail(imei);
     }
+
 
     private Integer resolveBindStatus(Long targetFirmwareId) {
         return targetFirmwareId == null ? 0 : 1;

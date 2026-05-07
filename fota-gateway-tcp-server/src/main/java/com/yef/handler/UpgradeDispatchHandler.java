@@ -41,7 +41,7 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
         if (msg instanceof DeviceBootUpMessage) {
             upgradeExecutor.onDeviceBootUp((DeviceBootUpMessage) msg);
         } else if (msg instanceof HeartbeatMessage) {
-            log.info("[UpgradeDispatchHandler] heartbeat ignored, deviceId={}", deviceId);
+            log.debug("[UpgradeDispatchHandler] heartbeat ignored, deviceId={}", deviceId);
         } else if (msg instanceof AckMessage) {
             AckMessage ack = (AckMessage) msg;
             /*log.info("[UpgradeDispatchHandler] ack ignored, imei={}, taskId={}, packetNo={}", ack.imei(),ack.getTaskId(),ack.getPacketNo());*/

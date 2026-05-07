@@ -11,7 +11,7 @@
  Target Server Version : 80035 (8.0.35)
  File Encoding         : 65001
 
- Date: 22/04/2026 14:32:29
+ Date: 07/05/2026 19:07:46
 */
 
 SET NAMES utf8mb4;
@@ -31,8 +31,9 @@ CREATE TABLE `batch_upgrade_task` (
   `fail_count` int DEFAULT '0' COMMENT '失败数量',
   `created_by` bigint DEFAULT NULL COMMENT '创建人',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `remark` varchar(200) COLLATE utf8mb4_bin DEFAULT NULL COMMENT '备注',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='批量升级任务表';
+) ENGINE=InnoDB AUTO_INCREMENT=114 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='批量升级任务表';
 
 -- ----------------------------
 -- Table structure for device
@@ -56,7 +57,7 @@ CREATE TABLE `device` (
   UNIQUE KEY `uk_imei` (`imei`),
   KEY `idx_device_type` (`device_type`),
   KEY `idx_upgrade_status` (`device_upgrade_status`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备表';
+) ENGINE=InnoDB AUTO_INCREMENT=72654 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备表';
 
 -- ----------------------------
 -- Table structure for device_firmware_binding
@@ -79,7 +80,7 @@ CREATE TABLE `device_firmware_binding` (
   KEY `idx_device_id` (`device_id`),
   KEY `idx_firmware_id` (`firmware_id`),
   KEY `idx_bind_status` (`bind_status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备与固件绑定关系表';
+) ENGINE=InnoDB AUTO_INCREMENT=61018 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备与固件绑定关系表';
 
 -- ----------------------------
 -- Table structure for device_group
@@ -93,7 +94,7 @@ CREATE TABLE `device_group` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
   KEY `idx_parent_id` (`parent_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备分组表（树结构）';
+) ENGINE=InnoDB AUTO_INCREMENT=107 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备分组表（树结构）';
 
 -- ----------------------------
 -- Table structure for device_group_relation
@@ -106,7 +107,7 @@ CREATE TABLE `device_group_relation` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_device_group` (`device_id`,`device_group_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=55 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备与设备组关联表';
+) ENGINE=InnoDB AUTO_INCREMENT=72751 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备与设备组关联表';
 
 -- ----------------------------
 -- Table structure for device_upgrade_log
@@ -163,7 +164,7 @@ CREATE TABLE `operate_log` (
   `detail` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin COMMENT '操作详情',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=86 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='用户操作日志表';
+) ENGINE=InnoDB AUTO_INCREMENT=1039 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='用户操作日志表';
 
 -- ----------------------------
 -- Table structure for upgrade_task
@@ -176,7 +177,7 @@ CREATE TABLE `upgrade_task` (
   `imei` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT '设备IMEI',
   `firmware_id` bigint NOT NULL COMMENT '固件ID',
   `batch_id` bigint DEFAULT NULL COMMENT '批量任务ID，单任务可为空',
-  `task_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT 'INIT/PENDING/UPGRADE_REQUESTED/UPGRADING/SUCCESS/FAIL/TIMEOUT/CANCELLED',
+  `task_status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT 'NO_TASK / UPGRADE_REQUESTED / UPGRADING / WAIT_RESULT / SUCCESS / FAIL / TIMEOUT / PAUSED / CANCELING / CANCEL_UPGRADE',
   `progress` int NOT NULL DEFAULT '0' COMMENT '升级进度百分比',
   `current_packet` int NOT NULL DEFAULT '0' COMMENT '最后一次落库的已确认包号快照',
   `total_packet` int NOT NULL DEFAULT '0' COMMENT '总包数',
@@ -188,12 +189,19 @@ CREATE TABLE `upgrade_task` (
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `status_version` bigint NOT NULL DEFAULT '0' COMMENT '任务状态版本号',
   `status_event_time` bigint NOT NULL DEFAULT '0' COMMENT '最近一次任务状态事件时间戳(毫秒)',
+  `retry_count` int DEFAULT '0' COMMENT '已重试次数',
+  `max_retry` int DEFAULT '3' COMMENT '最大重试次数',
+  `next_retry_at` datetime DEFAULT NULL COMMENT '下次重试时间',
+  `last_error_code` varchar(64) COLLATE utf8mb4_bin DEFAULT NULL,
+  `last_error_msg` varchar(256) COLLATE utf8mb4_bin DEFAULT NULL,
+  `last_active_at` datetime DEFAULT NULL COMMENT '最近活跃时间（心跳/包）',
+  `is_delete` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT '0' COMMENT '0正常 1删除',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_task_id` (`task_id`),
   KEY `idx_device_id` (`device_id`),
   KEY `idx_task_status` (`task_status`),
   KEY `idx_batch_id` (`batch_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=87 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备升级任务主表';
+) ENGINE=InnoDB AUTO_INCREMENT=61151 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin COMMENT='设备升级任务主表';
 
 -- ----------------------------
 -- Table structure for upgrade_task_process

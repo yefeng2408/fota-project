@@ -1,5 +1,6 @@
 package com.yef.fota.scheduler;
 
+import com.yef.fota.api.GatewayApiResponse;
 import com.yef.fota.api.dto.DeviceUpgradeEventRequest;
 import com.yef.fota.api.dto.PlatformUpgradeRequest;
 import com.yef.fota.api.service.PlatformCommandService;
@@ -200,23 +201,18 @@ public class UpgradeScheduler implements DisposableBean {
         ));
 
         try {
-            long start = System.currentTimeMillis();
-            long beforeHttp = System.currentTimeMillis();
-
             // 4.下发升级请求（0x81）
             DeviceEntity deviceEntity = new DeviceEntity();
             deviceEntity.setId(taskEntity.getDeviceId());
             deviceEntity.setImei(imei);
             PlatformUpgradeRequest upgradeRequest = UpgradeTaskServiceImpl.getUpgradeRequest(taskEntity, deviceEntity, packageEntity);
 
-            platformCommandService.sendUpgradeRequest(upgradeRequest);
+            GatewayApiResponse<Void> response = platformCommandService.sendUpgradeRequest(upgradeRequest);
+            if(response!=null && response.success()) {
+                //下发至网关成功，释放设备预占锁
+                dispatchLockService.releaseLock(imei, lockToken);
+            }
 
-            long afterHttp = System.currentTimeMillis();
-            long total = afterHttp - start;
-            long httpCost = afterHttp - beforeHttp;
-            long localCost = total - httpCost;
-
-            log.info("dispatchOneTask cost, imei={}, total={}ms, http={}ms, local={}ms", imei, total, httpCost, localCost);
         } catch (RuntimeException ex) {
             dispatchLockService.releaseLock(imei, lockToken);
             //如果设备锁已存在，则表明设备处于升级过程中。直接return，不能重试
@@ -258,8 +254,8 @@ public class UpgradeScheduler implements DisposableBean {
                     null
             ));
             upgradeTaskMapper.markFail(task.getId(), errorMsg);
-            //TODO 这里是否要做最终一致性更新device表的 device_upgrade_status 设备升级状态字段
-
+            // 更新device表的 device_upgrade_status 设备升级状态字段 FAIL
+            deviceService.updateDeviceUpgradeStatus(task.getImei());
             log.error("任务最终失败 taskId={}, error={}", task.getTaskId(), errorMsg);
             return;
         }

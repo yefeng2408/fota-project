@@ -1,7 +1,6 @@
 package com.yef.cache;
 
 import org.springframework.stereotype.Component;
-
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +44,21 @@ public class FirmwareCacheManager {
      * 1. 只允许一个线程真正去 MinIO 下载。
      * 2. 其它线程直接复用同一个 Future 等待结果。
      * 3. 加载完成后写入 firmwareCache，并移除 loadingFutureMap。
+     *
+     * 实现原理：
+     *  线程A进来：
+     *  loadingFutureMap 里没有 firmwareId=19
+     *  → computeIfAbsent 执行 lambda
+     *  → 创建 CompletableFuture
+     *  → supplyAsync 提交真正下载任务
+     *  → 把 future 放入 loadingFutureMap
+     *  → 返回 future
+     *
+     *  线程B/C/D 同时进来：
+     *  发现 loadingFutureMap 里已经有 firmwareId=19 对应的 future
+     *  → 不执行 lambda
+     *  → 直接拿到同一个 future
+     *  → 等这个 future 完成
      */
     public CompletableFuture<FirmwareCacheHolder> loadIfAbsent(Long firmwareId,
                                                                 Supplier<FirmwareCacheHolder> loader,
@@ -57,6 +71,7 @@ public class FirmwareCacheManager {
 
         return loadingFutureMap.computeIfAbsent(firmwareId, key -> {
             CompletableFuture<FirmwareCacheHolder> future = CompletableFuture.supplyAsync(() -> {
+                // 真正下载 MinIO
                 FirmwareCacheHolder holder = loader.get();
                 firmwareCache.put(firmwareId, holder);
                 return holder;
@@ -82,6 +97,7 @@ public class FirmwareCacheManager {
     public int size() {
         return firmwareCache.size();
     }
+
     public void remove(Long firmwareId) {
         firmwareCache.remove(firmwareId);
     }
