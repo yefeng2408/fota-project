@@ -61,7 +61,7 @@
 
 
     <select id="countWaitingTask" resultType="java.lang.Integer">
-        SELECT COUNT(*) FROM upgrade_task WHERE task_status = 'WAITING'
+        SELECT COUNT(*) FROM upgrade_task WHERE task_status = 'WAITING' AND is_delete ='0'
     </select>
 
 

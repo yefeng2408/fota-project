@@ -55,6 +55,8 @@ docker load -i fota-web-http-server-v1.tar
 docker load -i fota-gateway-tcp-server-v1.tar
 docker load -i fota-mock-device-client-v1.tar
 
+scp fota-web-http-server-v1.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
+
 总体流程：
 
     【本地开发机】
@@ -101,7 +103,7 @@ docker pull minio/minio:latest
 docker pull mysql:8.0
 docker pull redis:7.2
 
-docker compose up -d mysql redis minio
+docker compose up -d mysql redis minio rocketmq-namesrv rocketmq-broker rocketmq-dashboard
 
 看这三个是否正常
 docker logs -f mysql的容器id
