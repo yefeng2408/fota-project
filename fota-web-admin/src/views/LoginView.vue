@@ -4,6 +4,7 @@
       <section class="login-hero">
         <h1>FOTA 升级管理平台</h1>
         <p>面向设备、固件与升级任务全链路管理</p>
+        <p>代码地址(dev分支)：https://gitee.com/yf123456/fota-project </p>
         <p>当前已接入：登录、仪表盘、设备、分组、固件、升级日志、用户、操作日志。</p>
       </section>
       <section class="login-form">

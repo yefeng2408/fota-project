@@ -60,7 +60,7 @@ services:
       - fota-net
 
   rocketmq-namesrv:
-    image: apache/rocketmq:5.4.0
+    image: apache/rocketmq:5.1.0
     container_name: fota-rocketmq-namesrv
     restart: unless-stopped
     command: sh mqnamesrv
@@ -72,16 +72,16 @@ services:
       - fota-net
 
   rocketmq-broker:
-    image: apache/rocketmq:5.4.0
+    image: apache/rocketmq:5.1.0
     container_name: fota-rocketmq-broker
     restart: unless-stopped
     depends_on:
       - rocketmq-namesrv
     environment:
       NAMESRV_ADDR: rocketmq-namesrv:9876
-      JAVA_OPT_EXT: -server -Xms512m -Xmx512m -Xmn256m
+      JAVA_OPT_EXT: "-Xms512m -Xmx512m -Xmn256m -XX:MaxDirectMemorySize=256m"
       TZ: ${TZ:-Asia/Shanghai}
-    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/conf/broker.conf
+    command: ["sh", "mqbroker", "-c", "/home/rocketmq/conf/broker.conf"]
     ports:
       - "${ROCKETMQ_BROKER_PORT:-10911}:10911"
       - "${ROCKETMQ_BROKER_HA_PORT:-10912}:10912"
@@ -90,6 +90,21 @@ services:
       - ./data/rocketmq/broker/logs:/home/rocketmq/logs
       - ./data/rocketmq/broker/store:/home/rocketmq/store
       - ./rocketmq/broker.conf:/home/rocketmq/conf/broker.conf:ro
+    networks:
+      - fota-net
+
+  rocketmq-dashboard:
+    image: apacherocketmq/rocketmq-dashboard:latest
+    container_name: fota-rocketmq-dashboard
+    restart: unless-stopped
+    depends_on:
+      - rocketmq-namesrv
+      - rocketmq-broker
+    environment:
+      JAVA_OPTS: "-Drocketmq.namesrv.addr=rocketmq-namesrv:9876 -Dserver.port=8082"
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      - "${ROCKETMQ_DASHBOARD_PORT:-18082}:8082"
     networks:
       - fota-net
 
