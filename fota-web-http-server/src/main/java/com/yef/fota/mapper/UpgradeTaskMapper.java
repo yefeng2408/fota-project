@@ -71,4 +71,7 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
             @Param("errorMsg") String errorMsg
     );
 
+
+    List<UpgradeTaskEntity> selectWaitingTask();
+
 }

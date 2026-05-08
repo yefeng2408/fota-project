@@ -19,6 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+
+import java.time.ZoneId;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -294,6 +296,28 @@ public class UpgradeScheduler implements DisposableBean {
         Object runtimeTaskId = redisTemplate.opsForHash().get("fota:upgrade:runtime:" + imei, "taskId");
         return runtimeTaskId != null && lockToken.equals(String.valueOf(runtimeTaskId));
     }
+
+
+
+
+    @Scheduled(fixedDelay = 5000)
+    public void scan() {
+        List<UpgradeTaskEntity> upgradeTaskEntities = upgradeTaskMapper.selectWaitingTask();
+        LocalDateTime now = LocalDateTime.now();
+        long nowMil = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        if(upgradeTaskEntities!=null && !upgradeTaskEntities.isEmpty()) {
+            for (UpgradeTaskEntity entity : upgradeTaskEntities) {
+                LocalDateTime createdAt = entity.getCreatedAt();
+                // 1. 使用系统默认时区
+                long timestamp = createdAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                if (nowMil - timestamp > 1000 * 60 * 60) {
+                    entity.setTaskStatus("TIMEOUT");
+                    upgradeTaskMapper.updateById(entity);
+                }
+            }
+        }
+    }
+
 
 
     @Override

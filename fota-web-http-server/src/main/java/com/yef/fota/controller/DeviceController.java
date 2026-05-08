@@ -203,6 +203,7 @@ public class DeviceController {
         }
 
         Set<String> requestImeis = requests.stream().map(DeviceSaveRequest::getImei).collect(Collectors.toSet());
+
         Set<String> existsImeis = deviceService.listExistingImeis(requestImeis);
 
         List<DeviceSaveRequest> importableRequests = requests.stream()

@@ -64,6 +64,10 @@
         SELECT COUNT(*) FROM upgrade_task WHERE task_status = 'WAITING' AND is_delete ='0'
     </select>
 
+    <select id="selectWaitingTask" resultType="com.yef.fota.entity.UpgradeTaskEntity">
+        select * from upgrade_task where task_status='WAITING' and is_delete ='0'
+    </select>
+
 
     <update id="markFail">
         UPDATE
