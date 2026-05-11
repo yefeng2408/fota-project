@@ -10,6 +10,11 @@ spring:
     username: root
     password: yefeng
 
+  redis:
+    host: localhost
+    port: 6379
+    database: 1
+
 # 设备侧的对象存储服务
 minio:
   endpoint: http://127.0.0.1:9000
