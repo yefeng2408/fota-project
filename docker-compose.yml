@@ -13,6 +13,8 @@ services:
       - --default-authentication-plugin=mysql_native_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
     volumes:
       - ./data/mysql:/var/lib/mysql
       - ./ddl/fota_web_platform.sql:/docker-entrypoint-initdb.d/001_fota_web_platform.sql:ro
@@ -64,6 +66,9 @@ services:
     container_name: fota-rocketmq-namesrv
     restart: unless-stopped
     command: sh mqnamesrv
+    environment:
+      JAVA_OPT_EXT: "-Xms128m -Xmx128m -Xmn64m"
+      TZ: ${TZ:-Asia/Shanghai}
     ports:
       - "${ROCKETMQ_NAMESRV_PORT:-9876}:9876"
     volumes:
@@ -79,7 +84,7 @@ services:
       - rocketmq-namesrv
     environment:
       NAMESRV_ADDR: rocketmq-namesrv:9876
-      JAVA_OPT_EXT: "-Xms512m -Xmx512m -Xmn256m -XX:MaxDirectMemorySize=256m"
+      JAVA_OPT_EXT: ${JAVA_OPTS_ROCKETMQ_BROKER:--Xms512m -Xmx512m -Xmn256m -XX:MaxDirectMemorySize=256m}
       TZ: ${TZ:-Asia/Shanghai}
     command: ["sh", "mqbroker", "-c", "/home/rocketmq/conf/broker.conf"]
     ports:
@@ -101,7 +106,7 @@ services:
       - rocketmq-namesrv
       - rocketmq-broker
     environment:
-      JAVA_OPTS: "-Drocketmq.namesrv.addr=rocketmq-namesrv:9876 -Dserver.port=8082"
+      JAVA_OPTS: "-Xms128m -Xmx256m -Drocketmq.namesrv.addr=rocketmq-namesrv:9876 -Dserver.port=8082"
       TZ: ${TZ:-Asia/Shanghai}
     ports:
       - "${ROCKETMQ_DASHBOARD_PORT:-18082}:8082"
@@ -170,7 +175,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: ${TZ:-Asia/Shanghai}
-      JAVA_OPTS: ${JAVA_OPTS_GATEWAY:--Xms256m -Xmx512m}
+      JAVA_OPTS: ${JAVA_OPTS_GATEWAY:--Xms1024m -Xmx1024m}
 
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-fota_web_platform}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USERNAME:-root}
@@ -211,7 +216,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       TZ: ${TZ:-Asia/Shanghai}
-      JAVA_OPTS: ${JAVA_OPTS_MOCK:--Xms128m -Xmx256m}
+      JAVA_OPTS: ${JAVA_OPTS_MOCK:--Xms1024m -Xmx2048m}
 
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-fota_web_platform}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USERNAME:-root}

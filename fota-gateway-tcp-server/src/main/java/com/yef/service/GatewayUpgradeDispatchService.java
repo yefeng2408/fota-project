@@ -7,14 +7,12 @@ import com.yef.dto.PlatformUpgradeRequest;
 import com.yef.exception.FotaProtocolException;
 import com.yef.protocol.CancelUpgradeMessage;
 import com.yef.protocol.UpgradeRequestMessage;
-import com.yef.service.redis.DeviceUpgradeDispatchLockService;
 import com.yef.session.DeviceSession;
 import com.yef.session.SessionManager;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
-import io.minio.StatObjectArgs;
-import io.minio.errors.ErrorResponseException;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -24,6 +22,7 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Service
@@ -96,6 +95,7 @@ public class GatewayUpgradeDispatchService {
             // 网关收到平台下发 0x81 消息。先初始化 runtime，再异步预加载固件缓存，最后下发 0x81。
             Map<String, Object> runtimeHash = getRuntimeHash(req);
             redisTemplate.opsForHash().putAll(UPGRADE_RUNTIME_KEY_PREFIX + req.getImei(), runtimeHash);
+
             Future<FirmwareCacheHolder> future = loadFirmwarePackageToLocalCache(runtimeHash);
             FirmwareCacheHolder firmwareCacheHolder = future.get(10, TimeUnit.SECONDS);
             if (firmwareCacheHolder == null || !req.getFirmwareId().equals(firmwareCacheHolder.getFirmwareId())) {
@@ -103,19 +103,20 @@ public class GatewayUpgradeDispatchService {
             }
 
             Channel channel = session.getChannel();
-            channel.writeAndFlush(message);
-            deviceUpgradeLockService.markActive(req.getImei());
-        } catch (RuntimeException ex) {
-            deviceUpgradeLockService.releaseLock(req.getImei(), req.getLockToken());
-            throw ex;
+            ChannelFuture channelFuture = channel.writeAndFlush(message);
+            channelFuture.addListener(fu -> {
+                if (fu.isSuccess()) {
+                    deviceUpgradeLockService.markActive(req.getImei());
+                } else {
+                    deviceUpgradeLockService.releaseLock(req.getImei(), req.getLockToken());
+                }
+            });
         } catch (ExecutionException e) {
             throw new RuntimeException(e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            deviceUpgradeLockService.releaseLock(req.getImei(), req.getLockToken());
             throw new RuntimeException(e);
         } catch (TimeoutException e) {
-            deviceUpgradeLockService.releaseLock(req.getImei(), req.getLockToken());
             throw new FotaProtocolException("固件缓存加载超时，拒绝下发升级请求");
         }
 
@@ -130,10 +131,9 @@ public class GatewayUpgradeDispatchService {
         runtimeHash.put("lockToken", nullToEmpty(req.getLockToken()));
         runtimeHash.put("status", "UPGRADE_REQUESTED");
 
-        runtimeHash.put("startAt",String.valueOf(0));
-        runtimeHash.put("endAt",String.valueOf(0));
-        runtimeHash.put("progress",String.valueOf(0));
-
+        runtimeHash.put("startAt", String.valueOf(0));
+        runtimeHash.put("endAt", String.valueOf(0));
+        runtimeHash.put("progress", String.valueOf(0));
 
         runtimeHash.put("firmwareId", String.valueOf(req.getFirmwareId()));
         runtimeHash.put("bucketName", req.getBucketName());
@@ -151,7 +151,7 @@ public class GatewayUpgradeDispatchService {
 
     /**
      * 网关收到平台 0x81 升级请求后，基于 runtimeKey 中的固件信息加载固件到本地 JVM 内存。
-     *
+     * <p>
      * 重点：
      * 1. 这里不是在方法上加 synchronized，也不是手写分布式锁。
      * 2. 真正的并发控制放在 FirmwareCacheManager.loadIfAbsent 里。
@@ -172,6 +172,8 @@ public class GatewayUpgradeDispatchService {
         String imei = String.valueOf(runtimeMap.get("imei"));
         String taskId = String.valueOf(runtimeMap.get("taskId"));
 
+
+        // ()-> {InputStream in = minioClient.getObject ...} 表示定义一个“任务内容”.Supplier 只是定义如何加载固件,还没执行
         CompletableFuture<FirmwareCacheHolder> future = firmwareCacheManager.loadIfAbsent(firmwareId, () -> {
             try (InputStream in = minioClient.getObject(
                     GetObjectArgs.builder()
@@ -201,65 +203,33 @@ public class GatewayUpgradeDispatchService {
             }
         }, firmwareLoadExecutor);
 
-        return future.thenApply(holder -> {
+        //future 完成后，回掉接口。每一台设备尝试获取固件缓存对象并且拿到FirmwareCacheHolder后 将设备refCount+1。也即表示设备对该固件的引用计数加1
+        CompletableFuture<FirmwareCacheHolder> cacheHolderCompletableFuture = future.thenApply(holder -> {
             if (holder != null && holder.getFirmwareFullBytes() != null) {
                 holder.getRefCount().incrementAndGet();
-                holder.setCreatedAt(System.currentTimeMillis());
                 holder.setLastAccessAt(System.currentTimeMillis());
                 log.info("固件缓存加载完成/命中, firmwareId={}, imei={}, taskId={}, fileSize={}, refCount={}",
                         firmwareId, imei, taskId, holder.getFileSize(), holder.getRefCount().get());
             }
             return holder;
         });
+        return cacheHolderCompletableFuture;
     }
-
-
-    /**
-     * 判断指定桶中的对象是否存在
-     *
-     * @param bucketName 桶名称
-     * @param objectName 对象路径/文件名
-     * @return true-存在, false-不存在
-     */
-    public boolean doesObjectExist(String bucketName, String objectName) {
-        try {
-            // 尝试获取对象元数据
-            minioClient.statObject(StatObjectArgs.builder()
-                    .bucket(bucketName)
-                    .object(objectName)
-                    .build());
-            // 如果没有抛出异常，说明对象存在
-            return true;
-
-        } catch (ErrorResponseException e) {
-            // 如果是服务器返回404 "NoSuchKey" 错误，说明对象不存在
-            // 同时打印日志，方便排查
-            log.debug("Object [{}] not found in bucket [{}]: {}", objectName, bucketName, e.errorResponse().code());
-            return false;
-
-        } catch (Exception e) {
-            // 其他错误（如网络、权限问题）归于异常，可记录日志后向上抛出
-            throw new RuntimeException("检查文件存在性时发生未知错误", e);
-        }
-    }
-
-
 
 
     public void sendCancelUpgradeRequest(PlatformCancelUpgradeRequest request) {
-        log.info("------>取消升级接受http入参sendCancelUpgradeRequest，taskId:{}",request.getTaskId());
+        log.info("------>取消升级接受http入参sendCancelUpgradeRequest，taskId:{}", request.getTaskId());
         DeviceSession session = sessionManager.getByImei(request.getImei());
         if (session == null || session.getChannel() == null || !session.getChannel().isActive()) {
             throw new FotaProtocolException("设备不在线，无法下发取消升级指令");
         }
         //组装 CancelUpgradeMessage(0x87)，然后触发写出站事件 writeAndFlush
-        CancelUpgradeMessage message = new CancelUpgradeMessage(request.getImei(),request.getTaskId(),request.getReason());
+        CancelUpgradeMessage message = new CancelUpgradeMessage(request.getImei(), request.getTaskId(), request.getReason());
 
         Channel channel = session.getChannel();
         channel.writeAndFlush(message);
 
     }
-
 
 
     private byte[] hexMd5ToBytes(String md5) {

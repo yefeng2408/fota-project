@@ -20,7 +20,7 @@ public class FirmwareCacheHolder {
 
     private String objectName;
 
-    private byte[] firmwareFullBytes; // 小固件直接内存缓存
+    private byte[] firmwareFullBytes; // 固件直接内存缓存
 
     private long fileSize;
 

@@ -1,6 +1,5 @@
 fota-web-http-server
 http端口：8080
-docker compose -f minio-compose.yml up -d
 
 fota-gateway-tcp-server
 http端口：8081

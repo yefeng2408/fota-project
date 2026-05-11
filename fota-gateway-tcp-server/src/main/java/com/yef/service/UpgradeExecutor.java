@@ -6,8 +6,6 @@ import com.yef.cache.FirmwareCacheManager;
 import com.yef.cache.FirmwareCacheRefCountUtil;
 import com.yef.producer.DeviceUpgradeEventPushClient;
 import com.yef.protocol.*;
-
-import java.io.InputStream;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -15,8 +13,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-
 import com.yef.protocol.outMsg.DeviceBootUpMessageAck;
 import com.yef.protocol.outMsg.UpgradeResultMessageAck;
 import com.yef.req.EntryUpgradingEventRequest;
@@ -24,13 +20,6 @@ import com.yef.req.UpgradeCancelEventRequest;
 import com.yef.req.UpgradeFinalResultEventRequest;
 import com.yef.req.UpgradeProgressEventRequest;
 import com.yef.req.UpgradeStartTimeEventRequest;
-import com.yef.semaphore.UpgradeSemaphoreService;
-import io.minio.GetObjectArgs;
-import io.minio.MinioClient;
-import io.minio.StatObjectArgs;
-import io.minio.errors.ErrorResponseException;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.util.concurrent.EventExecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -46,8 +35,6 @@ public class UpgradeExecutor {
 
     private final StringRedisTemplate redisTemplate;
 
-    private final MinioClient minioClient;
-
     private final PacketSender packetSender;
 
     private final DeviceUpgradeEventPushClient deviceUpgradeEventPushClient;
@@ -56,13 +43,11 @@ public class UpgradeExecutor {
 
 
     public UpgradeExecutor(StringRedisTemplate redisTemplate,
-                           MinioClient minioClient,
                            PacketSender packetSender,
                            DeviceUpgradeEventPushClient deviceUpgradeEventPushClient,
                            DeviceUpgradeLockService deviceUpgradeLockService,
                            FirmwareCacheManager firmwareCacheManager) {
         this.redisTemplate = redisTemplate;
-        this.minioClient = minioClient;
         this.packetSender = packetSender;
         this.deviceUpgradeEventPushClient = deviceUpgradeEventPushClient;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
@@ -254,7 +239,6 @@ public class UpgradeExecutor {
 
         //int pushProgress = calcPushProgress(progress);
         if (progress > lastPushProgress) {
-            // 更新已推送进度：只推送 10%、20%、30% ... 100%，降低 MQ / WebSocket 压力
             redisTemplate.opsForValue().set(lastProgressKey, String.valueOf(progress));
             String upgradeStatus = nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING";
             deviceUpgradeEventPushClient.pushUpgradeProgress(

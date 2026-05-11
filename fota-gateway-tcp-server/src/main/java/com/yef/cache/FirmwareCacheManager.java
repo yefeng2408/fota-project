@@ -43,7 +43,7 @@ public class FirmwareCacheManager {
      * 同一个 firmwareId 在高并发场景下：
      * 1. 只允许一个线程真正去 MinIO 下载。
      * 2. 其它线程直接复用同一个 Future 等待结果。
-     * 3. 加载完成后写入 firmwareCache，并移除 loadingFutureMap。
+     * 3. 加载完成后写入 firmwareCache，并移除 loadingFutureMap。这里巧妙地运用了loadingFutureMap的key控制加载固件缓存的唯一性
      *
      * 实现原理：
      *  线程A进来：
@@ -70,8 +70,10 @@ public class FirmwareCacheManager {
         }
 
         return loadingFutureMap.computeIfAbsent(firmwareId, key -> {
+            //调用 supplyAsync 后，当前线程立即返回 future 对象，任务被提交到默认的线程池 异步执行.相当于把 supplier 包装成异步任务
+            //CompletableFuture 并不关心业务逻辑。它只关心：状态、完成、异常、回调、链式调用。真正开始干活的是 Supplier.get()
             CompletableFuture<FirmwareCacheHolder> future = CompletableFuture.supplyAsync(() -> {
-                // 真正下载 MinIO
+                // loader.get() 是“真正执行业务逻辑”，而异步任务是由 CompletableFuture.supplyAsync提交至线程池的
                 FirmwareCacheHolder holder = loader.get();
                 firmwareCache.put(firmwareId, holder);
                 return holder;

@@ -43,6 +43,7 @@ docker buildx build --platform linux/amd64 -t fota-web-admin-nginx:v1 -f docker/
 
 #导出镜像。 本地执行 把“本地镜像”导出成一个 .tar 文件，方便传输
 docker save -o fota-web-admin-nginx-v1.tar fota-web-admin-nginx:v1
+
 docker save -o fota-web-http-server-v1.tar fota-web-http-server:v1
 docker save -o fota-gateway-tcp-server-v1.tar fota-gateway-tcp-server:v1
 docker save -o fota-mock-device-client-v1.tar fota-mock-device-client:v1
