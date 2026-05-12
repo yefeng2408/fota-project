@@ -13,7 +13,6 @@ import java.nio.file.Path;
 public class ChunkedFileWriter implements AutoCloseable {
 
     private final RandomAccessFile raf;
-    private int totalBytesWritten = 0;
 
     public ChunkedFileWriter(Path filePath) throws IOException {
         Files.createDirectories(filePath.getParent());
@@ -24,7 +23,7 @@ public class ChunkedFileWriter implements AutoCloseable {
     public void writeChunk(long offset, byte[] data) throws IOException {
         raf.seek(offset);
         raf.write(data);
-        raf.getFD().sync();
+        //raf.getFD().sync();
     }
 
 
