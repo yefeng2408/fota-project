@@ -16,10 +16,6 @@ spring:
     port: 6379
     database: 0
 
-#upgrading:
-#  firmware:
-#    temp-file-path: /data/firmware
-
 # 对象存储服务
 minio:
   endpoint: http://127.0.0.1:9000

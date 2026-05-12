@@ -12,10 +12,8 @@ import com.yef.fota.entity.DeviceGroupEntity;
 import com.yef.fota.entity.DeviceGroupRelationEntity;
 import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.exception.BusinessException;
-import com.yef.fota.service.DeviceGroupRelationService;
-import com.yef.fota.service.DeviceGroupService;
-import com.yef.fota.service.DeviceService;
-import com.yef.fota.service.FirmwarePackageService;
+import com.yef.fota.service.*;
+
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -58,6 +56,7 @@ public class DeviceController {
 
 
     private final DeviceService deviceService;
+    private final UpgradeTaskService upgradeTaskService;
     private final DeviceGroupService deviceGroupService;
     private final DeviceGroupRelationService deviceGroupRelationService;
     private final FirmwarePackageService firmwarePackageService;
@@ -341,7 +340,12 @@ public class DeviceController {
             vo.setDeviceName(entity.getDeviceName());
             vo.setDeviceType(entity.getDeviceType());
             vo.setCurrentFirmwareVersion(entity.getCurrentFirmwareVersion());
-            vo.setDeviceUpgradeStatus(entity.getDeviceUpgradeStatus());
+            String status = upgradeTaskService.selectTaskStatus(entity.getLastUpgradeTaskId());
+            if(org.apache.commons.lang3.StringUtils.isBlank(status)){
+                vo.setDeviceUpgradeStatus(entity.getDeviceUpgradeStatus());
+            }else {
+                vo.setDeviceUpgradeStatus(status);
+            }
             vo.setTargetFirmwareId(entity.getTargetFirmwareId());
             vo.setLastUpgradeTaskId(entity.getLastUpgradeTaskId());
             FirmwarePackageEntity targetFirmware = firmwareMap.get(entity.getTargetFirmwareId());

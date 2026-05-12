@@ -74,4 +74,7 @@ public interface UpgradeTaskMapper extends BaseMapper<UpgradeTaskEntity> {
 
     List<UpgradeTaskEntity> selectWaitingTask();
 
+
+    @Select("select task_status from upgrade_task where task_id=#{taskId}")
+    String selectTaskStatusByTaskId(@Param("taskId") Long taskId);
 }

@@ -8,6 +8,7 @@ import com.yef.protocol.HeartbeatMessage;
 import com.yef.protocol.UpgradeResultMessage;
 import com.yef.service.DeviceKeepOnlineService;
 import com.yef.service.UpgradeExecutor;
+import com.yef.session.SessionManager;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -27,12 +28,12 @@ import org.springframework.stereotype.Component;
 public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> {
 
     private final UpgradeExecutor upgradeExecutor;
-    private final DeviceKeepOnlineService deviceOnlineService;
+    private final SessionManager sessionManager;
 
     public UpgradeDispatchHandler(UpgradeExecutor upgradeExecutor,
-                                  DeviceKeepOnlineService deviceOnlineService) {
+                                  SessionManager sessionManager) {
         this.upgradeExecutor = upgradeExecutor;
-        this.deviceOnlineService = deviceOnlineService;
+        this.sessionManager = sessionManager;
     }
 
     @Override
@@ -41,6 +42,7 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
         if (msg instanceof DeviceBootUpMessage) {
             upgradeExecutor.onDeviceBootUp((DeviceBootUpMessage) msg);
         } else if (msg instanceof HeartbeatMessage) {
+            upgradeExecutor.breakpointResume((HeartbeatMessage) msg);
             log.debug("[UpgradeDispatchHandler] heartbeat ignored, deviceId={}", deviceId);
         } else if (msg instanceof AckMessage) {
             AckMessage ack = (AckMessage) msg;
@@ -65,10 +67,10 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof IdleStateEvent && ((IdleStateEvent) evt).state() == IdleState.READER_IDLE) {
             String imei = ctx.channel().attr(ChannelAttributes.IMEI).get();
-            Long deviceId = ctx.channel().attr(ChannelAttributes.DEVICE_ID).get();
             log.warn("[UpgradeDispatchHandler] reader idle, close channel, imei={}",imei);
-            ctx.close();
 
+            sessionManager.remove(ctx.channel());
+            ctx.close();
             return;
         }
         super.userEventTriggered(ctx, evt);

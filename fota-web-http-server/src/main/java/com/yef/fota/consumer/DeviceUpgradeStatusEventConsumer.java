@@ -1,6 +1,7 @@
 package com.yef.fota.consumer;
 
 import com.alibaba.fastjson.JSON;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.yef.UpgradeEventMessage;
 import com.yef.fota.api.dto.DeviceUpgradeEventRequest;
 import com.yef.fota.api.dto.resp.UpgradeCancelEventResult;
@@ -103,6 +104,9 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
                 case UpgradeEventMessage.EventType.UPGRADING:
                     handleUpgrading(event);
                     break;
+                case UpgradeEventMessage.EventType.DISCONNECT:
+                    handleDisconnect(event);
+                    break;
                 case UpgradeEventMessage.EventType.PROGRESS:
                     handleProgress(event);
                     break;
@@ -130,6 +134,39 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
                 stringRedisTemplate.delete(processingKey);
             }
         }
+    }
+
+    private void handleDisconnect(UpgradeEventMessage event) {
+        if (!StringUtils.hasText(event.getImei())) {
+            log.warn("忽略缺少 imei 的 DISCONNECT 事件, eventId={}", event.getEventId());
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String status = StringUtils.hasText(event.getUpgradeStatus()) ? event.getUpgradeStatus() : "UPGRADING";
+
+        UpgradeTaskEntity task = findRelatedTask(event);
+
+        DeviceEntity device = deviceMapper.selectDeviceByImei(event.getImei());
+        if (device != null) {
+            device.setDeviceUpgradeStatus(status);
+            device.setUpdatedAt(now);
+            deviceMapper.updateById(device);
+        }
+
+        if (task != null) {
+            task.setTaskStatus(status);
+            task.setUpdatedAt(now);
+            upgradeTaskMapper.updateById(task);
+        }
+
+        webSocketConfig.pushDeviceUpgradeEvent(new DeviceUpgradeEventRequest(
+                event.getImei(),
+                status,
+                null,
+                null,
+                null
+        ));
     }
 
     private void handleStartTime(UpgradeEventMessage event) {
@@ -320,7 +357,7 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
     private UpgradeTaskEntity findRelatedTask(UpgradeEventMessage event) {
         if (event.getTaskId() != null) {
             UpgradeTaskEntity task = upgradeTaskMapper.selectOne(
-                    new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<UpgradeTaskEntity>()
+                    new QueryWrapper<UpgradeTaskEntity>()
                             .eq("task_id", event.getTaskId())
                             .last("limit 1")
             );
@@ -353,6 +390,12 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
             return true;
         }
 
+        // 断点续传恢复后，允许恢复态回到正常升级态
+        if ("RESUME_UPGRADING".equals(currentStatusFromDB) || "DISCONNECT".equals(currentStatusFromDB)
+                && "UPGRADING".equals(incomingStatus)) {
+            return true;
+        }
+
         int currentOrderFromDB = statusOrder(currentStatusFromDB);
         int incomingOrder = statusOrder(incomingStatus);
 
@@ -377,13 +420,17 @@ public class DeviceUpgradeStatusEventConsumer implements RocketMQListener<Upgrad
                 return 2;
             case "UPGRADING":
                 return 3;
-            case "WAIT_RESULT":
+            case "DISCONNECT":
                 return 4;
+            case "RESUME_UPGRADING":
+                return 5;
+            case "WAIT_RESULT":
+                return 6;
             case "SUCCESS":
             case "FAIL":
             case "TIMEOUT":
             case "CANCEL_UPGRADE":
-                return 5;
+                return 7;
             default:
                 return -1;
         }

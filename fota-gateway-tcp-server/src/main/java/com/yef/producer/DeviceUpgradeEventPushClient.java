@@ -2,11 +2,7 @@ package com.yef.producer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yef.UpgradeEventMessage;
-import com.yef.req.EntryUpgradingEventRequest;
-import com.yef.req.UpgradeCancelEventRequest;
-import com.yef.req.UpgradeFinalResultEventRequest;
-import com.yef.req.UpgradeProgressEventRequest;
-import com.yef.req.UpgradeStartTimeEventRequest;
+import com.yef.req.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.producer.SendCallback;
@@ -60,6 +56,16 @@ public class DeviceUpgradeEventPushClient {
     public void pushUpgradeProgress(UpgradeProgressEventRequest eventRequest) {
         sendUpgradeEvent(UpgradeEventMessage.EventType.PROGRESS, "PROGRESS", eventRequest);
     }
+
+
+    /**
+     * 推送设备掉线状态
+     * @param request request
+     */
+    public void pushDeviceDisconnectStatus(DisconnectEventRequest request) {
+        sendUpgradeEvent(UpgradeEventMessage.EventType.DISCONNECT, "DISCONNECT", request);
+    }
+
 
     /**
      * 推送最终升级结果。

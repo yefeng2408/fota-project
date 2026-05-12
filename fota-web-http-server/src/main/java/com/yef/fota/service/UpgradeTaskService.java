@@ -38,4 +38,7 @@ public interface UpgradeTaskService extends IService<UpgradeTaskEntity> {
 
     int countWaitingTask();
 
+
+    String selectTaskStatus(Long taskId);
+
 }

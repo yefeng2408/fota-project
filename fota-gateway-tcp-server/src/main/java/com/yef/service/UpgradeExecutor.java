@@ -1,18 +1,18 @@
 package com.yef.service;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.collect.Lists;
 import com.yef.cache.FirmwareCacheHolder;
 import com.yef.cache.FirmwareCacheManager;
 import com.yef.cache.FirmwareCacheRefCountUtil;
 import com.yef.producer.DeviceUpgradeEventPushClient;
 import com.yef.protocol.*;
+
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
+
 import com.yef.protocol.outMsg.DeviceBootUpMessageAck;
 import com.yef.protocol.outMsg.UpgradeResultMessageAck;
 import com.yef.req.EntryUpgradingEventRequest;
@@ -23,6 +23,7 @@ import com.yef.req.UpgradeStartTimeEventRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 @Slf4j
 @Service
@@ -31,7 +32,7 @@ public class UpgradeExecutor {
     /**
      * 升级运行态 设备基础信息 设备网关所用的key，用于分包过程中的【高频写操作】
      */
-    private static final String UPGRADE_RUNTIME_KEY_PREFIX = "fota:upgrade:runtime:";
+    public static final String UPGRADE_RUNTIME_KEY_PREFIX = "fota:upgrade:runtime:";
 
     private final StringRedisTemplate redisTemplate;
 
@@ -126,7 +127,7 @@ public class UpgradeExecutor {
 
         Object firmwareIdObj = runtimeMap.get("firmwareId");
         FirmwareCacheHolder firmwareCacheHolder = firmwareCacheManager.get(Long.valueOf(firmwareIdObj.toString()));
-        if(firmwareCacheHolder!=null){
+        if (firmwareCacheHolder != null) {
             FirmwareCacheRefCountUtil.decrement(Long.valueOf(firmwareIdObj.toString()));
         }
     }
@@ -280,9 +281,131 @@ public class UpgradeExecutor {
         deviceUpgradeEventPushClient.updateCancelResult(request);
 
         FirmwareCacheHolder firmwareCacheHolder = firmwareCacheManager.get(Long.valueOf(firmwareIdObj.toString()));
-        if(firmwareCacheHolder!=null){
+        if (firmwareCacheHolder != null) {
             FirmwareCacheRefCountUtil.decrement(Long.valueOf(firmwareIdObj.toString()));
         }
+
+    }
+
+
+    private static final List<String> breakpoint = Lists.newArrayList("UPGRADING", "UPGRADE_REQUESTED", "DISCONNECT");
+    //断线5分钟以内，再次连接则判断为重连。超过5分钟，则在mock-device通过定时任务扫描 并删除5分钟以上的mock-dev:upgrade:runtime:{imei}
+    private static final int max_diff_seconds = 60 * 5;
+
+    /**
+     * 设备短线重连。判断是否应该进行断点续传
+     *
+     * @param heartbeatMessage
+     */
+    public void breakpointResume(HeartbeatMessage heartbeatMessage) {
+
+        String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + heartbeatMessage.imei();
+        Map<Object, Object> runtimeHash = redisTemplate.opsForHash().entries(runtimeKey);
+        if (CollectionUtils.isEmpty(runtimeHash)) {
+            return;
+        }
+
+        Long taskId = Long.valueOf(String.valueOf(runtimeHash.get("taskId")));
+        String imei = String.valueOf(String.valueOf(runtimeHash.get("imei")));
+        if (!Objects.equals(heartbeatMessage.imei(), imei)) {
+            return;
+        }
+
+        long lastPacketAt = Long.parseLong(String.valueOf(runtimeHash.get("lastPacketAt")));
+        long currentTime = System.currentTimeMillis();
+        String status = String.valueOf(runtimeHash.get("status"));
+        long diff = (currentTime - lastPacketAt) / 1000;
+
+        //设备在断线的5分钟内再次连接，则认定为断线后的重连接
+        if (breakpoint.contains(status) && diff < max_diff_seconds) {
+            log.info("----------------breakpoint come in");
+            int packetNo = Integer.parseInt(String.valueOf(runtimeHash.get("packetNo")));
+            int chunkSize = Integer.parseInt(String.valueOf(runtimeHash.get("chunkSize")));
+            long fileSize = Long.valueOf(String.valueOf(runtimeHash.get("fileSize")));
+            int totalPacket = Integer.valueOf(String.valueOf(runtimeHash.get("totalPacket")));
+
+            int offset = (packetNo - 1) * chunkSize;
+            int length = Math.toIntExact(Math.min(chunkSize, fileSize - offset));
+            if (length <= 0) {
+                return;
+            }
+
+            Long firmwareId = Long.valueOf(String.valueOf(runtimeHash.get("firmwareId")));
+            FirmwareCacheHolder firmwareCacheHolder = firmwareCacheManager.get(firmwareId);
+            if (firmwareCacheHolder == null) {
+                log.warn("breakpointResume 固件不存在，无法进行0x82分包下发过程！");
+                return;
+            }
+            //TODO ==========断线续传都是当前runtime的packetNo的下一包开发发，
+            // 默认客户端收到了packetNo对应的chunkData且已经写入文件
+            int nextPacketNo = 0;
+            if (packetNo == 0) {
+                nextPacketNo = 1;
+            } else if (packetNo > 0) {
+                //nextPacketNo = packetNo + 1;
+                nextPacketNo = packetNo;
+            }
+
+            if (nextPacketNo > totalPacket) {
+                return;
+            }
+
+            if (nextPacketNo == 1) {
+                EntryUpgradingEventRequest request = new EntryUpgradingEventRequest(
+                        heartbeatMessage.imei(),
+                        taskId,
+                        "UPGRADING"
+                );
+                deviceUpgradeEventPushClient.pushEntryIntoUpgradingStatus(request);
+
+                UpgradeStartTimeEventRequest eventRequest = new UpgradeStartTimeEventRequest(heartbeatMessage.imei(), taskId, LocalDateTime.now());
+                deviceUpgradeEventPushClient.updateStartTime(eventRequest);
+            }
+
+            //按 offset 读取
+            byte[] bytes = firmwareCacheHolder.getFirmwareFullBytes();
+            byte[] chunk = Arrays.copyOfRange(bytes, offset, offset + length);
+
+            packetSender.sendToDevice(
+                    heartbeatMessage.imei(),
+                    new UpgradePacketMessage(
+                            heartbeatMessage.imei(),
+                            taskId,
+                            nextPacketNo,
+                            totalPacket,
+                            chunk
+                    )
+            );
+
+            long now = System.currentTimeMillis();
+            int progress = (int) Math.min(100L, (nextPacketNo * 100) / totalPacket);
+
+            Map<String, String> runtime = new HashMap<>();
+            runtime.put("offset", String.valueOf(offset));
+            runtime.put("packetNo", String.valueOf(nextPacketNo));
+            runtime.put("packetTime", String.valueOf(now));
+            runtime.put("lastPacketAt", String.valueOf(now));
+            runtime.put("progress", String.valueOf(progress));
+            runtime.put("status", nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING");
+            runtime.put("currentChunkLength", String.valueOf(chunk.length));
+            runtime.put("chunkSize", String.valueOf(chunkSize));
+            runtime.put("totalPacket", String.valueOf(totalPacket));
+            redisTemplate.opsForHash().putAll(runtimeKey, runtime);
+
+
+            deviceUpgradeEventPushClient.pushUpgradeProgress(
+                    new UpgradeProgressEventRequest(
+                            heartbeatMessage.imei(),
+                            taskId,
+                            "RESUME_UPGRADING",
+                            progress,
+                            null,
+                            null
+                    )
+            );
+
+        }
+
 
     }
 
@@ -300,7 +423,6 @@ public class UpgradeExecutor {
         }
         return (progress / 10) * 10;
     }
-
 
 
 }

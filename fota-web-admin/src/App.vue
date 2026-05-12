@@ -54,7 +54,10 @@
       <header class="topbar">
         <div>
           <div class="page-title">{{ pageTitle }}</div>
-          <div class="page-subtitle">聚焦设备、固件、升级与审计链路</div>
+          <h5 style="color:brown">当前版本已经接入断点续传功能。 
+            流程如下：设备处于升级中，点击“模拟下线” 则推送“升级掉线”状态。此时设备暂停升级。若再次点击“模拟上线”，则设备恢复正常升级流程。
+            注意：如果设备断开连接时间超过5分钟，再次上线则无法进入断点续传状态。批量升级调度器最大并行可升级设备数为200，等候区为800。
+          </h5>
         </div>
         <div class="topbar-right">
           <span class="user-chip">{{ currentUser?.username || '未登录' }}</span>

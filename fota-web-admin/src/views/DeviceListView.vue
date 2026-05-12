@@ -411,6 +411,8 @@ const upgradeStatusTextMap = {
   RETRY_WAITING: '等待重试',
   UPGRADE_REQUESTED: '已下发升级请求',
   UPGRADING: '升级中',
+  DISCONNECT: '升级掉线',
+  RESUME_UPGRADING: '恢复升级中',
   WAIT_RESULT: '等待升级结果',
   SUCCESS: '升级成功',
   FAIL: '升级失败',       //目前是web-http-server UpgradeScheduler类中的Dispatch()方法调度，超过最大重试次数【3次】后会认定为失败

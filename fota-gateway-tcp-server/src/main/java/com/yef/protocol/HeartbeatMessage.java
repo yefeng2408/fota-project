@@ -1,21 +1,10 @@
 package com.yef.protocol;
 
-public class HeartbeatMessage implements FotaMessage {
-
-    private final String imei;
-
-    public HeartbeatMessage(String imei) {
-        this.imei = imei;
-    }
+public record HeartbeatMessage(String imei) implements FotaMessage {
 
     @Override
     public byte getMessageType() {
         return FotaProtocolConstants.MSG_HEARTBEAT;
-    }
-
-    @Override
-    public String imei() {
-        return imei;
     }
 
     @Override

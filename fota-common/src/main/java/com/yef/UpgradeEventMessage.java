@@ -223,6 +223,7 @@ public class UpgradeEventMessage implements Serializable {
     public static final class EventType {
         public static final String START_TIME = "START_TIME";
         public static final String UPGRADING = "UPGRADING";
+        public static final String DISCONNECT = "DISCONNECT";
         public static final String PROGRESS = "PROGRESS";
         public static final String FINAL_RESULT = "FINAL_RESULT";
         public static final String CANCEL_RESULT = "CANCEL_RESULT";

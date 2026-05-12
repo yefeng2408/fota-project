@@ -200,4 +200,9 @@ public class UpgradeTaskServiceImpl extends ServiceImpl<UpgradeTaskMapper, Upgra
     public int countWaitingTask(){
         return this.baseMapper.countWaitingTask();
     }
+
+    @Override
+    public String selectTaskStatus(Long taskId) {
+        return this.baseMapper.selectTaskStatusByTaskId(taskId);
+    }
 }

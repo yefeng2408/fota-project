@@ -15,8 +15,8 @@ import java.util.Map;
 @Component
 public class FirmwareCacheScheduler {
 
-    // 正常释放阈值：refCount 已经归零后，闲置 5 分钟再释放，避免刚释放引用就立刻被下一次分包读取打断。
-    private static final long IDLE_RELEASE_MS = 1000L * 60 * 5;
+    // 正常释放阈值：refCount 已经归零后，闲置 10 分钟再释放，避免刚释放引用就立刻被下一次分包读取打断。
+    private static final long IDLE_RELEASE_MS = 1000L * 60 * 10;
 
     // 强制释放阈值：refCount 长时间不归零，说明可能存在设备掉线、超时链路未释放、异常链路未 release 等问题。
     private static final long FORCE_RELEASE_MS = 1000L * 60 * 30;
