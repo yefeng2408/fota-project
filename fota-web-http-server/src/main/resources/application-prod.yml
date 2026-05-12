@@ -62,7 +62,7 @@ logging:
 fota:
   upgrade:
     max-waiting-devices: 800 # 等待升级状态的设备数
-    max-active-devices: 200 # 允许同时并发升级的设备个数
+    max-active-devices: 150 # 允许同时并发升级的设备个数
     dispatch-batch-size: 100 #每次调度最多放多少设备进入升级，类似于线程池的每次 submit 数量
 
   jwt:

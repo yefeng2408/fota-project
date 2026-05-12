@@ -229,6 +229,9 @@ services:
 
       MOCK_DEVICE_GATEWAY_HOST: fota-gateway-tcp-server
       MOCK_DEVICE_GATEWAY_PORT: ${FOTA_GATEWAY_PORT:-8224}
+
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: ${REDIS_PORT:-6379}
     networks:
       - fota-net
 
