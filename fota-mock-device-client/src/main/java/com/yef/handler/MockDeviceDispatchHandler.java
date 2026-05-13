@@ -89,7 +89,6 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
                        FotaProtocol.UpgradePacketDTO packet,
                        Map<Object, Object> mockRuntimeHash,
                        int totalPacket,
-                       long offset,
                        Path path) {
 
         long taskId = packet.taskId();
@@ -105,14 +104,19 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
                     new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), AckType.BUSY)
             ));
             log.info(">>>>>>>>>>> shardExecutors写本地固件异步线程池触发背压消息");
-           // return;
+            return;
         }
-        shardExecutors[shardIndex].execute(() -> {
-
+        Runnable writeTask = () -> {
             try {
-                FotaProtocol.UpgradeResultDTO upgradeResult = doWriteChunk(packet, mockRuntimeHash, totalPacket, offset, path);
+                FotaProtocol.UpgradeResultDTO upgradeResult = doWriteChunk(packet, mockRuntimeHash, totalPacket, path);
 
                 ctx.executor().execute(() -> {
+                    if (!ctx.channel().isActive()) {
+                        log.warn("MockDevice 分包已写入本地文件，但 Channel 已断开，跳过 ACK 发送，imei={}，taskId={}，packetNo={}",
+                                packet.imei(), packet.taskId(), packet.packetNo());
+                        return;
+                    }
+
                     ctx.writeAndFlush(new FotaProtocol.Ack(
                             packet.imei(),
                             packet.taskId(),
@@ -126,14 +130,33 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
                 });
             } catch (Exception e) {
                 log.error("MockDevice 异步写入固件分包失败，imei={}，taskId={}，packetNo={}", packet.imei(), packet.taskId(), packet.packetNo(), e);
-                ctx.executor().execute(() -> ctx.writeAndFlush(new FotaProtocol.Fail(
-                        packet.imei(),
-                        packet.taskId(),
-                        packet.packetNo(),
-                        UpgradeFailErrorCode.FAIL_ERROR_DEVICE_WRITE
-                )));
+                ctx.executor().execute(() -> {
+                    if (!ctx.channel().isActive()) {
+                        log.warn("MockDevice 分包写入失败，但 Channel 已断开，跳过 FAIL 发送，imei={}，taskId={}，packetNo={}",
+                                packet.imei(), packet.taskId(), packet.packetNo());
+                        return;
+                    }
+                    ctx.writeAndFlush(new FotaProtocol.Fail(
+                            packet.imei(),
+                            packet.taskId(),
+                            packet.packetNo(),
+                            UpgradeFailErrorCode.FAIL_ERROR_DEVICE_WRITE
+                    ));
+                });
             }
-        });
+        };
+
+        try {
+            executor.execute(writeTask);
+        } catch (RejectedExecutionException e) {
+            log.warn("MockDevice 本地固件写入队列已满，拒绝分包写入，taskId={}，imei={}，packetNo={}，shardIndex={}，queueSize={}，capacity={}",
+                    packet.taskId(), packet.imei(), packet.packetNo(), shardIndex, queueSize, capacity, e);
+            ctx.executor().execute(() -> {
+                if (ctx.channel().isActive()) {
+                    ctx.writeAndFlush(new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), AckType.BUSY));
+                }
+            });
+        }
     }
 
     /**
@@ -142,23 +165,25 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
      * @param packet
      * @param mockRuntimeHash
      * @param totalPacket
-     * @param offset
      * @param path
      * @throws Exception
      */
     private FotaProtocol.UpgradeResultDTO doWriteChunk(FotaProtocol.UpgradePacketDTO packet,
                                                        Map<Object, Object> mockRuntimeHash,
                                                        int totalPacket,
-                                                       long offset,
                                                        Path path) throws Exception {
         Map<Object, Object> runtimeHash = new HashMap<>();
         runtimeHash.put("packetNo", String.valueOf(packet.packetNo()));
         runtimeHash.put("receivePacketAt", String.valueOf(System.currentTimeMillis()));
 
+        int chunkSize = resolveChunkSize(packet, mockRuntimeHash, totalPacket);
+        long offset = (long) (packet.packetNo() - 1) * chunkSize;
+
         // taskId 是单设备一次升级任务的唯一标识，因此可以作为 FileChannel 的缓存 key。
         FileChannel fileChannel = firmwareFileHolder.getOrCreateChannel(packet.taskId(), path);
         ByteBuffer buffer = ByteBuffer.wrap(packet.chunkData());
         int written = fileChannel.write(buffer, offset);
+
         if (written != packet.chunkData().length) {
             throw new IOException("写入chunkData的长度不等于写入长度，written=" + written + ", chunkData.length=" + packet.chunkData().length);
         }
@@ -176,7 +201,6 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
                 throw e;
             }
         }
-
         return null;
     }
 
@@ -247,23 +271,6 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
      */
     private void simulateMcuFlush() throws InterruptedException {
         Thread.sleep(3000);
-    }
-
-    /**
-     * 构造设备侧升级结果上报消息。
-     */
-    private FotaProtocol.UpgradeResultDTO buildUpgradeResult(FotaProtocol.UpgradePacketDTO packet,
-                                                             FirmwareReceiveResult receiveResult) {
-        return new FotaProtocol.UpgradeResultDTO(
-                packet.imei(),
-                packet.taskId(),
-                receiveResult.md5Matched() ? (byte) 0 : (byte) 1,
-                receiveResult.md5Matched() ? 0 : UpgradeFailErrorCode.FAIL_ERROR_CRC16,
-                receiveResult.costTime()
-        );
-    }
-
-    private record FirmwareReceiveResult(byte[] firmware, boolean md5Matched, int costTime) {
     }
 
 
@@ -344,21 +351,6 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         log.info("MockDevice 已接受升级请求，imei={}，taskId={}，totalPacket={}", request.imei(), request.taskId(), request.totalPacket());
     }
 
-    @NotNull
-    private static Map<String, String> getDevRuntimeHash(FotaProtocol.UpgradeRequestDTO request) {
-        Map<String, String> mockDevRuntime = new HashMap<>();
-        mockDevRuntime.put("imei", String.valueOf(request.imei()));
-        mockDevRuntime.put("taskId", String.valueOf(request.taskId()));
-        mockDevRuntime.put("offset", String.valueOf(0));
-        mockDevRuntime.put("fileSize", String.valueOf(request.fileSize()));
-        mockDevRuntime.put("totalPacket", String.valueOf(request.totalPacket()));
-        mockDevRuntime.put("md5", HexUtils.toHexString(request.md5()));
-        mockDevRuntime.put("firmwareName", String.valueOf(request.firmwareName()));
-        mockDevRuntime.put("firmwareVersionName", String.valueOf(request.firmwareVersionName()));
-        mockDevRuntime.put("startTime", String.valueOf(System.currentTimeMillis()));
-        return mockDevRuntime;
-    }
-
     private void handleUpgradePacket(ChannelHandlerContext ctx, FotaProtocol.UpgradePacketDTO packet) {
         if (canceledTaskIds.contains(packet.taskId())) {
             log.debug("MockDevice 忽略已取消任务的分包，imei={}，taskId={}，packetNo={}", packet.imei(), packet.taskId(), packet.packetNo());
@@ -371,7 +363,6 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        long offset = Long.parseLong(String.valueOf(mockRuntimeHash.get("offset")));
         String totalPacketStr = String.valueOf(mockRuntimeHash.get("totalPacket"));
         int totalPacket = Integer.parseInt(totalPacketStr);
 
@@ -384,8 +375,53 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         Path path = Paths.get(FIRMWARE_PATH + packet.taskId() + "/" + packet.imei() + ".bin");
 
         /** 后续写文件、更新 mock-dev runtime、最终 MD5 校验、上传 MinIO 都交给 shard 写线程处理，避免阻塞 Netty EventLoop。*/
-        submit(ctx, packet, mockRuntimeHash, totalPacket, offset, path);
+        submit(ctx, packet, mockRuntimeHash, totalPacket, path);
     }
+
+
+    /**
+     * 计算当前分包的固定写入位置。
+     * 优先使用升级请求阶段保存的 chunkSize；最后一个分包可能小于 chunkSize，不能用当前 chunkData.length 反推 offset。
+     */
+    private int resolveChunkSize(FotaProtocol.UpgradePacketDTO packet,
+                                 Map<Object, Object> mockRuntimeHash,
+                                 int totalPacket) {
+        Object chunkSizeValue = mockRuntimeHash.get("chunkSize");
+        if (chunkSizeValue != null) {
+            return Integer.parseInt(String.valueOf(chunkSizeValue));
+        }
+
+        Object fileSizeValue = mockRuntimeHash.get("fileSize");
+        if (fileSizeValue == null) {
+            return packet.chunkData().length;
+        }
+
+        long fileSize = Long.parseLong(String.valueOf(fileSizeValue));
+        if (fileSize <= 0 || totalPacket <= 0) {
+            return packet.chunkData().length;
+        }
+
+        return Math.toIntExact((fileSize + totalPacket - 1) / totalPacket);
+    }
+
+
+    /**
+     * 构造设备侧升级结果上报消息。
+     */
+    private FotaProtocol.UpgradeResultDTO buildUpgradeResult(FotaProtocol.UpgradePacketDTO packet,
+                                                             FirmwareReceiveResult receiveResult) {
+        return new FotaProtocol.UpgradeResultDTO(
+                packet.imei(),
+                packet.taskId(),
+                receiveResult.md5Matched() ? (byte) 0 : (byte) 1,
+                receiveResult.md5Matched() ? 0 : UpgradeFailErrorCode.FAIL_ERROR_CRC16,
+                receiveResult.costTime()
+        );
+    }
+
+    private record FirmwareReceiveResult(byte[] firmware, boolean md5Matched, int costTime) {
+    }
+
 
     // 删除空目录辅助方法
     private void deleteDirectoryIfEmpty(Path directory) {
@@ -401,5 +437,25 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
             log.warn("MockDevice 删除空升级临时目录失败，dir={}", directory, e);
         }
     }
+
+
+
+    @NotNull
+    private static Map<String, String> getDevRuntimeHash(FotaProtocol.UpgradeRequestDTO request) {
+        Map<String, String> mockDevRuntime = new HashMap<>();
+        mockDevRuntime.put("imei", String.valueOf(request.imei()));
+        mockDevRuntime.put("taskId", String.valueOf(request.taskId()));
+        mockDevRuntime.put("offset", String.valueOf(0));
+        mockDevRuntime.put("fileSize", String.valueOf(request.fileSize()));
+        mockDevRuntime.put("chunkSize", String.valueOf(request.chunkSize()));
+        mockDevRuntime.put("totalPacket", String.valueOf(request.totalPacket()));
+        mockDevRuntime.put("md5", HexUtils.toHexString(request.md5()));
+        mockDevRuntime.put("firmwareName", String.valueOf(request.firmwareName()));
+        mockDevRuntime.put("firmwareVersionName", String.valueOf(request.firmwareVersionName()));
+        mockDevRuntime.put("startTime", String.valueOf(System.currentTimeMillis()));
+        return mockDevRuntime;
+    }
+
+
 
 }
