@@ -146,19 +146,6 @@ public final class FotaProtocol {
         out.writeBytes(imei.getBytes(StandardCharsets.US_ASCII));
     }
 
-    public static String readString(ByteBuf in) {
-        int length = in.readUnsignedShort();
-        byte[] bytes = new byte[length];
-        in.readBytes(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
-    }
-
-    public static void writeString(ByteBuf out, String value) {
-        byte[] bytes = value == null ? new byte[0] : value.getBytes(StandardCharsets.UTF_8);
-        out.writeShort(bytes.length);
-        out.writeBytes(bytes);
-    }
-
     public static String readStringWithByteLength(ByteBuf in) {
         int length = in.readUnsignedByte();
         byte[] bytes = new byte[length];

@@ -1,4 +1,4 @@
-package com.yef.protocol;
+package com.yef;
 
 /**
  * @description: 0x04上行消息异常分类。只是列举了一些常见情况，大部分错误类型可能用不上

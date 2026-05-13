@@ -34,10 +34,12 @@ docker build -t fota-web-http-server:v1 -f fota-web-http-server/Dockerfile .
 docker build -t fota-gateway-tcp-server:v1 -f fota-gateway-tcp-server/Dockerfile .
 docker build -t fota-mock-device-client:v1 -f fota-mock-device-client/Dockerfile .
 #arm架构
+docker buildx build --platform linux/amd64 -t fota-web-admin-nginx:v1 -f docker/nginx/Dockerfile --load .
+
 docker buildx build --platform linux/amd64 -t fota-web-http-server:v1 -f fota-web-http-server/Dockerfile --load .
 docker buildx build --platform linux/amd64 -t fota-gateway-tcp-server:v1 -f fota-gateway-tcp-server/Dockerfile --load .
 docker buildx build --platform linux/amd64 -t fota-mock-device-client:v1 -f fota-mock-device-client/Dockerfile --load .
-docker buildx build --platform linux/amd64 -t fota-web-admin-nginx:v1 -f docker/nginx/Dockerfile --load .
+
 
 
 
@@ -49,14 +51,15 @@ docker save -o fota-gateway-tcp-server-v1.tar fota-gateway-tcp-server:v1
 docker save -o fota-mock-device-client-v1.tar fota-mock-device-client:v1
 
 
-#上传到服务器后导入【scp fota-*.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/】。
+#上传到服务器后导入 scp fota-*.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
 #将 .tar 文件重新导入成“服务器上的镜像”【服务器上执行】
 docker load -i fota-web-admin-nginx-v1.tar
+
 docker load -i fota-web-http-server-v1.tar
 docker load -i fota-gateway-tcp-server-v1.tar
 docker load -i fota-mock-device-client-v1.tar
 
-scp fota-mock-device-client-v1.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
+scp fota-gateway-tcp-server-v1.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
 
 总体流程：
 

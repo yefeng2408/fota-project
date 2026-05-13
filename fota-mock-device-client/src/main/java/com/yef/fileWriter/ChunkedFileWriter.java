@@ -1,15 +1,18 @@
-package com.yef.chunkFile;
+/*
+package com.yef.fileWriter;
 
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+*/
 /**
  * @description:
  * @author: 叶丰
  * @date: 2026/5/11 23:06
- */
+ *//*
+
 public class ChunkedFileWriter implements AutoCloseable {
 
     private final RandomAccessFile raf;
@@ -35,4 +38,4 @@ public class ChunkedFileWriter implements AutoCloseable {
     }
 
 
-}
+}*/

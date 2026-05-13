@@ -84,23 +84,25 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
         log.warn(">>>>>>>>>>>>>>>设备主动断开[DeviceIdentityHandler] close channel, imei={}", ctx.channel().attr(ChannelAttributes.IMEI).get());
         DeviceSession deviceSession = sessionManager.getByChannel(ctx.channel());
 
-        if(deviceSession!=null){
+        if (deviceSession != null) {
             sessionManager.remove(ctx.channel());
         }
         sessionManager.remove(ctx.channel());
         log.info("------->channelInactive|CURRENT_TASK_ID:{}", ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).get());
         //存在升级任务中的设备掉线，则推送一次设备掉线的状态事件
-        if(ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).get()!=null){
-            DisconnectEventRequest  request = new DisconnectEventRequest();
-            request.setImei(ctx.channel().attr(ChannelAttributes.IMEI).get());
-            request.setTaskId(ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).get());
-            request.setUpgradeStatus("DISCONNECT");
-            deviceUpgradeEventPushClient.pushDeviceDisconnectStatus(request);
+        String runtimeKey = UpgradeExecutor.UPGRADE_RUNTIME_KEY_PREFIX + ctx.channel().attr(ChannelAttributes.IMEI).get();
+        String status = String.valueOf(redisTemplate.opsForHash().get(runtimeKey, "status"));
+        if ("UPGRADING".equals(status) || "UPGRADE_REQUESTED".equals(status)) {
+            if (ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).get() != null) {
+                DisconnectEventRequest request = new DisconnectEventRequest();
+                request.setImei(ctx.channel().attr(ChannelAttributes.IMEI).get());
+                request.setTaskId(ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).get());
+                request.setUpgradeStatus("DISCONNECT");
+                deviceUpgradeEventPushClient.pushDeviceDisconnectStatus(request);
 
-            String runtimeKey = UpgradeExecutor.UPGRADE_RUNTIME_KEY_PREFIX + request.getImei();
-            redisTemplate.opsForHash().put(runtimeKey,"status","DISCONNECT");
+                redisTemplate.opsForHash().put(runtimeKey, "status", "DISCONNECT");
+            }
         }
-
         ctx.fireChannelInactive();
     }
 }

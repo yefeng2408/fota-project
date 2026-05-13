@@ -2,6 +2,7 @@
   <dictionary name="project">
     <words>
       <w>基于redis实现的分布式信号量</w>
+      <w>模拟设备mcu写入flush耗时</w>
     </words>
   </dictionary>
 </component>

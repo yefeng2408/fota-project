@@ -1,9 +1,10 @@
 package com.yef.cilent;
 
-import com.yef.chunkFile.ChunkedFileWriter;
+import com.yef.UpgradeFailErrorCode;
 import com.yef.codec.FotaFrameDecoder;
 import com.yef.codec.FotaMessageDecoder;
 import com.yef.codec.FotaMessageEncoder;
+import com.yef.fileWriter.FirmwareFileHolder;
 import com.yef.protocol.FotaProtocol;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
@@ -23,17 +24,21 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
+
+import lombok.Data;
 import org.apache.tomcat.util.buf.HexUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -58,6 +63,7 @@ public class MockDeviceClient implements SmartLifecycle {
     private final int configuredPort;
     private final JdbcTemplate jdbcTemplate;
     private final MinioClient minioClient;
+    private final FirmwareFileHolder firmwareFileHolder;
     private final StringRedisTemplate stringRedisTemplate;
 
     @Value("${minio.device-bucket-name}")
@@ -72,11 +78,14 @@ public class MockDeviceClient implements SmartLifecycle {
             @Value("${netty.device-gateway-server.host:127.0.0.1}") String configuredHost,
             @Value("${netty.device-gateway-server.port:7611}") int configuredPort,
             JdbcTemplate jdbcTemplate,
-            MinioClient minioClient, StringRedisTemplate stringRedisTemplate) {
+            MinioClient minioClient,
+            FirmwareFileHolder firmwareFileHolder,
+            StringRedisTemplate stringRedisTemplate) {
         this.configuredHost = configuredHost;
         this.configuredPort = configuredPort;
         this.jdbcTemplate = jdbcTemplate;
         this.minioClient = minioClient;
+        this.firmwareFileHolder = firmwareFileHolder;
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
@@ -243,7 +252,7 @@ public class MockDeviceClient implements SmartLifecycle {
                         pipeline.addLast("fotaMessageEncoder", new FotaMessageEncoder());
                         pipeline.addLast("mockDeviceConnectHandler", new MockDeviceConnectHandler(stringRedisTemplate, profile));
                         pipeline.addLast("mockDeviceDispatchHandler",
-                                new MockDeviceDispatchHandler(profile, stringRedisTemplate, minioClient, minioBucket));
+                                new MockDeviceDispatchHandler(profile, stringRedisTemplate, minioClient, minioBucket, firmwareFileHolder));
                         pipeline.addLast("mockDeviceExceptionHandler", new MockDeviceExceptionHandler(profile));
                     }
                 });
@@ -349,19 +358,158 @@ public class MockDeviceClient implements SmartLifecycle {
         private final MinioClient minioClient;
         private final StringRedisTemplate redisTemplate;
         private final String minioBucket;
+        private final FirmwareFileHolder firmwareFileHolder;
         private final Set<Long> canceledTaskIds = ConcurrentHashMap.newKeySet();
 
         private static final String MOCK_DEV_RUNTIME_KEY = "mock-dev:upgrade:runtime:";
 
-        private MockDeviceDispatchHandler(MockDeviceProfile profile,
-                                          StringRedisTemplate redisTemplate,
-                                          MinioClient minioClient,
-                                          String minioBucket) {
+        private static final int SHARD_COUNT = 8;
+        private final ExecutorService[] shardExecutors = new ExecutorService[SHARD_COUNT];
+
+        public MockDeviceDispatchHandler(MockDeviceProfile profile, StringRedisTemplate redisTemplate, MinioClient minioClient, String minioBucket, FirmwareFileHolder firmwareFileHolder) {
             this.profile = profile;
-            this.redisTemplate = redisTemplate;
             this.minioClient = minioClient;
             this.minioBucket = minioBucket;
+            this.redisTemplate = redisTemplate;
+            this.firmwareFileHolder = firmwareFileHolder;
+
+            for (int i = 0; i < SHARD_COUNT; i++) {
+                int threadId = i;
+                shardExecutors[i] = Executors.newSingleThreadExecutor(r -> {
+                    Thread t = new Thread(r);
+                    t.setName("mock-device-file-writer-" + threadId);
+                    return t;
+                });
+
+            }
         }
+
+        public void submit(ChannelHandlerContext ctx,
+                           FotaProtocol.UpgradePacketDTO packet,
+                           Map<Object, Object> mockRuntimeHash,
+                           int totalPacket,
+                           long offset,
+                           Path path) {
+
+            long taskId = packet.taskId();
+            int shardIndex = Math.floorMod(taskId, SHARD_COUNT);
+            //对taskId取模，保证同一个taskId落在同一个queue上。从而保证局部串行，整体并行
+            shardExecutors[shardIndex].submit(() -> {
+                try {
+                    doWriteChunk(ctx, packet, mockRuntimeHash, totalPacket, offset, path);
+
+                    ctx.executor().execute(() -> ctx.writeAndFlush(
+                            new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), FotaProtocol.ACK_TYPE_PACKET)
+                    ));
+
+                    /**
+                     * 1. 业务线程直接操作 Channel，线程边界不清晰
+                     * 2. 后续如果在 ACK 前后访问 Channel attribute / pipeline 状态，容易踩并发问题
+                     * 3. 和 Netty 推荐的 EventLoop 串行模型不一致
+                     * 4. 多个业务线程同时 write，虽然 Netty 会兜底，但可控性差
+                     */
+                    //ctx.writeAndFlush(new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), FotaProtocol.ACK_TYPE_PACKET));
+                } catch (Exception e) {
+                    log.error("MockDevice 异步写入固件分包失败，imei={}，taskId={}，packetNo={}", packet.imei(), packet.taskId(), packet.packetNo(), e);
+                    ctx.executor().execute(() -> ctx.writeAndFlush(new FotaProtocol.Fail(
+                            packet.imei(),
+                            packet.taskId(),
+                            packet.packetNo(),
+                            UpgradeFailErrorCode.FAIL_ERROR_DEVICE_WRITE
+                    )));
+                }
+            });
+        }
+
+        /**
+         * 写固件 chunkData至本地文件
+         *
+         * @param ctx
+         * @param packet
+         * @param mockRuntimeHash
+         * @param totalPacket
+         * @param offset
+         * @param path
+         * @throws Exception
+         */
+        private void doWriteChunk(ChannelHandlerContext ctx,
+                                  FotaProtocol.UpgradePacketDTO packet,
+                                  Map<Object, Object> mockRuntimeHash,
+                                  int totalPacket,
+                                  long offset,
+                                  Path path) throws Exception {
+            Map<Object, Object> runtimeHash = new HashMap<>();
+            runtimeHash.put("packetNo", String.valueOf(packet.packetNo()));
+            runtimeHash.put("receivePacketAt", String.valueOf(System.currentTimeMillis()));
+
+            FileChannel fileChannel = firmwareFileHolder.getOrCreateChannel(packet.taskId(), path);
+            ByteBuffer buffer = ByteBuffer.wrap(packet.chunkData());
+            int written = fileChannel.write(buffer, offset);
+            if (written != packet.chunkData().length) {
+                throw new IOException("写入chunkData的长度不等于写入长度，written=" + written + ", chunkData.length=" + packet.chunkData().length);
+            }
+
+            long nextOffset = offset + packet.chunkData().length;
+            runtimeHash.put("offset", String.valueOf(nextOffset));
+            redisTemplate.opsForHash().putAll(MOCK_DEV_RUNTIME_KEY + packet.imei(), runtimeHash);
+
+            if (packet.packetNo() == totalPacket) {
+                try {
+                    firmwareFileHolder.closeAndRemove(packet.taskId());
+                    handleUpgradeCompleted(ctx, packet, mockRuntimeHash, path);
+                } catch (Exception e) {
+                    firmwareFileHolder.closeAndRemove(packet.taskId());
+                    throw e;
+                }
+            }
+        }
+
+        //接收到所有分包
+        private void handleUpgradeCompleted(ChannelHandlerContext ctx,
+                                            FotaProtocol.UpgradePacketDTO packet,
+                                            Map<Object, Object> mockRuntimeHash,
+                                            Path path) throws Exception {
+            byte[] sourceMD5 = HexUtils.fromHexString(String.valueOf(mockRuntimeHash.get("md5")));
+
+            int costTime = Math.toIntExact((System.currentTimeMillis()
+                    - Long.parseLong(String.valueOf(mockRuntimeHash.get("startTime")))) / 1000);
+
+            byte[] firmware = Files.readAllBytes(path);
+            boolean md5Matched = Arrays.equals(FotaProtocol.md5(firmware), sourceMD5);
+
+            ctx.executor().execute(() -> ctx.writeAndFlush(new FotaProtocol.UpgradeResultDTO(
+                    profile.imei(),
+                    packet.taskId(),
+                    md5Matched ? (byte) 0 : (byte) 1,
+                    md5Matched ? 0 : UpgradeFailErrorCode.FAIL_ERROR_CRC16,
+                    costTime
+            )));
+
+            DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+            String versionName = String.valueOf(mockRuntimeHash.get("firmwareVersionName"));
+            String firmwareName = String.valueOf(mockRuntimeHash.get("firmwareName"));
+            String objectName = "firmware/" + dateFormat.format(new Date()) + "/" + versionName + "/" + firmwareName;
+
+            //上传至设备侧的minIO bucket
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(minioBucket)
+                            .object(objectName)
+                            .stream(new ByteArrayInputStream(firmware), firmware.length, -1)
+                            .contentType("application/octet-stream")
+                            .build()
+            );
+
+            Files.deleteIfExists(path);
+            deleteDirectoryIfEmpty(path.getParent());
+            redisTemplate.delete(MOCK_DEV_RUNTIME_KEY + packet.imei());
+            canceledTaskIds.remove(packet.taskId());
+            //模拟设备mcu写入flush耗时
+            Thread.sleep(3000);
+            log.info("MockDevice 分包接收完成,耗时(s):{}, imei={}，taskId={}，md5Matched={}",
+                    costTime, profile.imei(), packet.taskId(), md5Matched);
+        }
+
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -381,6 +529,7 @@ public class MockDeviceClient implements SmartLifecycle {
             //接收0x82分包数据，并给网关应答
             if (msg instanceof FotaProtocol.UpgradePacketDTO packet) {
                 handleUpgradePacket(ctx, packet);
+
             }
 
             //接收0x87取消升级请求。标记任务已取消，并给网关回复取消ACK
@@ -457,96 +606,25 @@ public class MockDeviceClient implements SmartLifecycle {
             }
 
             Map<Object, Object> mockRuntimeHash = redisTemplate.opsForHash().entries(MOCK_DEV_RUNTIME_KEY + packet.imei());
-            Long offset = Long.parseLong(String.valueOf(mockRuntimeHash.get("offset")));
-            String totalPacketStr = String.valueOf(mockRuntimeHash.get("totalPacket"));
-            int totalPacket = Integer.parseInt(totalPacketStr);
-
             if (mockRuntimeHash == null || mockRuntimeHash.isEmpty()) {
                 ctx.writeAndFlush(new FotaProtocol.Fail(profile.imei(), packet.taskId(), packet.packetNo(), 2));
                 return;
             }
+
+            long offset = Long.parseLong(String.valueOf(mockRuntimeHash.get("offset")));
+            String totalPacketStr = String.valueOf(mockRuntimeHash.get("totalPacket"));
+            int totalPacket = Integer.parseInt(totalPacketStr);
 
             if (packet.packetNo() <= 0 || packet.packetNo() > totalPacket) {
                 ctx.writeAndFlush(new FotaProtocol.Fail(profile.imei(), packet.taskId(), packet.packetNo(), 3));
                 return;
             }
 
-            Map<Object, Object> runtimeHash = new HashMap<>();
-            runtimeHash.put("packetNo", String.valueOf(packet.packetNo()));
-            runtimeHash.put("receivePacketAt", String.valueOf(System.currentTimeMillis()));
+            // 固件文件路径：/mock-dev/firmware/task/imei.bin
+            Path path = Paths.get(UPGRADING_FIRMWARE_PATH + packet.taskId() + "/" + packet.imei() + ".bin");
 
-            //固件文件路径：/mock-dev/firmware/task/imei.bin
-            String firmwarePath = UPGRADING_FIRMWARE_PATH + packet.taskId() + "/" + packet.imei() + ".bin";
-            Path path = Paths.get(firmwarePath);
-
-            try (ChunkedFileWriter fileWriter = new ChunkedFileWriter(path)) {
-                fileWriter.writeChunk(offset,packet.chunkData());
-                offset+=packet.chunkData().length;
-                runtimeHash.put("offset", String.valueOf(offset));
-            } catch (Exception e) {
-                log.error("MockDevice 写入固件临时分包失败，imei={}，taskId={}，packetNo={}，path={}", profile.imei(), packet.taskId(), packet.packetNo(), path, e);
-                ctx.writeAndFlush(new FotaProtocol.Fail(profile.imei(), packet.taskId(), packet.packetNo(), 5));
-                return;
-            }
-            redisTemplate.opsForHash().putAll(MOCK_DEV_RUNTIME_KEY + packet.imei(), runtimeHash);
-            ctx.writeAndFlush(new FotaProtocol.Ack(profile.imei(), packet.taskId(), packet.packetNo(), FotaProtocol.ACK_TYPE_PACKET));
-
-            if (packet.packetNo() == totalPacket) {
-                byte[] sourceMD5 = HexUtils.fromHexString(String.valueOf(mockRuntimeHash.get("md5")));
-
-                int costTime = Math.toIntExact(
-                        (System.currentTimeMillis() - Long.parseLong(String.valueOf(mockRuntimeHash.get("startTime")))) / 1000
-                );
-                //读取写入的完整的临时文件
-                byte[] firmware;
-                try {
-                    firmware = Files.readAllBytes(path);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-
-                boolean md5Matched = Arrays.equals(FotaProtocol.md5(firmware), sourceMD5);
-
-                ctx.writeAndFlush(new FotaProtocol.UpgradeResultDTO(
-                        profile.imei(),
-                        packet.taskId(),
-                        md5Matched ? (byte) 0 : (byte) 1,
-                        md5Matched ? 0 : 4,
-                        costTime
-                ));
-
-                DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-                String versionName = String.valueOf(mockRuntimeHash.get("firmwareVersionName"));
-                String firmwareName = String.valueOf(mockRuntimeHash.get("firmwareName"));
-                String objectName = "firmware/" + dateFormat.format(new Date()) + "/" + versionName + "/" + firmwareName;
-                try {
-                    minioClient.putObject(
-                            PutObjectArgs.builder()
-                                    .bucket(minioBucket)
-                                    .object(objectName)
-                                    .stream(new ByteArrayInputStream(firmware), firmware.length, -1)
-                                    .contentType("application/octet-stream")
-                                    .build()
-                    );
-                    //清除临时文件
-                    Files.deleteIfExists(path);
-                    //如果 taskId 目录已经为空，则顺手删除 taskId 目录
-                    deleteDirectoryIfEmpty(path.getParent());
-                    //删除本次升级会话的 MOCK_DEV_RUNTIME_KEY
-                    redisTemplate.delete(MOCK_DEV_RUNTIME_KEY + packet.imei());
-                } catch (Exception e) {
-                    log.error("设备侧固件上传minio失败，imei={}，taskId={}", profile.imei(), packet.taskId(), e);
-                }
-                canceledTaskIds.remove(packet.taskId());
-                try {
-                    //模拟设备mcu写入 flush
-                    Thread.sleep(3000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
-                log.info("MockDevice 分包接收完成,耗时(s):{}, imei={}，taskId={}，md5Matched={}", costTime, profile.imei(), packet.taskId(), md5Matched);
-            }
+            // 后续写文件、更新 mock-dev runtime、最终 MD5 校验、上传 MinIO 都交给 shard 写线程处理，避免阻塞 Netty EventLoop。
+            submit(ctx, packet, mockRuntimeHash, totalPacket, offset, path);
         }
 
         // 删除空目录辅助方法
@@ -604,44 +682,13 @@ public class MockDeviceClient implements SmartLifecycle {
         log.info("MockDeviceClient 已停止");
     }
 
+    @Data
     public static class MockDeviceControlResponse {
 
         private Integer totalCount;
         private Integer successCount;
         private Integer skippedCount;
         private String summary;
-
-        public Integer getTotalCount() {
-            return totalCount;
-        }
-
-        public void setTotalCount(Integer totalCount) {
-            this.totalCount = totalCount;
-        }
-
-        public Integer getSuccessCount() {
-            return successCount;
-        }
-
-        public void setSuccessCount(Integer successCount) {
-            this.successCount = successCount;
-        }
-
-        public Integer getSkippedCount() {
-            return skippedCount;
-        }
-
-        public void setSkippedCount(Integer skippedCount) {
-            this.skippedCount = skippedCount;
-        }
-
-        public String getSummary() {
-            return summary;
-        }
-
-        public void setSummary(String summary) {
-            this.summary = summary;
-        }
     }
 
     private record MockDeviceProfile(String imei, String currentFirmwareVersion, String deviceType) {
