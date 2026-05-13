@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * web服务调用mock-device服务的接口。模拟设备上下线
+ */
 @RestController
 @RequestMapping("/internal/mock-devices")
 public class MockDeviceControlController {

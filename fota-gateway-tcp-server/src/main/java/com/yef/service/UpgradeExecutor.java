@@ -138,7 +138,7 @@ public class UpgradeExecutor {
      *
      * @param ack
      */
-    public void receiveUpgradeRequestAckAndSendSpiltPacket(AckMessage ack) {
+    public void receiveUpgradeRequestAckAndSendSpiltPacket(AckMessage ack) throws InterruptedException {
         String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + ack.imei();
         Map<Object, Object> runtimeMap = redisTemplate.opsForHash().entries(runtimeKey);
         if (runtimeMap == null || runtimeMap.isEmpty()) {
@@ -195,7 +195,9 @@ public class UpgradeExecutor {
         //按 offset 读取
         byte[] bytes = firmwareCacheHolder.getFirmwareFullBytes();
         byte[] chunk = Arrays.copyOfRange(bytes, offset, offset + length);
-
+        if (ack.getAckType() == FotaProtocolConstants.MOCK_DEVICE_BUSY) {
+            Thread.sleep(2000);
+        }
         packetSender.sendToDevice(
                 ack.imei(),
                 new UpgradePacketMessage(

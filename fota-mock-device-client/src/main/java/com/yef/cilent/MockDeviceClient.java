@@ -24,6 +24,7 @@ import io.netty.handler.timeout.IdleStateHandler;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import io.netty.util.AttributeKey;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,9 +47,9 @@ public class MockDeviceClient implements SmartLifecycle {
     private final String configuredHost;
     private final int configuredPort;
     private final JdbcTemplate jdbcTemplate;
-    private final MinioClient minioClient;
-    private final FirmwareFileHolder firmwareFileHolder;
     private final StringRedisTemplate stringRedisTemplate;
+
+    private final MockDeviceDispatchHandler mockDeviceDispatchHandler;
 
     @Value("${minio.device-bucket-name}")
     private String minioBucket;
@@ -58,19 +59,22 @@ public class MockDeviceClient implements SmartLifecycle {
     private Bootstrap bootstrap;
     private final Map<String, Channel> deviceChannels = new ConcurrentHashMap<>();
 
+
     public MockDeviceClient(
             @Value("${netty.device-gateway-server.host:127.0.0.1}") String configuredHost,
             @Value("${netty.device-gateway-server.port:7611}") int configuredPort,
             JdbcTemplate jdbcTemplate,
             MinioClient minioClient,
             FirmwareFileHolder firmwareFileHolder,
-            StringRedisTemplate stringRedisTemplate) {
+            StringRedisTemplate stringRedisTemplate,
+            MockDeviceDispatchHandler mockDeviceDispatchHandler) {
+
         this.configuredHost = configuredHost;
         this.configuredPort = configuredPort;
         this.jdbcTemplate = jdbcTemplate;
-        this.minioClient = minioClient;
-        this.firmwareFileHolder = firmwareFileHolder;
         this.stringRedisTemplate = stringRedisTemplate;
+        //共享的 业务进站handler
+        this.mockDeviceDispatchHandler = mockDeviceDispatchHandler;
     }
 
     @Override
@@ -235,8 +239,7 @@ public class MockDeviceClient implements SmartLifecycle {
                         pipeline.addLast("fotaMessageDecoder", new FotaMessageDecoder());
                         pipeline.addLast("fotaMessageEncoder", new FotaMessageEncoder());
                         pipeline.addLast("mockDeviceConnectHandler", new MockDeviceConnectHandler(stringRedisTemplate, profile));
-                        pipeline.addLast("mockDeviceDispatchHandler",
-                                new MockDeviceDispatchHandler(profile, stringRedisTemplate, minioClient, minioBucket, firmwareFileHolder));
+                        pipeline.addLast("mockDeviceDispatchHandler", mockDeviceDispatchHandler);
                         pipeline.addLast("mockDeviceExceptionHandler", new MockDeviceExceptionHandler(profile));
                     }
                 });
@@ -246,6 +249,7 @@ public class MockDeviceClient implements SmartLifecycle {
     private boolean connectDevice(MockDeviceProfile profile) {
         try {
             ChannelFuture future = bootstrap.clone()
+                    //创建这个 Channel 时，把该设备 profile 绑定到这个 Channel 的 attribute 上
                     .attr(MockDeviceAttributes.DEVICE_PROFILE, profile)
                     .connect(configuredHost, configuredPort)
                     .sync();
@@ -269,7 +273,7 @@ public class MockDeviceClient implements SmartLifecycle {
 
     private void closeChannelQuietly(Channel channel, String imei) {
         try {
-            channel.close().syncUninterruptibly();
+            channel.close();//.syncUninterruptibly();
             log.info("MockDevice 已下线，imei={}", imei);
         } catch (Exception e) {
             log.warn("关闭 MockDevice channel 异常，imei={}", imei, e);
@@ -329,24 +333,6 @@ public class MockDeviceClient implements SmartLifecycle {
         }
     }
 
-    /**
-     * 客户端异常处理器。
-     */
-    private static class MockDeviceExceptionHandler extends ChannelInboundHandlerAdapter {
-
-        private final MockDeviceProfile profile;
-
-        private MockDeviceExceptionHandler(MockDeviceProfile profile) {
-            this.profile = profile;
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            log.error("MockDeviceClient 链路异常，imei={}", profile.imei(), cause);
-            ctx.close();
-        }
-    }
-
     private void shutdownQuietly() {
         for (Map.Entry<String, Channel> entry : deviceChannels.entrySet()) {
             closeChannelQuietly(entry.getValue(), entry.getKey());
@@ -367,6 +353,24 @@ public class MockDeviceClient implements SmartLifecycle {
         log.info("MockDeviceClient 已停止");
     }
 
+
+    /**
+     * 客户端异常处理器。
+     */
+    private static class MockDeviceExceptionHandler extends ChannelInboundHandlerAdapter {
+
+        private final MockDeviceProfile profile;
+
+        private MockDeviceExceptionHandler(MockDeviceProfile profile) {
+            this.profile = profile;
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+            log.error("MockDeviceClient 链路异常，imei={}", profile.imei(), cause);
+            ctx.close();
+        }
+    }
     @Data
     public static class MockDeviceControlResponse {
 
@@ -392,9 +396,9 @@ public class MockDeviceClient implements SmartLifecycle {
         }
     }
 
-    private static final class MockDeviceAttributes {
-        private static final io.netty.util.AttributeKey<MockDeviceProfile> DEVICE_PROFILE =
-                io.netty.util.AttributeKey.valueOf("mock.device.profile");
+    public static final class MockDeviceAttributes {
+        public static final AttributeKey<MockDeviceProfile> DEVICE_PROFILE =
+                AttributeKey.valueOf("mock.device.profile");
 
         private MockDeviceAttributes() {
         }

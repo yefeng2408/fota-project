@@ -37,7 +37,7 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, Object msg) {
+    protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
         Long deviceId = ctx.channel().attr(ChannelAttributes.DEVICE_ID).get();
         if (msg instanceof DeviceBootUpMessage) {
             upgradeExecutor.onDeviceBootUp((DeviceBootUpMessage) msg);
@@ -47,7 +47,7 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
         } else if (msg instanceof AckMessage) {
             AckMessage ack = (AckMessage) msg;
             /*log.info("[UpgradeDispatchHandler] ack ignored, imei={}, taskId={}, packetNo={}", ack.imei(),ack.getTaskId(),ack.getPacketNo());*/
-            if(ack.getAckType()==1 || ack.getAckType()==2){
+            if(ack.getAckType()==1 || ack.getAckType()==2 || ack.getAckType()==6){
                 //收到0x81的应答。开始对固件进行分包下发0x82消息
                 upgradeExecutor.receiveUpgradeRequestAckAndSendSpiltPacket(ack);
             }else if (ack.getAckType()==4){

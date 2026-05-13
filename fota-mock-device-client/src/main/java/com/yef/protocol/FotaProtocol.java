@@ -90,6 +90,13 @@ public final class FotaProtocol {
         }
     }
 
+    /**
+     *
+     * @param imei
+     * @param taskId
+     * @param packetNo
+     * @param ackType
+     */
     public record Ack(String imei, long taskId, int packetNo, byte ackType) implements Message {
         @Override
         public byte messageType() {
@@ -103,6 +110,7 @@ public final class FotaProtocol {
             return FAIL;
         }
     }
+
 
     /**
      *

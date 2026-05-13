@@ -246,6 +246,12 @@ public final class FotaProtocolConstants {
     public static final byte ACK_TYPE_HEARTBEAT = 5;
 
 
+    /**
+     * 上行消息。mock-device服务的业务线程写本地固件文件触发背压消息，服务端收到该消息后 降低packetSend的速率
+     */
+    public static final byte MOCK_DEVICE_BUSY = 6;
+
+
     private FotaProtocolConstants() {
     }
 }
