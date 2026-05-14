@@ -13,4 +13,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface FirmwarePackageService extends IService<FirmwarePackageEntity> {
 
+
+    String existVersion(String version);
+
 }

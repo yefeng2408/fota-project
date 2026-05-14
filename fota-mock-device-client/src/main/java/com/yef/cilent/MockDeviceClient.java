@@ -3,10 +3,8 @@ package com.yef.cilent;
 import com.yef.codec.FotaFrameDecoder;
 import com.yef.codec.FotaMessageDecoder;
 import com.yef.codec.FotaMessageEncoder;
-import com.yef.fileWriter.FirmwareFileHolder;
 import com.yef.handler.MockDeviceDispatchHandler;
 import com.yef.protocol.FotaProtocol;
-import io.minio.MinioClient;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -51,9 +49,6 @@ public class MockDeviceClient implements SmartLifecycle {
 
     private final MockDeviceDispatchHandler mockDeviceDispatchHandler;
 
-    @Value("${minio.device-bucket-name}")
-    private String minioBucket;
-
     private volatile boolean running;
     private EventLoopGroup workerGroup;
     private Bootstrap bootstrap;
@@ -64,8 +59,6 @@ public class MockDeviceClient implements SmartLifecycle {
             @Value("${netty.device-gateway-server.host:127.0.0.1}") String configuredHost,
             @Value("${netty.device-gateway-server.port:7611}") int configuredPort,
             JdbcTemplate jdbcTemplate,
-            MinioClient minioClient,
-            FirmwareFileHolder firmwareFileHolder,
             StringRedisTemplate stringRedisTemplate,
             MockDeviceDispatchHandler mockDeviceDispatchHandler) {
 

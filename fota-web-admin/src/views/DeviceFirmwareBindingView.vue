@@ -2,8 +2,7 @@
   <div class="block-card">
     <div class="table-toolbar">
       <div class="toolbar-left">
-        <el-input-number v-model="query.deviceId" placeholder="设备ID" :min="1" controls-position="right" />
-        <el-input-number v-model="query.firmwareId" placeholder="固件ID" :min="1" controls-position="right" />
+        <el-input v-model="query.deviceId" placeholder="设备imei" :min="1" controls-position="right" style="width: 150px" />
         <el-select v-model="query.bindStatus" placeholder="绑定状态" clearable style="width: 180px">
           <el-option label="BOUND" value="BOUND" />
           <el-option label="TRIGGERED" value="TRIGGERED" />
@@ -15,10 +14,10 @@
     </div>
 
     <el-table :data="tableData.records">
-      <el-table-column prop="id" label="ID" width="90" />
+      <!-- <el-table-column prop="id" label="ID" width="90" /> -->
       <el-table-column prop="deviceId" label="设备ID" />
       <el-table-column prop="firmwareId" label="固件ID" />
-      <el-table-column prop="bindStatus" label="绑定状态" />
+      <el-table-column prop="bindStatus" label="绑定状态" width="120" />
       <el-table-column prop="triggered" label="已触发" />
       <el-table-column prop="operatorId" label="操作人" />
       <el-table-column prop="boundAt" label="绑定时间" min-width="180" />

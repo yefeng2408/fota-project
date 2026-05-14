@@ -82,6 +82,53 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
     }
 
 
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+
+        if (msg instanceof FotaProtocol.PlatformAckDTO ack) {
+                /*log.info("MockDevice 收到平台ACK，taskId={}，refMessageType={}，ackStatus={}，reasonCode={}",
+                        ack.taskId(), ack.refMessageType(), ack.ackStatus(), ack.reasonCode());*/
+            return;
+        }
+
+        //接收0x81升级请求
+        if (msg instanceof FotaProtocol.UpgradeRequestDTO request) {
+            handleUpgradeRequest(ctx, request);
+            return;
+        }
+
+        //接收0x82分包数据，并给网关应答
+        if (msg instanceof FotaProtocol.UpgradePacketDTO packet) {
+            handleUpgradePacket(ctx, packet);
+
+        }
+
+        //接收0x87取消升级请求。标记任务已取消，并给网关回复取消ACK
+        if (msg instanceof FotaProtocol.CancelUpgradeDTO cancelUpgrade) {
+            canceledTaskIds.add(cancelUpgrade.taskId());
+            Path taskDir = UPGRADING_FIRMWARE_ROOT.resolve(String.valueOf(cancelUpgrade.taskId()));
+            Path path = taskDir.resolve(cancelUpgrade.imei() + ".bin");
+            //删除临时文件
+            Files.deleteIfExists(path);
+            //如果 taskId 目录已经为空，则顺手删除 taskId 目录
+            deleteDirectoryIfEmpty(taskDir);
+            //删除本次升级的会话key
+            redisTemplate.delete(MOCK_DEV_RUNTIME_KEY + cancelUpgrade.imei());
+            //模拟等待
+            Thread.sleep(3000);
+            ctx.writeAndFlush(new FotaProtocol.Ack(
+                    cancelUpgrade.imei(),
+                    cancelUpgrade.taskId(),
+                    0,
+                    FotaProtocol.ACK_TYPE_CANCEL)
+            );
+            log.info("MockDevice 已确认取消升级，imei={}，taskId={}", cancelUpgrade.imei(), cancelUpgrade.taskId());
+            return;
+        }
+        super.channelRead(ctx, msg);
+    }
+
+
     /**
      * 提交线程池 异步执行
      */
@@ -93,8 +140,8 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
 
         long taskId = packet.taskId();
         //对taskId取模，保证同一个taskId落在同一个queue上。从而保证局部串行，整体并行
-        int shardIndex = Math.floorMod(taskId, SHARD_COUNT);
-
+        //int shardIndex = Math.floorMod(taskId, SHARD_COUNT);
+        int shardIndex = Math.floorMod(Objects.hash(taskId, packet.imei()), SHARD_COUNT);
         //背压
         ThreadPoolExecutor executor = shardExecutors[shardIndex];
         int queueSize = executor.getQueue().size();
@@ -270,55 +317,9 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
      * 模拟设备 MCU 写入固件耗时。
      */
     private void simulateMcuFlush() throws InterruptedException {
-        Thread.sleep(3000);
+        Thread.sleep(200);
     }
 
-
-    @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-
-        if (msg instanceof FotaProtocol.PlatformAckDTO ack) {
-                /*log.info("MockDevice 收到平台ACK，taskId={}，refMessageType={}，ackStatus={}，reasonCode={}",
-                        ack.taskId(), ack.refMessageType(), ack.ackStatus(), ack.reasonCode());*/
-            return;
-        }
-
-        //接收0x81升级请求
-        if (msg instanceof FotaProtocol.UpgradeRequestDTO request) {
-            handleUpgradeRequest(ctx, request);
-            return;
-        }
-
-        //接收0x82分包数据，并给网关应答
-        if (msg instanceof FotaProtocol.UpgradePacketDTO packet) {
-            handleUpgradePacket(ctx, packet);
-
-        }
-
-        //接收0x87取消升级请求。标记任务已取消，并给网关回复取消ACK
-        if (msg instanceof FotaProtocol.CancelUpgradeDTO cancelUpgrade) {
-            canceledTaskIds.add(cancelUpgrade.taskId());
-            Path taskDir = UPGRADING_FIRMWARE_ROOT.resolve(String.valueOf(cancelUpgrade.taskId()));
-            Path path = taskDir.resolve(cancelUpgrade.imei() + ".bin");
-            //删除临时文件
-            Files.deleteIfExists(path);
-            //如果 taskId 目录已经为空，则顺手删除 taskId 目录
-            deleteDirectoryIfEmpty(taskDir);
-            //删除本次升级的会话key
-            redisTemplate.delete(MOCK_DEV_RUNTIME_KEY + cancelUpgrade.imei());
-            //模拟等待
-            Thread.sleep(3000);
-            ctx.writeAndFlush(new FotaProtocol.Ack(
-                    cancelUpgrade.imei(),
-                    cancelUpgrade.taskId(),
-                    0,
-                    FotaProtocol.ACK_TYPE_CANCEL)
-            );
-            log.info("MockDevice 已确认取消升级，imei={}，taskId={}", cancelUpgrade.imei(), cancelUpgrade.taskId());
-            return;
-        }
-        super.channelRead(ctx, msg);
-    }
 
     /**
      * 如果连续 60 秒没有向通道写入数据，→ 触发写空闲。然后发送心跳包

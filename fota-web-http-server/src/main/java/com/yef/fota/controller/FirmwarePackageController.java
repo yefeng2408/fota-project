@@ -99,6 +99,12 @@ public class FirmwarePackageController {
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
 
+        String string = firmwarePackageService.existVersion(version);
+        if (!StringUtils.isEmpty(string)) {
+            throw new BusinessException("版本号已存在，请重新填写！");
+        }
+
+
         try (InputStream uploadInputStream = file.getInputStream()) {
             ObjectWriteResponse resp = minioClient.putObject(
                     PutObjectArgs.builder()

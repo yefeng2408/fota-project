@@ -195,6 +195,7 @@ public class UpgradeExecutor {
         //按 offset 读取
         byte[] bytes = firmwareCacheHolder.getFirmwareFullBytes();
         byte[] chunk = Arrays.copyOfRange(bytes, offset, offset + length);
+
         if (ack.getAckType() == FotaProtocolConstants.MOCK_DEVICE_BUSY) {
             Thread.sleep(2000);
         }

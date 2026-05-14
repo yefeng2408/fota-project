@@ -4,6 +4,7 @@ import com.yef.fota.entity.FirmwarePackageEntity;
 import com.yef.fota.mapper.FirmwarePackageMapper;
 import com.yef.fota.service.FirmwarePackageService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -17,4 +18,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class FirmwarePackageServiceImpl extends ServiceImpl<FirmwarePackageMapper, FirmwarePackageEntity> implements FirmwarePackageService {
 
+    @Autowired
+    private FirmwarePackageMapper firmwarePackageMapper;
+
+    @Override
+    public String existVersion(String version) {
+        return firmwarePackageMapper.selectByFirmwareVersion(version);
+    }
 }

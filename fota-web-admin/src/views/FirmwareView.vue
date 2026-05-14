@@ -12,7 +12,7 @@
       <el-table :data="tableData.records" class="firmware-table">
         <el-table-column prop="version" label="版本号" width="100" />
         <el-table-column prop="deviceType" label="设备类型" width="100" />
-        <el-table-column prop="fileName" label="文件名" min-width="60" show-overflow-tooltip />
+        <el-table-column prop="fileName" label="文件名" min-width="60" width="100" show-overflow-tooltip />
         <el-table-column label="文件下载地址" width="120" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tooltip v-if="row.downloadUrl" :content="row.fileUrl || row.downloadUrl" placement="top" effect="light">
@@ -21,12 +21,12 @@
             <span v-else>{{ row.fileUrl || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="fileSize" label="大小（M）" width="110" />
-        <el-table-column prop="md5" label="MD5" min-width="100" show-overflow-tooltip />
+        <el-table-column prop="fileSize" label="大小（M）" width="120" />
+        <el-table-column prop="md5" label="MD5" min-width="100" width="100" show-overflow-tooltip />
         <el-table-column prop="chunkSize" label="分包大小（byte）" width="120" />
         <el-table-column prop="totalPacket" label="分包数量" width="100" />
         <!-- <el-table-column prop="status" label="状态" width="90" /> -->
-        <el-table-column prop="remark" label="备注" min-width="80" show-overflow-tooltip />
+        <el-table-column prop="remark" label="备注" min-width="80" width="130" show-overflow-tooltip />
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
             <el-button link type="danger" @click="remove(row.id)">删除</el-button>
@@ -84,9 +84,9 @@ const uploadDialogVisible = ref(false)
 const query = reactive({ current: 1, pageSize: 10, keyword: '' })
 const tableData = reactive({ total: 0, records: [] })
 const chunkSizeMap = {
-  D056: 512,
-  D057: 1024,
-  MOTOR_V1: 2048
+  D056: 8192,
+  D057: 16384,
+  MOTOR_V1: 32768
 }
 const deviceTypeOptions = [
   { label: 'D056', value: 'D056' },
