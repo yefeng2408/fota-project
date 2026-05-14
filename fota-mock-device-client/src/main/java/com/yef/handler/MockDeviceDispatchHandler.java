@@ -52,6 +52,11 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
     private static final String MOCK_DEV_RUNTIME_KEY = "mock-dev:upgrade:runtime:";
 
     private static final int SHARD_COUNT = 8;
+    /**
+     * mock-device 接收分包过程中的 Redis runtime checkpoint 间隔。
+     * 避免每个 chunk 都 putAll，降低 Redis 高频写压力。
+     */
+    private static final int MOCK_RUNTIME_CHECKPOINT_PACKET_INTERVAL = 10;
     private final ThreadPoolExecutor[] shardExecutors = new ThreadPoolExecutor[SHARD_COUNT];
 
     public MockDeviceDispatchHandler(StringRedisTemplate redisTemplate,
@@ -247,7 +252,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         long nextOffset = offset + packet.chunkData().length;
 
         runtimeHash.put("offset", String.valueOf(nextOffset));
-        redisTemplate.opsForHash().putAll(MOCK_DEV_RUNTIME_KEY + packet.imei(), runtimeHash);
+        updateMockRuntimeIfNecessary(packet, totalPacket, runtimeHash);
         if (packet.packetNo() == totalPacket) {
             try {
                 firmwareFileHolder.closeAndRemove(packet.taskId());
@@ -258,6 +263,22 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
             }
         }
         return null;
+    }
+
+    private void updateMockRuntimeIfNecessary(FotaProtocol.UpgradePacketDTO packet,
+                                              int totalPacket,
+                                              Map<Object, Object> runtimeHash) {
+        if (!shouldCheckpointMockRuntime(packet.packetNo(), totalPacket)) {
+            return;
+        }
+
+        redisTemplate.opsForHash().putAll(MOCK_DEV_RUNTIME_KEY + packet.imei(), runtimeHash);
+    }
+
+    private boolean shouldCheckpointMockRuntime(int packetNo, int totalPacket) {
+        return packetNo == 1
+                || packetNo >= totalPacket
+                || packetNo % MOCK_RUNTIME_CHECKPOINT_PACKET_INTERVAL == 0;
     }
 
     //接收到所有分包
@@ -326,7 +347,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
      * 模拟设备 MCU 写入固件耗时。
      */
     private void simulateMcuFlush() throws InterruptedException {
-        Thread.sleep(200);
+        Thread.sleep(500);
     }
 
 
