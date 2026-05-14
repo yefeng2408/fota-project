@@ -229,16 +229,25 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         // taskId 是单设备一次升级任务的唯一标识，因此可以作为 FileChannel 的缓存 key。
         FileChannel fileChannel = firmwareFileHolder.getOrCreateChannel(packet.taskId(), path);
         ByteBuffer buffer = ByteBuffer.wrap(packet.chunkData());
-        int written = fileChannel.write(buffer, offset);
-
-        if (written != packet.chunkData().length) {
-            throw new IOException("写入chunkData的长度不等于写入长度，written=" + written + ", chunkData.length=" + packet.chunkData().length);
+        //int written = fileChannel.write(buffer, offset);
+        long position = offset;
+        int totalWritten = 0;
+        while (buffer.hasRemaining()) {
+            int written = fileChannel.write(buffer, position);
+            if (written <= 0) {
+                throw new IOException("FileChannel write returned " + written);
+            }
+            position += written;
+            totalWritten += written;
         }
-
+        if (totalWritten != packet.chunkData().length) {
+            throw new IOException("写入chunkData的长度不等于写入长度，written="
+                    + totalWritten + ", chunkData.length=" + packet.chunkData().length);
+        }
         long nextOffset = offset + packet.chunkData().length;
+
         runtimeHash.put("offset", String.valueOf(nextOffset));
         redisTemplate.opsForHash().putAll(MOCK_DEV_RUNTIME_KEY + packet.imei(), runtimeHash);
-
         if (packet.packetNo() == totalPacket) {
             try {
                 firmwareFileHolder.closeAndRemove(packet.taskId());

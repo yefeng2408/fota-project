@@ -42,6 +42,12 @@ public class UpgradeExecutor {
     private final DeviceUpgradeLockService deviceUpgradeLockService;
     private final FirmwareCacheManager firmwareCacheManager;
 
+    /**
+     * 网关分包下发过程中的 Redis runtime checkpoint 间隔。
+     * 避免每个 chunk 都 putAll，降低 Redis 高频写压力。
+     */
+    private static final int RUNTIME_CHECKPOINT_PACKET_INTERVAL = 10;
+
 
     public UpgradeExecutor(StringRedisTemplate redisTemplate,
                            PacketSender packetSender,
@@ -141,122 +147,45 @@ public class UpgradeExecutor {
     public void receiveUpgradeRequestAckAndSendSpiltPacket(AckMessage ack) throws InterruptedException {
         String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + ack.imei();
         Map<Object, Object> runtimeMap = redisTemplate.opsForHash().entries(runtimeKey);
-        if (runtimeMap == null || runtimeMap.isEmpty()) {
+
+        if (!isValidRuntime(runtimeMap, ack)) {
             return;
         }
 
-        Long runtimeTaskId = Long.valueOf(String.valueOf(runtimeMap.get("taskId")));
-        if (!Objects.equals(ack.getTaskId(), runtimeTaskId)) {
-            return;
-        }
-
-        Long firmwareId = Long.valueOf(String.valueOf(runtimeMap.get("firmwareId")));
-        FirmwareCacheHolder firmwareCacheHolder = firmwareCacheManager.get(firmwareId);
+        FirmwareCacheHolder firmwareCacheHolder = getFirmwareCacheHolder(runtimeMap);
         if (firmwareCacheHolder == null) {
-            log.warn("固件不存在，无法进行0x82分包下发过程！");
             return;
         }
 
-        Integer packetNo = Integer.valueOf(String.valueOf(runtimeMap.get("packetNo")));
         Integer totalPacket = Integer.valueOf(String.valueOf(runtimeMap.get("totalPacket")));
         Integer chunkSize = Integer.valueOf(String.valueOf(runtimeMap.get("chunkSize")));
         Long fileSize = Long.valueOf(String.valueOf(runtimeMap.get("fileSize")));
 
-        int nextPacketNo;
-
-        if (ack.getAckType() == FotaProtocolConstants.ACK_TYPE_UPGRADE_REQUEST && packetNo == 0) {
-            nextPacketNo = 1;
-        } else if (ack.getAckType() == FotaProtocolConstants.ACK_TYPE_PACKET) {
-            nextPacketNo = ack.getPacketNo() + 1;
-            //log.info("[UpgradeExecutor]---------> send 0x82 UpgradePacket, packetNo:{}", packetNo);
-        } else {
+        Integer nextPacketNo = resolveNextPacketNo(ack, runtimeMap);
+        if (nextPacketNo == null || nextPacketNo > totalPacket) {
             return;
         }
 
-        if (nextPacketNo > totalPacket) {
-            return;
-        }
+        handleUpgradeStartIfNecessary(ack, runtimeMap, nextPacketNo);
 
-        if (nextPacketNo == 1) {
-            EntryUpgradingEventRequest request = new EntryUpgradingEventRequest(
-                    ack.imei(),
-                    runtimeTaskId,
-                    "UPGRADING"
-            );
-            deviceUpgradeEventPushClient.pushEntryIntoUpgradingStatus(request);
-        }
-
-        int offset = (nextPacketNo - 1) * chunkSize;
-        int length = Math.toIntExact(Math.min(chunkSize, fileSize - offset));
-        if (length <= 0) {
-            return;
-        }
-
-        //按 offset 读取
-        byte[] bytes = firmwareCacheHolder.getFirmwareFullBytes();
-        byte[] chunk = Arrays.copyOfRange(bytes, offset, offset + length);
-
-        if (ack.getAckType() == FotaProtocolConstants.MOCK_DEVICE_BUSY) {
-            Thread.sleep(2000);
-        }
-        packetSender.sendToDevice(
-                ack.imei(),
-                new UpgradePacketMessage(
-                        ack.imei(),
-                        ack.getTaskId(),
-                        nextPacketNo,
-                        totalPacket,
-                        chunk
-                )
+        ChunkContext chunkContext = buildChunkContext(
+                ack,
+                firmwareCacheHolder,
+                nextPacketNo,
+                totalPacket,
+                chunkSize,
+                fileSize
         );
 
-        long now = System.currentTimeMillis();
-        int progress = (int) Math.min(100L, (nextPacketNo * 100) / totalPacket);
-
-        Map<String, String> runtimeHash = new HashMap<>();
-        runtimeHash.put("offset", String.valueOf(offset));
-        runtimeHash.put("packetNo", String.valueOf(nextPacketNo));
-        runtimeHash.put("packetTime", String.valueOf(now));
-        runtimeHash.put("lastPacketAt", String.valueOf(now));
-        runtimeHash.put("progress", String.valueOf(progress));
-        runtimeHash.put("status", nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING");
-        runtimeHash.put("currentChunkLength", String.valueOf(chunk.length));
-        runtimeHash.put("chunkSize", String.valueOf(chunkSize));
-        runtimeHash.put("totalPacket", String.valueOf(totalPacket));
-        redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
-
-        //首次下发分包。推送升级开始时间
-        if (nextPacketNo == 1) {
-            UpgradeStartTimeEventRequest eventRequest = new UpgradeStartTimeEventRequest(ack.imei(), runtimeTaskId, LocalDateTime.now());
-            deviceUpgradeEventPushClient.updateStartTime(eventRequest);
+        if (chunkContext == null) {
+            return;
         }
 
-        /*
-         * 在设备升级过程中，由于分包高频推进，progress 计算存在重复值，为避免 WebSocket 推送风暴，
-         * 通过 Redis 记录上一次推送的进度值，并结合时间窗口做限流控制，仅在进度发生变化且满足时间阈值时才触发推送，
-         * 从而实现高频场景下的稳定推送机制。
-         */
-        String lastProgressKey = runtimeKey + ":lastPushProgress";
+        sendChunkPacket(ack, chunkContext);
 
-        String lastProgressStr = redisTemplate.opsForValue().get(lastProgressKey);
-        int lastPushProgress = lastProgressStr == null ? -1 : Integer.parseInt(lastProgressStr);
+        updateRuntimeAfterSend(runtimeKey, chunkContext);
 
-        //int pushProgress = calcPushProgress(progress);
-        if (progress > lastPushProgress) {
-            redisTemplate.opsForValue().set(lastProgressKey, String.valueOf(progress));
-            String upgradeStatus = nextPacketNo >= totalPacket ? "WAIT_RESULT" : "UPGRADING";
-            deviceUpgradeEventPushClient.pushUpgradeProgress(
-                    new UpgradeProgressEventRequest(
-                            ack.imei(),
-                            ack.getTaskId(),
-                            upgradeStatus,
-                            progress,
-                            null,
-                            null
-                    )
-            );
-        }
-
+        pushUpgradeProgressIfNecessary(runtimeKey, ack, chunkContext);
     }
 
 
@@ -395,7 +324,6 @@ public class UpgradeExecutor {
             runtime.put("totalPacket", String.valueOf(totalPacket));
             redisTemplate.opsForHash().putAll(runtimeKey, runtime);
 
-
             deviceUpgradeEventPushClient.pushUpgradeProgress(
                     new UpgradeProgressEventRequest(
                             heartbeatMessage.imei(),
@@ -428,6 +356,185 @@ public class UpgradeExecutor {
     }
 
 
-}
+    private boolean isValidRuntime(Map<Object, Object> runtimeMap, AckMessage ack) {
+        if (runtimeMap == null || runtimeMap.isEmpty()) {
+            return false;
+        }
 
+        Long runtimeTaskId = Long.valueOf(String.valueOf(runtimeMap.get("taskId")));
+        return Objects.equals(ack.getTaskId(), runtimeTaskId);
+    }
+
+
+    private FirmwareCacheHolder getFirmwareCacheHolder(Map<Object, Object> runtimeMap) {
+        Long firmwareId = Long.valueOf(String.valueOf(runtimeMap.get("firmwareId")));
+        FirmwareCacheHolder firmwareCacheHolder = firmwareCacheManager.get(firmwareId);
+
+        if (firmwareCacheHolder == null) {
+            log.warn("固件不存在，无法进行0x82分包下发过程！");
+            return null;
+        }
+        return firmwareCacheHolder;
+    }
+
+
+    private Integer resolveNextPacketNo(AckMessage ack, Map<Object, Object> runtimeMap) {
+        Integer packetNo = Integer.valueOf(String.valueOf(runtimeMap.get("packetNo")));
+
+        if (ack.getAckType() == FotaProtocolConstants.ACK_TYPE_UPGRADE_REQUEST && packetNo == 0) {
+            return 1;
+        }
+
+        if (ack.getAckType() == FotaProtocolConstants.ACK_TYPE_PACKET) {
+            return ack.getPacketNo() + 1;
+        }
+        return null;
+    }
+
+
+    private void handleUpgradeStartIfNecessary(AckMessage ack, Map<Object, Object> runtimeMap, Integer nextPacketNo) {
+        if (nextPacketNo != 1) {
+            return;
+        }
+        Long runtimeTaskId = Long.valueOf(String.valueOf(runtimeMap.get("taskId")));
+        EntryUpgradingEventRequest request = new EntryUpgradingEventRequest(
+                ack.imei(),
+                runtimeTaskId,
+                "UPGRADING"
+        );
+        deviceUpgradeEventPushClient.pushEntryIntoUpgradingStatus(request);
+    }
+
+    private ChunkContext buildChunkContext(AckMessage ack,
+                                           FirmwareCacheHolder firmwareCacheHolder,
+                                           Integer nextPacketNo,
+                                           Integer totalPacket,
+                                           Integer chunkSize,
+                                           Long fileSize) {
+
+        int offset = (nextPacketNo - 1) * chunkSize;
+        int length = Math.toIntExact(Math.min(chunkSize, fileSize - offset));
+
+        if (length <= 0) {
+            return null;
+        }
+
+        byte[] bytes = firmwareCacheHolder.getFirmwareFullBytes();
+        byte[] chunk = Arrays.copyOfRange(bytes, offset, offset + length);
+
+        long now = System.currentTimeMillis();
+        int progress = (int) Math.min(100L, (nextPacketNo * 100) / totalPacket);
+
+        return new ChunkContext(
+                nextPacketNo,
+                totalPacket,
+                chunkSize,
+                offset,
+                chunk,
+                now,
+                progress
+        );
+    }
+
+    private void sendChunkPacket(AckMessage ack, ChunkContext chunkContext) throws InterruptedException {
+
+        if (ack.getAckType() == FotaProtocolConstants.MOCK_DEVICE_BUSY) {
+            Thread.sleep(2000);
+        }
+
+        packetSender.sendToDevice(
+                ack.imei(),
+                new UpgradePacketMessage(
+                        ack.imei(),
+                        ack.getTaskId(),
+                        chunkContext.nextPacketNo,
+                        chunkContext.totalPacket,
+                        chunkContext.chunk
+                )
+        );
+    }
+
+    private void updateRuntimeAfterSend(String runtimeKey,
+                                        ChunkContext chunkContext) {
+
+        if (!shouldCheckpointRuntime(chunkContext)) {
+            return;
+        }
+
+        Map<String, String> runtimeHash = new HashMap<>();
+        runtimeHash.put("offset", String.valueOf(chunkContext.offset));
+        runtimeHash.put("packetNo", String.valueOf(chunkContext.nextPacketNo));
+        runtimeHash.put("packetTime", String.valueOf(chunkContext.now));
+        runtimeHash.put("lastPacketAt", String.valueOf(chunkContext.now));
+        runtimeHash.put("progress", String.valueOf(chunkContext.progress));
+        runtimeHash.put(
+                "status",
+                chunkContext.nextPacketNo >= chunkContext.totalPacket
+                        ? "WAIT_RESULT"
+                        : "UPGRADING"
+        );
+        runtimeHash.put("currentChunkLength", String.valueOf(chunkContext.chunk.length));
+        runtimeHash.put("chunkSize", String.valueOf(chunkContext.chunkSize));
+        runtimeHash.put("totalPacket", String.valueOf(chunkContext.totalPacket));
+
+        redisTemplate.opsForHash().putAll(runtimeKey, runtimeHash);
+    }
+
+    private boolean shouldCheckpointRuntime(ChunkContext chunkContext) {
+        return chunkContext.nextPacketNo == 1
+                || chunkContext.nextPacketNo >= chunkContext.totalPacket
+                || chunkContext.nextPacketNo % RUNTIME_CHECKPOINT_PACKET_INTERVAL == 0;
+    }
+
+    private void pushUpgradeProgressIfNecessary(String runtimeKey,
+                                                AckMessage ack,
+                                                ChunkContext chunkContext) {
+
+        if (chunkContext.nextPacketNo == 1) {
+            UpgradeStartTimeEventRequest eventRequest =
+                    new UpgradeStartTimeEventRequest(
+                            ack.imei(),
+                            ack.getTaskId(),
+                            LocalDateTime.now()
+                    );
+
+            deviceUpgradeEventPushClient.updateStartTime(eventRequest);
+        }
+
+        int pushProgress = calcPushProgress(chunkContext.progress);
+        if (pushProgress <= 0 && chunkContext.nextPacketNo < chunkContext.totalPacket) {
+            return;
+        }
+
+        String lastProgressKey = runtimeKey + ":lastPushProgress";
+
+        String lastProgressStr = redisTemplate.opsForValue().get(lastProgressKey);
+        int lastPushProgress = lastProgressStr == null ? -1 : Integer.parseInt(lastProgressStr);
+
+        if (pushProgress > lastPushProgress) {
+            redisTemplate.opsForValue().set(lastProgressKey, String.valueOf(pushProgress));
+            String upgradeStatus =
+                    chunkContext.nextPacketNo >= chunkContext.totalPacket
+                            ? "WAIT_RESULT"
+                            : "UPGRADING";
+
+            deviceUpgradeEventPushClient.pushUpgradeProgress(
+                    new UpgradeProgressEventRequest(
+                            ack.imei(),
+                            ack.getTaskId(),
+                            upgradeStatus,
+                            pushProgress,
+                            null,
+                            null
+                    )
+            );
+        }
+    }
+
+    private record ChunkContext(Integer nextPacketNo, Integer totalPacket, Integer chunkSize, Integer offset,
+                                byte[] chunk,
+                                long now, int progress) {
+
+    }
+}
 

@@ -124,7 +124,7 @@ show tables;
 
 第六步：启动业务服务
 底座没问题后，再启动业务服务：
-docker compose up -d fota-web-http-server fota-gateway-tcp-server fota-mock-device-client
+docker compose up -d fota-web-http-server fota-gateway-tcp-server fota-mock-device-client  nginx
 docker ps
 
 第七步：逐个看个个服务的日志

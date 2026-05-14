@@ -266,7 +266,7 @@ public class MockDeviceClient implements SmartLifecycle {
 
     private void closeChannelQuietly(Channel channel, String imei) {
         try {
-            channel.close();//.syncUninterruptibly();
+            channel.close().syncUninterruptibly();
             log.info("MockDevice 已下线，imei={}", imei);
         } catch (Exception e) {
             log.warn("关闭 MockDevice channel 异常，imei={}", imei, e);
