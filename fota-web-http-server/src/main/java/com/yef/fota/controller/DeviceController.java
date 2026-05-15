@@ -49,10 +49,7 @@ public class DeviceController {
      * 升级运行态 设备基础信息 设备网关所用的key，用于分包过程中的【高频写操作】   前缀拼接IMEI
      */
     private static final String UPGRADE_RUNTIME_KEY_PREFIX = "fota:upgrade:runtime:";
-    /**
-     * 设备基础信息 web服务所使用的key【低频更新】   前缀拼接IMEI
-     */
-    private static final String DEVICE_CACHE_KEY_PREFIX = "fota:device:";
+
 
 
     private final DeviceService deviceService;
@@ -332,7 +329,7 @@ public class DeviceController {
         //拿到所有设备在线状态
         long now = System.currentTimeMillis();
         Set<String> onlineDeviceIdSet = redisTemplate.opsForZSet()
-                .rangeByScore("fota:device:online:zset", now - 60_000L, now);
+                .rangeByScore("fota:device:online:zset", now - DeviceOnlineService.ONLINE_WINDOW_MS, now);
         return entities.stream().map(entity -> {
             DeviceVO vo = new DeviceVO();
             vo.setId(entity.getId());
@@ -381,10 +378,6 @@ public class DeviceController {
         }).collect(Collectors.toList());
     }
 
-
-    private String deviceCacheKey(String imei) {
-        return DEVICE_CACHE_KEY_PREFIX + imei;
-    }
 
 
     private DeviceVO toDeviceVO(DeviceEntity entity) {

@@ -46,8 +46,8 @@ public class FotaServerChannelInitializer extends ChannelInitializer<SocketChann
     @Override
     protected void initChannel(SocketChannel ch) {
         ChannelPipeline pipeline = ch.pipeline();
-        //如果 90 秒内没有从客户端读到任何数据，就会触发 读空闲 事件
-        pipeline.addLast("serverIdleStateHandler", new IdleStateHandler(90, 0, 0));
+        //如果 180 秒内没有从客户端读到任何数据，就会触发 读空闲 事件
+        pipeline.addLast("serverIdleStateHandler", new IdleStateHandler(180, 0, 0));
         pipeline.addLast("lengthFieldFrameDecoder", new LengthFieldBasedFrameDecoder(
                 LengthFieldFrameSpec.MAX_FRAME_LENGTH,
                 LengthFieldFrameSpec.LENGTH_FIELD_OFFSET,

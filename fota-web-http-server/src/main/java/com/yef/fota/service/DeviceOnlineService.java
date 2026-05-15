@@ -9,8 +9,8 @@ public class DeviceOnlineService {
 
     // 使用 ZSet 维护在线设备（score=最后心跳时间戳）
     private static final String DEVICE_ONLINE_ZSET_KEY = "fota:device:online:zset";
-    // 在线判定窗口（毫秒），例如 60 秒内有心跳视为在线
-    private static final long ONLINE_WINDOW_MS = 60_000L;
+    // 在线判定窗口（毫秒），例如 180 秒内有心跳视为在线
+    public static final long ONLINE_WINDOW_MS = 90_000L * 2;
 
     private final StringRedisTemplate redisTemplate;
 
