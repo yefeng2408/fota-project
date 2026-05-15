@@ -6,7 +6,6 @@ import com.yef.protocol.DeviceBootUpMessage;
 import com.yef.protocol.FailMessage;
 import com.yef.protocol.HeartbeatMessage;
 import com.yef.protocol.UpgradeResultMessage;
-import com.yef.service.DeviceKeepOnlineService;
 import com.yef.service.UpgradeExecutor;
 import com.yef.session.SessionManager;
 import io.netty.channel.ChannelHandler;

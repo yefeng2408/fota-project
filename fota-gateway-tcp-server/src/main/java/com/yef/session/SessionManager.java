@@ -1,11 +1,10 @@
 package com.yef.session;
 
-import com.yef.service.DeviceKeepOnlineService;
+import com.yef.service.DeviceKeepAliveService;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 /**
@@ -30,10 +29,10 @@ public class SessionManager {
     private final Map<ChannelId, DeviceSession> sessionByChannelId = new ConcurrentHashMap<>();
 
 
-    private final DeviceKeepOnlineService deviceKeepOnlineService;
+    private final DeviceKeepAliveService deviceKeepAliveService;
 
-    public SessionManager(DeviceKeepOnlineService deviceKeepOnlineService) {
-        this.deviceKeepOnlineService = deviceKeepOnlineService;
+    public SessionManager(DeviceKeepAliveService deviceKeepAliveService) {
+        this.deviceKeepAliveService = deviceKeepAliveService;
     }
 
 
@@ -136,7 +135,7 @@ public class SessionManager {
         DeviceSession session = sessionByChannelId.remove(channel.id());
         if (session != null) {
             //先置为离线
-            deviceKeepOnlineService.onDeviceOffline(session.getDeviceId());
+            deviceKeepAliveService.onDeviceOffline(session.getDeviceId());
             //再清理session
             sessionByImei.remove(session.getImei());
 

@@ -1,10 +1,7 @@
 package com.yef.handler;
 
 import com.yef.protocol.ChannelAttributes;
-import com.yef.service.DeviceKeepOnlineService;
-import com.yef.service.DeviceUpgradeLockService;
-import com.yef.service.UpgradeExecutor;
-import com.yef.session.DeviceSession;
+import com.yef.service.DeviceKeepAliveService;
 import com.yef.session.SessionManager;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -18,12 +15,12 @@ import org.springframework.stereotype.Component;
 public class ExceptionHandler extends ChannelInboundHandlerAdapter {
 
     private final SessionManager sessionManager;
-    private final DeviceKeepOnlineService deviceKeepOnlineService;
+    private final DeviceKeepAliveService deviceKeepAliveService;
 
     public ExceptionHandler(SessionManager sessionManager,
-                            DeviceKeepOnlineService deviceKeepOnlineService) {
+                            DeviceKeepAliveService deviceKeepAliveService) {
         this.sessionManager = sessionManager;
-        this.deviceKeepOnlineService = deviceKeepOnlineService;
+        this.deviceKeepAliveService = deviceKeepAliveService;
     }
 
     @Override
@@ -33,7 +30,7 @@ public class ExceptionHandler extends ChannelInboundHandlerAdapter {
         log.warn("[ExceptionHandler] channel exception, imei:{}, cause:{}", imei, cause);
 
         if (deviceId != null) {
-            deviceKeepOnlineService.onDeviceOffline(deviceId);
+            deviceKeepAliveService.onDeviceOffline(deviceId);
         }
         sessionManager.remove(ctx.channel());
 
