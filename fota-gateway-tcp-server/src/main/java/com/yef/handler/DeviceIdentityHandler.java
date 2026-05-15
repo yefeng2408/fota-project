@@ -3,9 +3,9 @@ package com.yef.handler;
 import com.yef.producer.DeviceUpgradeEventPushClient;
 import com.yef.protocol.ChannelAttributes;
 import com.yef.protocol.FotaMessage;
+import com.yef.protocol.HeartbeatMessage;
 import com.yef.req.DisconnectEventRequest;
-import com.yef.req.EntryUpgradingEventRequest;
-import com.yef.service.DeviceKeepOnlineService;
+import com.yef.service.DeviceKeepAliveService;
 import com.yef.service.UpgradeExecutor;
 import com.yef.session.DeviceSession;
 import com.yef.session.SessionManager;
@@ -16,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
 
 @Slf4j
 @Component
@@ -24,16 +23,16 @@ import java.util.Map;
 public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
 
     private final SessionManager sessionManager;
-    private final DeviceKeepOnlineService deviceOnlineService;
+    private final DeviceKeepAliveService deviceKeepAliveService;
     private final DeviceUpgradeEventPushClient deviceUpgradeEventPushClient;
     private final StringRedisTemplate redisTemplate;
 
     public DeviceIdentityHandler(SessionManager sessionManager,
-                                 DeviceKeepOnlineService deviceOnlineService,
+                                 DeviceKeepAliveService deviceKeepAliveService,
                                  DeviceUpgradeEventPushClient deviceUpgradeEventPushClient,
                                  StringRedisTemplate redisTemplate) {
         this.sessionManager = sessionManager;
-        this.deviceOnlineService = deviceOnlineService;
+        this.deviceKeepAliveService = deviceKeepAliveService;
         this.deviceUpgradeEventPushClient = deviceUpgradeEventPushClient;
         this.redisTemplate = redisTemplate;
     }
@@ -55,7 +54,7 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
 
         String currentImei = ctx.channel().attr(ChannelAttributes.IMEI).get();
 
-        Long deviceId = deviceOnlineService.getDeviceId(imei);
+        Long deviceId = deviceKeepAliveService.getDeviceId(imei);
         if (currentImei == null || !currentImei.equals(imei)) {
 
             ctx.channel().attr(ChannelAttributes.IMEI).set(imei);
@@ -64,13 +63,17 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
             sessionManager.bind(imei, deviceId, ctx.channel());
 
             //只在首次连接调用
-            deviceOnlineService.onDeviceFirstConnect(deviceId);
+            deviceKeepAliveService.onDeviceFirstConnect(deviceId);
 
         } else {
             sessionManager.touch(ctx.channel());
         }
-        //每次消息都刷新心跳
-        deviceOnlineService.refreshHeartbeat(deviceId);
+
+        //心跳 = 在线证明
+        if(msg instanceof HeartbeatMessage){
+            deviceKeepAliveService.refreshHeartbeat(deviceId);
+            log.info("当前在线 session 数: {}", sessionManager.onlineSessionCount());
+        }
 
         if (message.getTaskId() != null) {
             ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).set(message.getTaskId());

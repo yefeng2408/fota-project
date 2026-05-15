@@ -19,9 +19,11 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.timeout.IdleStateHandler;
+
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+
 import io.netty.util.AttributeKey;
 import lombok.Data;
 import org.slf4j.Logger;
@@ -221,7 +223,10 @@ public class MockDeviceClient implements SmartLifecycle {
                         MockDeviceProfile profile = ch.attr(MockDeviceAttributes.DEVICE_PROFILE).get();
                         ChannelPipeline pipeline = ch.pipeline();
                         //如果连续 60 秒没有向通道写入数据，→ 触发写空闲
-                        pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 60, 0, TimeUnit.SECONDS));
+                        //去除掉客户端的idleStateHandler，但保留服务端的idleStateHandler。
+                        // 服务端的90s读空闲事件依赖于客户端的 MockDeviceConnectHandler channelActive建立连接后 startHeartbeatTask去定时发送心跳
+                        // 为什么这么做？因为如果设备处于长时间的分包过程，则不会触发 IdleStateHandler 事件。
+                        //pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 60, 0, TimeUnit.SECONDS));
                         pipeline.addLast("lengthFieldFrameDecoder", new LengthFieldBasedFrameDecoder(
                                 FotaProtocol.MAX_FRAME_LENGTH,
                                 FotaProtocol.LENGTH_FIELD_OFFSET,
@@ -297,8 +302,11 @@ public class MockDeviceClient implements SmartLifecycle {
      */
     private static class MockDeviceConnectHandler extends ChannelInboundHandlerAdapter {
 
+        private static final Logger log = LoggerFactory.getLogger(MockDeviceConnectHandler.class);
         private final MockDeviceProfile profile;
         private final StringRedisTemplate redisTemplate;
+
+        private ScheduledFuture<?> heartbeatFuture;
 
         private MockDeviceConnectHandler(StringRedisTemplate redisTemplate,
                                          MockDeviceProfile profile) {
@@ -309,7 +317,7 @@ public class MockDeviceClient implements SmartLifecycle {
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
 
-            String runtimeKey = "mock-dev:upgrade:runtime:"+ profile.imei();
+            String runtimeKey = "mock-dev:upgrade:runtime:" + profile.imei();
             Boolean upgrading = redisTemplate.hasKey(runtimeKey);
 
             if (Boolean.TRUE.equals(upgrading)) {
@@ -322,9 +330,41 @@ public class MockDeviceClient implements SmartLifecycle {
                         profile.deviceType()
                 ));
             }
+            startHeartbeatTask(ctx);
             super.channelActive(ctx);
         }
+
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            stopHeartbeatTask();
+            super.channelInactive(ctx);
+        }
+
+
+        private void startHeartbeatTask(ChannelHandlerContext ctx) {
+            stopHeartbeatTask();
+
+            heartbeatFuture = ctx.executor().scheduleAtFixedRate(() -> {
+                if (!ctx.channel().isActive()) {
+                    return;
+                }
+
+                ctx.writeAndFlush(new FotaProtocol.Heartbeat(profile.imei()));
+                log.debug("MockDeviceConnectHandler ctx.executor().scheduleAtFixedRate 定时发送 0x05 Heartbeat, imei={}", profile.imei());
+            }, 60, 60, TimeUnit.SECONDS);
+        }
+
+        private void stopHeartbeatTask() {
+            if (heartbeatFuture != null) {
+                heartbeatFuture.cancel(false);
+                heartbeatFuture = null;
+            }
+        }
+
+
     }
+
 
     private void shutdownQuietly() {
         for (Map.Entry<String, Channel> entry : deviceChannels.entrySet()) {
@@ -364,6 +404,7 @@ public class MockDeviceClient implements SmartLifecycle {
             ctx.close();
         }
     }
+
     @Data
     public static class MockDeviceControlResponse {
 

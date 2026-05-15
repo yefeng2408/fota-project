@@ -57,7 +57,14 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
      * 避免每个 chunk 都 putAll，降低 Redis 高频写压力。
      */
     private static final int MOCK_RUNTIME_CHECKPOINT_PACKET_INTERVAL = 10;
+
+    /**
+     * 写线程池队列监控日志间隔，避免每个 packet 都刷日志。
+     */
+    private static final long QUEUE_MONITOR_LOG_INTERVAL_MILLIS = 3_000L;
+
     private final ThreadPoolExecutor[] shardExecutors = new ThreadPoolExecutor[SHARD_COUNT];
+    private final long[] lastQueueMonitorLogAt = new long[SHARD_COUNT];
 
     public MockDeviceDispatchHandler(StringRedisTemplate redisTemplate,
                                      MinioClient minioClient,
@@ -75,7 +82,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
                     1,
                     0L,
                     TimeUnit.MILLISECONDS,
-                    new ArrayBlockingQueue<>(1000),
+                    new ArrayBlockingQueue<>(200),
                     r -> {
                         Thread t = new Thread(r);
                         t.setName("mock-device-file-writer-" + threadId);
@@ -150,8 +157,13 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         //背压
         ThreadPoolExecutor executor = shardExecutors[shardIndex];
         int queueSize = executor.getQueue().size();
-        int capacity = queueSize + executor.getQueue().remainingCapacity();
-        if (queueSize * 1.0 / capacity >= 0.8) {
+        int remainingCapacity = executor.getQueue().remainingCapacity();
+        int capacity = queueSize + remainingCapacity;
+        double queueUsage = capacity == 0 ? 1.0 : queueSize * 1.0 / capacity;
+
+        logQueueUsageIfNecessary(shardIndex, executor, queueSize, remainingCapacity, capacity, queueUsage);
+
+        if (queueUsage >= 0.8) {
             ctx.executor().execute(() -> ctx.writeAndFlush(
                     new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), AckType.BUSY)
             ));
@@ -201,14 +213,40 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         try {
             executor.execute(writeTask);
         } catch (RejectedExecutionException e) {
-            log.warn("MockDevice 本地固件写入队列已满，拒绝分包写入，taskId={}，imei={}，packetNo={}，shardIndex={}，queueSize={}，capacity={}",
-                    packet.taskId(), packet.imei(), packet.packetNo(), shardIndex, queueSize, capacity, e);
+            log.warn("MockDevice 本地固件写入队列已满，拒绝分包写入，taskId={}，imei={}，packetNo={}，shardIndex={}，queueSize={}，remainingCapacity={}，capacity={}，queueUsage={}%，activeCount={}",
+                    packet.taskId(), packet.imei(), packet.packetNo(), shardIndex, queueSize, remainingCapacity, capacity,
+                    String.format(Locale.ROOT, "%.2f", queueUsage * 100), executor.getActiveCount(), e);
             ctx.executor().execute(() -> {
                 if (ctx.channel().isActive()) {
                     ctx.writeAndFlush(new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), AckType.BUSY));
                 }
             });
         }
+    }
+
+
+    private void logQueueUsageIfNecessary(int shardIndex,
+                                          ThreadPoolExecutor executor,
+                                          int queueSize,
+                                          int remainingCapacity,
+                                          int capacity,
+                                          double queueUsage) {
+        long now = System.currentTimeMillis();
+        if (now - lastQueueMonitorLogAt[shardIndex] < QUEUE_MONITOR_LOG_INTERVAL_MILLIS) {
+            return;
+        }
+
+        lastQueueMonitorLogAt[shardIndex] = now;
+        log.info("MockDevice 写线程池队列监控，shardIndex={}，queueSize={}，remainingCapacity={}，capacity={}，queueUsage={}%，activeCount={}，poolSize={}，completedTaskCount={}，taskCount={}",
+                shardIndex,
+                queueSize,
+                remainingCapacity,
+                capacity,
+                String.format(Locale.ROOT, "%.2f", queueUsage * 100),
+                executor.getActiveCount(),
+                executor.getPoolSize(),
+                executor.getCompletedTaskCount(),
+                executor.getTaskCount());
     }
 
     /**

@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
-public class DeviceKeepOnlineService {
+public class DeviceKeepAliveService {
     /**
      * 设备基础信息 web服务所使用的key【低频更新】
      */
@@ -19,7 +19,7 @@ public class DeviceKeepOnlineService {
 
     private final StringRedisTemplate redisTemplate;
 
-    public DeviceKeepOnlineService(StringRedisTemplate redisTemplate) {
+    public DeviceKeepAliveService(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 

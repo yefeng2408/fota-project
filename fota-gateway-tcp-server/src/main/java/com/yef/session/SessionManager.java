@@ -145,5 +145,9 @@ public class SessionManager {
     }
 
 
+    public int onlineSessionCount() {
+        return sessionByImei.size();
+    }
+
 
 }
