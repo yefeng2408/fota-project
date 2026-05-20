@@ -59,7 +59,7 @@ docker load -i fota-web-http-server-v1.tar
 docker load -i fota-gateway-tcp-server-v1.tar
 docker load -i fota-mock-device-client-v1.tar
 
-scp fota-gateway-tcp-server-v1.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
+scp fota-web-http-server-v1.tar ubuntu@119.45.27.39:/home/ubuntu/fota-dir/
 
 总体流程：
 

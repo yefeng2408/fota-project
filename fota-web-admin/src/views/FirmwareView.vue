@@ -39,7 +39,7 @@
   <el-dialog v-model="uploadDialogVisible" title="新增固件" width="560px">
     <el-form :model="uploadForm" label-position="top">
       <el-form-item label="固件版本号">
-        <el-input v-model="uploadForm.version" placeholder="例如 v1.0.1" />
+        <el-input v-model="uploadForm.version" placeholder="例如 v1.0.1。请勿填写已存在的固件版本号" />
       </el-form-item>
       <el-form-item label="设备类型">
         <el-select v-model="uploadForm.deviceType" placeholder="请选择设备类型" style="width: 100%" @change="handleDeviceTypeChange">
