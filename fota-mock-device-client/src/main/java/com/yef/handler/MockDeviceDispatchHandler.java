@@ -162,7 +162,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         double queueUsage = capacity == 0 ? 1.0 : queueSize * 1.0 / capacity;
 
         logQueueUsageIfNecessary(shardIndex, executor, queueSize, remainingCapacity, capacity, queueUsage);
-
+        //若线程池等待队列中的人物挤压过大。则发消息给服务端，服务端则降低发送分包数据的速率
         if (queueUsage >= 0.8) {
             ctx.executor().execute(() -> ctx.writeAndFlush(
                     new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), AckType.BUSY)
@@ -170,6 +170,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
             log.info(">>>>>>>>>>> shardExecutors写本地固件异步线程池触发背压消息");
             return;
         }
+
         Runnable writeTask = () -> {
             try {
                 FotaProtocol.UpgradeResultDTO upgradeResult = doWriteChunk(packet, mockRuntimeHash, totalPacket, path);

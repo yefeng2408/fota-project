@@ -160,6 +160,22 @@ docker compose up -d nginx
 
 
 
+
+mq broker启动异常：ScheduleMessageService.configFilePath
+                  ConfigManager.persist
+原因：大概率是 broker 关闭/启动时要写：/home/rocketmq/store/config/delayOffset.json
+    而重建 store 后，里面的 config 子目录不存在，或者容器内 rocketmq 用户没有权限写，所以 NPE/重启。
+
+docker compose stop rocketmq-broker
+
+sudo rm -rf data/rocketmq/broker/store
+sudo mkdir -p data/rocketmq/broker/store
+sudo chmod -R 777 data/rocketmq/broker
+
+docker compose up -d rocketmq-broker
+docker logs -f fota-rocketmq-broker
+//注意：只需要创建 store 根目录，子目录让 RocketMQ 自己生成。
+
 //TODO LIST: 想做一个限流。针对“升级按钮”，一个用户在3分钟内只能发起一次设备升级请求
 // MQ消息重启机制
 

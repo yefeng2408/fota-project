@@ -90,7 +90,6 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
         if (deviceSession != null) {
             sessionManager.remove(ctx.channel());
         }
-        sessionManager.remove(ctx.channel());
         log.info("------->channelInactive|CURRENT_TASK_ID:{}", ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).get());
         //存在升级任务中的设备掉线，则推送一次设备掉线的状态事件
         String runtimeKey = UpgradeExecutor.UPGRADE_RUNTIME_KEY_PREFIX + ctx.channel().attr(ChannelAttributes.IMEI).get();

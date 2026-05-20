@@ -97,7 +97,7 @@ body结构：
         ackType =2        PACKET_ACK               （上行消息。对应着下行0x82消息类型的ACK）
         ackType =4        CANCEL_ACK               （上行消息。对应着下行0x87消息类型的ACK）
         ackType =5        HEARTBEAT                 (上行消息。平台无需回复设备的心跳消息)
-        ackType =6        BUSY                      (上行消息。mock-device服务的业务线程写本地固件文件触发背压消息，服务端收到该消息后 降低packetSend的速率)
+        ackType =6        BUSY                      (上行消息。mock-device服务的业务线程写本地固件文件触发背压消息，服务端收到该消息后 降低packetSend发送速率)
             说明：
             - packetNo 在 ackType=1（升级请求ACK）时可为0
             - packetNo 在分包ACK时必须对应具体分包序号

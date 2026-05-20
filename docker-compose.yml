@@ -77,6 +77,11 @@ services:
       - fota-net
 
   rocketmq-broker:
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "2"
     image: apache/rocketmq:5.1.0
     container_name: fota-rocketmq-broker
     restart: unless-stopped
@@ -114,6 +119,11 @@ services:
       - fota-net
 
   fota-web-http-server:
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "2"
     image: fota-web-http-server:v1
     container_name: fota-web-http-server
     restart: unless-stopped
@@ -158,6 +168,11 @@ services:
       - fota-net
 
   fota-gateway-tcp-server:
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"
     image: fota-gateway-tcp-server:v1
     container_name: fota-gateway-tcp-server
     restart: unless-stopped
@@ -200,6 +215,11 @@ services:
       - fota-net
 
   fota-mock-device-client:
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"
     #profiles: ["mock"]
     image: fota-mock-device-client:v1
     container_name: fota-mock-device-client
