@@ -197,7 +197,9 @@ public class DeviceController {
             response.setSummary(buildImportSummary(response));
             return ApiResponse.ok(response);
         }
-
+        if(requests.size()>2000){
+            throw new BusinessException("单次导入不能超过2000台设备");
+        }
         Set<String> requestImeis = requests.stream().map(DeviceSaveRequest::getImei).collect(Collectors.toSet());
 
         Set<String> existsImeis = deviceService.listExistingImeis(requestImeis);
