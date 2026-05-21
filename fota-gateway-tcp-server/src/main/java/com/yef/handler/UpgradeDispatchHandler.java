@@ -77,8 +77,6 @@ public class UpgradeDispatchHandler extends SimpleChannelInboundHandler<Object> 
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        String imei = ctx.channel().attr(ChannelAttributes.IMEI).get();
-        Long deviceId = ctx.channel().attr(ChannelAttributes.DEVICE_ID).get();
         super.channelInactive(ctx);
     }
 }

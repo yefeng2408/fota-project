@@ -360,7 +360,7 @@
           <el-button type="primary">上传 Excel</el-button>
           <template #tip>
             <div class="upload-tip">
-              仅支持 `.xls/.xlsx`，表头必须包含 `imei` 和 `设备名称`。`imei` 必须是 8 位数字，设备名称可留空。
+              仅支持 .xls/.xlsx，表头必须包含 imei 和 设备名称。imei 必须是 8 位数字，设备名称可留空。单次导入不超过2000台设备
             </div>
           </template>
         </el-upload>

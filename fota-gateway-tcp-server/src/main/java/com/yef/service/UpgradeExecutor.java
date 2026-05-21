@@ -345,7 +345,7 @@ public class UpgradeExecutor {
      * 将高频分包进度压缩成 10% 粒度，避免每 1% 都投递 MQ / 推送 WebSocket。
      * 例如：1~9 不推送，10~19 推送 10，20~29 推送 20，最终强制推送 100。
      */
-    private int calcPushProgress(int progress) {
+    private static int calcPushProgress(int progress) {
         if (progress >= 100) {
             return 100;
         }
@@ -501,8 +501,10 @@ public class UpgradeExecutor {
             deviceUpgradeEventPushClient.updateStartTime(eventRequest);
         }
 
-        int pushProgress = calcPushProgress(chunkContext.progress);
-        if (pushProgress <= 0 && chunkContext.nextPacketNo < chunkContext.totalPacket) {
+        int pushProgress = chunkContext.progress;
+        //int pushProgress = calcPushProgress(chunkContext.progress);
+
+        if (chunkContext.progress <= 0 && chunkContext.nextPacketNo < chunkContext.totalPacket) {
             return;
         }
 
