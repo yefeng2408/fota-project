@@ -221,8 +221,13 @@ public class UpgradeExecutor {
 
 
     private static final List<String> breakpoint = Lists.newArrayList("UPGRADING", "UPGRADE_REQUESTED", "DISCONNECT");
-    //断线5分钟以内，再次连接则判断为重连。超过5分钟，则在mock-device通过定时任务扫描 并删除5分钟以上的mock-dev:upgrade:runtime:{imei}
+
+
+    /**
+     * 设备断线 5 分钟以内再次心跳，才允许触发断点续传。
+     */
     private static final int max_diff_seconds = 60 * 5;
+
 
     /**
      * 设备短线重连。判断是否应该进行断点续传
@@ -249,7 +254,7 @@ public class UpgradeExecutor {
         long diff = (currentTime - lastPacketAt) / 1000;
 
         //设备在断线的5分钟内再次连接，则认定为断线后的重连接
-        if (breakpoint.contains(status) && diff < max_diff_seconds) {
+        if (breakpoint.contains(status) &&  diff < max_diff_seconds && "DISCONNECT".equals(status)) {
             log.info("----------------breakpoint come in");
             int packetNo = Integer.parseInt(String.valueOf(runtimeHash.get("packetNo")));
             int chunkSize = Integer.parseInt(String.valueOf(runtimeHash.get("chunkSize")));

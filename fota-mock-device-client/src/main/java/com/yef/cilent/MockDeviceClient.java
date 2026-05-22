@@ -340,7 +340,7 @@ public class MockDeviceClient implements SmartLifecycle {
 
         private void startHeartbeatTask(ChannelHandlerContext ctx) {
             //随机起始心跳时间。防止大量的设备在同一时间发送心跳,导致 EventLoop 某一瞬间被心跳风暴打爆。 0 <= initialDelay < 60
-            long initialDelay = ThreadLocalRandom.current().nextLong(0, 60);
+            //long initialDelay = ThreadLocalRandom.current().nextLong(0, 10);
             heartbeatFuture = ctx.executor().scheduleAtFixedRate(() -> {
                 if (!ctx.channel().isActive()) {
                     return;
@@ -348,7 +348,7 @@ public class MockDeviceClient implements SmartLifecycle {
 
                 ctx.writeAndFlush(new FotaProtocol.Heartbeat(profile.imei()));
                 log.debug("MockDeviceConnectHandler ctx.executor().scheduleAtFixedRate 定时发送 0x05 Heartbeat, imei={}", profile.imei());
-            }, initialDelay, 60, TimeUnit.SECONDS);
+            }, 0, 60, TimeUnit.SECONDS);
         }
 
         private void stopHeartbeatTask() {

@@ -23,20 +23,6 @@ public interface DeviceMapper extends BaseMapper<DeviceEntity> {
     @Select("select * from device where imei=#{imei}")
     DeviceEntity selectDeviceByImei(@Param("imei") String imei);
 
-    @Update("""
-            UPDATE device
-            SET device_upgrade_status = #{status},
-                status_version = #{version},
-                status_event_time = #{eventTime},
-                updated_at = NOW()
-            WHERE imei = #{imei}
-              AND status_version < #{version}
-            """)
-    int updateUpgradeStatusIfNewer(@Param("imei") String imei,
-                                   @Param("status") String status,
-                                   @Param("version") Long version,
-                                   @Param("eventTime") Long eventTime);
-
 
     @Select({
             "<script>",

@@ -72,7 +72,7 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
         //心跳 = 在线证明
         if(msg instanceof HeartbeatMessage){
             deviceKeepAliveService.refreshHeartbeat(deviceId);
-            log.info("当前在线 session 数: {}", sessionManager.onlineSessionCount());
+           // log.info("当前在线 session 数: {}", sessionManager.onlineSessionCount());
         }
 
         if (message.getTaskId() != null) {

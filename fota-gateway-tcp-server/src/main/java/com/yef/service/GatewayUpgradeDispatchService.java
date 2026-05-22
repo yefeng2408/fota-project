@@ -155,7 +155,7 @@ public class GatewayUpgradeDispatchService {
      * 重点：
      * 1. 这里不是在方法上加 synchronized，也不是手写分布式锁。
      * 2. 真正的并发控制放在 FirmwareCacheManager.loadIfAbsent 里。
-     * 3. 同一个 firmwareId 批量升级 800 台设备时，只会有一个线程真正访问 MinIO，其他线程等待同一个 Future。
+     * 3. 同一个 firmwareId 批量升级 N 台设备时，只会有一个线程真正访问 MinIO，其他线程等待同一个 Future。
      */
     public Future<FirmwareCacheHolder> loadFirmwarePackageToLocalCache(Map<String, Object> runtimeMap) {
         if (runtimeMap == null || runtimeMap.isEmpty()) {
