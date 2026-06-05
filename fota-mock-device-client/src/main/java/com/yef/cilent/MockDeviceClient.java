@@ -235,7 +235,10 @@ public class MockDeviceClient implements SmartLifecycle {
                         pipeline.addLast("fotaFrameDecoder", new FotaFrameDecoder());
                         pipeline.addLast("fotaMessageDecoder", new FotaMessageDecoder());
                         pipeline.addLast("fotaMessageEncoder", new FotaMessageEncoder());
-                        pipeline.addLast("mockDeviceConnectHandler", new MockDeviceConnectHandler(stringRedisTemplate, profile));
+                        pipeline.addLast("mockDeviceConnectHandler", new MockDeviceConnectHandler(
+                                stringRedisTemplate,
+                                mockDeviceDispatchHandler,
+                                profile));
                         pipeline.addLast("mockDeviceDispatchHandler", mockDeviceDispatchHandler);
                         pipeline.addLast("mockDeviceExceptionHandler", new MockDeviceExceptionHandler(profile));
                     }
@@ -346,12 +349,15 @@ public class MockDeviceClient implements SmartLifecycle {
         private static final Logger log = LoggerFactory.getLogger(MockDeviceConnectHandler.class);
         private final MockDeviceProfile profile;
         private final StringRedisTemplate redisTemplate;
+        private final MockDeviceDispatchHandler mockDeviceDispatchHandler;
 
         private ScheduledFuture<?> heartbeatFuture;
 
         private MockDeviceConnectHandler(StringRedisTemplate redisTemplate,
+                                         MockDeviceDispatchHandler mockDeviceDispatchHandler,
                                          MockDeviceProfile profile) {
             this.redisTemplate = redisTemplate;
+            this.mockDeviceDispatchHandler = mockDeviceDispatchHandler;
             this.profile = profile;
         }
 
@@ -360,11 +366,12 @@ public class MockDeviceClient implements SmartLifecycle {
 
             String runtimeKey = "mock-dev:upgrade:runtime:" + profile.imei();
             Boolean upgrading = redisTemplate.hasKey(runtimeKey);
+            startHeartbeatTask(ctx);
 
             if (Boolean.TRUE.equals(upgrading)) {
                 ctx.writeAndFlush(new FotaProtocol.Heartbeat(profile.imei()));
+                mockDeviceDispatchHandler.recoverPendingUpgradeResult(ctx, profile.imei());
             } else {
-                startHeartbeatTask(ctx);
                 log.info("MockDevice 建立连接成功，imei={}，准备发送 0x10 DeviceBootUpMessage", profile.imei());
             }
 

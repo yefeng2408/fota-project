@@ -1,5 +1,6 @@
 package com.yef.handler;
 
+import com.alibaba.fastjson.JSON;
 import com.yef.UpgradeFailErrorCode;
 import com.yef.cilent.MockDeviceClient;
 import com.yef.fileWriter.FirmwareFileHolder;
@@ -27,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -50,6 +52,11 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
     private final Set<Long> canceledTaskIds = ConcurrentHashMap.newKeySet();
 
     private static final String MOCK_DEV_RUNTIME_KEY = "mock-dev:upgrade:runtime:";
+    private static final String MOCK_DEV_RESULT_LOCK_KEY = "mock-dev:upgrade:result-lock:";
+    private static final String STATUS_RECEIVING = "RECEIVING";
+    private static final String STATUS_WAIT_RESULT = "WAIT_RESULT";
+    private static final String STATUS_RESULT_READY = "RESULT_READY";
+    private static final String STATUS_RESULT_SENT = "RESULT_SENT";
 
     private static final int SHARD_COUNT = 8;
     /**
@@ -96,10 +103,9 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-
+        //通用应答【平台回复设备】
         if (msg instanceof FotaProtocol.PlatformAckDTO ack) {
-                /*log.info("MockDevice 收到平台ACK，taskId={}，refMessageType={}，ackStatus={}，reasonCode={}",
-                        ack.taskId(), ack.refMessageType(), ack.ackStatus(), ack.reasonCode());*/
+            handlePlatformAck(ack);
             return;
         }
 
@@ -151,10 +157,10 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
                        Path path) {
 
         long taskId = packet.taskId();
-        //对taskId取模，保证同一个taskId落在同一个queue上。从而保证局部串行，整体并行
+        /**对taskId取模，保证同一个taskId落在同一个queue上。从而保证局部串行，整体并行。从而保证写固件临时文件是同一个线程*/
         //int shardIndex = Math.floorMod(taskId, SHARD_COUNT);
         int shardIndex = Math.floorMod(Objects.hash(taskId, packet.imei()), SHARD_COUNT);
-        //背压
+
         ThreadPoolExecutor executor = shardExecutors[shardIndex];
         int queueSize = executor.getQueue().size();
         int remainingCapacity = executor.getQueue().remainingCapacity();
@@ -162,12 +168,13 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         double queueUsage = capacity == 0 ? 1.0 : queueSize * 1.0 / capacity;
 
         logQueueUsageIfNecessary(shardIndex, executor, queueSize, remainingCapacity, capacity, queueUsage);
-        //若线程池等待队列中的人物挤压过大。则发消息给服务端，服务端则降低发送分包数据的速率
+        /**背压机制 若线程池等待队列中的人物挤压过大。则发消息给服务端，服务端则降低发送分包数据的速率*/
         if (queueUsage >= 0.8) {
+            //协议消息应该交给eventLoop去执行，而不是由来自线程池的线程进行ctx.writeAndFlush
             ctx.executor().execute(() -> ctx.writeAndFlush(
                     new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), AckType.BUSY)
             ));
-            log.info(">>>>>>>>>>> shardExecutors写本地固件异步线程池触发背压消息");
+            log.info(">>>>>>>>>>>shardExecutors写本地固件异步线程池触发背压消息");
             return;
         }
 
@@ -190,7 +197,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
                     ));
 
                     if (upgradeResult != null) {
-                        ctx.writeAndFlush(upgradeResult);
+                        writeUpgradeResult(ctx, upgradeResult);
                     }
                 });
             } catch (Exception e) {
@@ -291,8 +298,12 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         long nextOffset = offset + packet.chunkData().length;
 
         runtimeHash.put("offset", String.valueOf(nextOffset));
-        updateMockRuntimeIfNecessary(packet, totalPacket, runtimeHash);
+
         if (packet.packetNo() == totalPacket) {
+
+            runtimeHash.put("status", STATUS_WAIT_RESULT);
+            updateMockRuntimeIfNecessary(packet, totalPacket, runtimeHash);
+
             try {
                 firmwareFileHolder.closeAndRemove(packet.taskId());
                 return handleUpgradeCompleted(packet, mockRuntimeHash, path);
@@ -328,14 +339,14 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
 
         uploadToMinio(mockRuntimeHash, receiveResult.firmware());
 
-        cleanupRuntime(packet, path);
-
         simulateMcuFlush();
 
         log.info("MockDevice 分包接收完成,耗时(s):{}, imei={}，taskId={}，md5Matched={}",
                 receiveResult.costTime(), packet.imei(), packet.taskId(), receiveResult.md5Matched());
 
-        return buildUpgradeResult(packet, receiveResult);
+        FotaProtocol.UpgradeResultDTO result = buildUpgradeResult(packet, receiveResult);
+        persistUpgradeResult(result);
+        return result;
     }
 
     /**
@@ -379,6 +390,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         Files.deleteIfExists(path);
         deleteDirectoryIfEmpty(path.getParent());
         redisTemplate.delete(MOCK_DEV_RUNTIME_KEY + packet.imei());
+        redisTemplate.delete(MOCK_DEV_RESULT_LOCK_KEY + packet.imei());
         canceledTaskIds.remove(packet.taskId());
     }
 
@@ -442,7 +454,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         }
 
         // 固件文件路径：/mock-dev/firmware/task/imei.bin
-        Path path = Paths.get(FIRMWARE_PATH + packet.taskId() + "/" + packet.imei() + ".bin");
+        Path path = buildFirmwarePath(packet.taskId(), packet.imei());
 
         /** 后续写文件、更新 mock-dev runtime、最终 MD5 校验、上传 MinIO 都交给 shard 写线程处理，避免阻塞 Netty EventLoop。*/
         submit(ctx, packet, mockRuntimeHash, totalPacket, path);
@@ -489,6 +501,184 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         );
     }
 
+    /**
+     * 设备重连后，如果最后一包已经写入但 0x06 升级结果没有被平台确认，则补偿生成或重发升级结果。
+     */
+    public void recoverPendingUpgradeResult(ChannelHandlerContext ctx, String imei) {
+        Map<Object, Object> runtimeHash = redisTemplate.opsForHash().entries(MOCK_DEV_RUNTIME_KEY + imei);
+        if (runtimeHash == null || runtimeHash.isEmpty()) {
+            return;
+        }
+
+        FotaProtocol.UpgradeResultDTO readyResult = buildUpgradeResultFromRuntime(runtimeHash);
+        if (readyResult != null) {
+            writeUpgradeResult(ctx, readyResult);
+            return;
+        }
+
+        if (!isFirmwareReceiveCompleted(runtimeHash)) {
+            return;
+        }
+
+        long taskId = Long.parseLong(String.valueOf(runtimeHash.get("taskId")));
+        int shardIndex = resolveShardIndex(taskId, imei);
+        shardExecutors[shardIndex].execute(() -> {
+            if (!tryAcquireResultLock(imei)) {
+                return;
+            }
+            try {
+                Map<Object, Object> latestRuntimeHash = redisTemplate.opsForHash().entries(MOCK_DEV_RUNTIME_KEY + imei);
+                FotaProtocol.UpgradeResultDTO latestReadyResult = buildUpgradeResultFromRuntime(latestRuntimeHash);
+                if (latestReadyResult != null) {
+                    ctx.executor().execute(() -> writeUpgradeResult(ctx, latestReadyResult));
+                    return;
+                }
+
+                if (!isFirmwareReceiveCompleted(latestRuntimeHash)) {
+                    return;
+                }
+
+                long latestTaskId = Long.parseLong(String.valueOf(latestRuntimeHash.get("taskId")));
+                int totalPacket = Integer.parseInt(String.valueOf(latestRuntimeHash.get("totalPacket")));
+                Path path = buildFirmwarePath(latestTaskId, imei);
+                FotaProtocol.UpgradePacketDTO syntheticPacket =
+                        new FotaProtocol.UpgradePacketDTO(imei, latestTaskId, totalPacket, totalPacket, new byte[0]);
+
+                firmwareFileHolder.closeAndRemove(latestTaskId);
+                FotaProtocol.UpgradeResultDTO result = handleUpgradeCompleted(syntheticPacket, latestRuntimeHash, path);
+                ctx.executor().execute(() -> writeUpgradeResult(ctx, result));
+            } catch (Exception e) {
+                log.error("MockDevice 重连后补偿升级结果失败，imei={}", imei, e);
+            } finally {
+                redisTemplate.delete(MOCK_DEV_RESULT_LOCK_KEY + imei);
+            }
+        });
+    }
+
+    private void writeUpgradeResult(ChannelHandlerContext ctx, FotaProtocol.UpgradeResultDTO result) {
+        if (!ctx.channel().isActive()) {
+            log.warn("MockDevice 升级结果待上报，但 Channel 已断开，imei={}，taskId={}", result.imei(), result.taskId());
+            return;
+        }
+
+        ctx.writeAndFlush(result).addListener(future -> {
+            if (future.isSuccess()) {
+                markUpgradeResultSent(result);
+            } else {
+                log.warn("MockDevice 升级结果上报失败，等待下次重连补偿，imei={}，taskId={}",
+                        result.imei(), result.taskId(), future.cause());
+            }
+        });
+    }
+
+    private void handlePlatformAck(FotaProtocol.PlatformAckDTO ack) throws IOException {
+        log.info("===========>asda:handlePlatformAck={}", JSON.toJSONString(ack));
+        if (ack.refMessageType() != FotaProtocol.UPGRADE_RESULT) {
+            return;
+        }
+
+        if (ack.ackStatus() != 0) {
+            log.warn("MockDevice 收到平台升级结果ACK失败，保留runtime等待重试，imei={}，taskId={}，reasonCode={}",
+                    ack.imei(), ack.taskId(), ack.reasonCode());
+            return;
+        }
+
+        Map<Object, Object> runtimeHash = redisTemplate.opsForHash().entries(MOCK_DEV_RUNTIME_KEY + ack.imei());
+        if (runtimeHash == null || runtimeHash.isEmpty()) {
+            return;
+        }
+
+        long runtimeTaskId = Long.parseLong(String.valueOf(runtimeHash.get("taskId")));
+        if (runtimeTaskId != ack.taskId()) {
+            return;
+        }
+
+        cleanupRuntime(
+                new FotaProtocol.UpgradePacketDTO(ack.imei(), ack.taskId(), 0, 0, new byte[0]),
+                buildFirmwarePath(ack.taskId(), ack.imei())
+        );
+        log.info("MockDevice 收到平台升级结果ACK，已清理升级runtime，imei={}，taskId={}", ack.imei(), ack.taskId());
+    }
+
+    private void persistUpgradeResult(FotaProtocol.UpgradeResultDTO result) {
+        Map<String, String> fields = new HashMap<>();
+        fields.put("status", STATUS_RESULT_READY);
+        fields.put("result", String.valueOf(result.result()));
+        fields.put("errorCode", String.valueOf(result.errorCode()));
+        fields.put("costTime", String.valueOf(result.costTime()));
+        fields.put("resultReadyAt", String.valueOf(System.currentTimeMillis()));
+        redisTemplate.opsForHash().putAll(MOCK_DEV_RUNTIME_KEY + result.imei(), fields);
+    }
+
+    private void markUpgradeResultSent(FotaProtocol.UpgradeResultDTO result) {
+        Map<String, String> fields = new HashMap<>();
+        fields.put("status", STATUS_RESULT_SENT);
+        fields.put("resultSentAt", String.valueOf(System.currentTimeMillis()));
+        redisTemplate.opsForHash().putAll(MOCK_DEV_RUNTIME_KEY + result.imei(), fields);
+    }
+
+    private FotaProtocol.UpgradeResultDTO buildUpgradeResultFromRuntime(Map<Object, Object> runtimeHash) {
+        if (runtimeHash == null || runtimeHash.isEmpty()) {
+            return null;
+        }
+
+        if (!runtimeHash.containsKey("result")
+                || !runtimeHash.containsKey("errorCode")
+                || !runtimeHash.containsKey("costTime")) {
+            return null;
+        }
+
+        return new FotaProtocol.UpgradeResultDTO(
+                String.valueOf(runtimeHash.get("imei")),
+                Long.parseLong(String.valueOf(runtimeHash.get("taskId"))),
+                Byte.parseByte(String.valueOf(runtimeHash.get("result"))),
+                Integer.parseInt(String.valueOf(runtimeHash.get("errorCode"))),
+                Integer.parseInt(String.valueOf(runtimeHash.get("costTime")))
+        );
+    }
+
+    private boolean isFirmwareReceiveCompleted(Map<Object, Object> runtimeHash) {
+        if (runtimeHash == null || runtimeHash.isEmpty()) {
+            return false;
+        }
+
+        Object packetNoValue = runtimeHash.get("packetNo");
+        Object totalPacketValue = runtimeHash.get("totalPacket");
+        if (packetNoValue != null && totalPacketValue != null) {
+            int packetNo = Integer.parseInt(String.valueOf(packetNoValue));
+            int totalPacket = Integer.parseInt(String.valueOf(totalPacketValue));
+            if (totalPacket > 0 && packetNo >= totalPacket) {
+                return true;
+            }
+        }
+
+        Object offsetValue = runtimeHash.get("offset");
+        Object fileSizeValue = runtimeHash.get("fileSize");
+        if (offsetValue == null || fileSizeValue == null) {
+            return false;
+        }
+        long offset = Long.parseLong(String.valueOf(offsetValue));
+        long fileSize = Long.parseLong(String.valueOf(fileSizeValue));
+        return fileSize > 0 && offset >= fileSize;
+    }
+
+    private boolean tryAcquireResultLock(String imei) {
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                MOCK_DEV_RESULT_LOCK_KEY + imei,
+                String.valueOf(System.currentTimeMillis()),
+                Duration.ofSeconds(30)
+        );
+        return Boolean.TRUE.equals(acquired);
+    }
+
+    private int resolveShardIndex(long taskId, String imei) {
+        return Math.floorMod(Objects.hash(taskId, imei), SHARD_COUNT);
+    }
+
+    private Path buildFirmwarePath(long taskId, String imei) {
+        return Paths.get(FIRMWARE_PATH + taskId + "/" + imei + ".bin");
+    }
+
     private record FirmwareReceiveResult(byte[] firmware, boolean md5Matched, int costTime) {
     }
 
@@ -523,6 +713,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         mockDevRuntime.put("firmwareName", String.valueOf(request.firmwareName()));
         mockDevRuntime.put("firmwareVersionName", String.valueOf(request.firmwareVersionName()));
         mockDevRuntime.put("startTime", String.valueOf(System.currentTimeMillis()));
+        mockDevRuntime.put("status", STATUS_RECEIVING);
         return mockDevRuntime;
     }
 

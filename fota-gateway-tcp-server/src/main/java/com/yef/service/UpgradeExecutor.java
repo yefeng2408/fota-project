@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.yef.protocol.outMsg.DeviceBootUpMessageAck;
+import com.yef.protocol.outMsg.PlatformCommonAck;
 import com.yef.protocol.outMsg.UpgradeResultMessageAck;
 import com.yef.req.EntryUpgradingEventRequest;
 import com.yef.req.UpgradeCancelEventRequest;
@@ -86,14 +87,14 @@ public class UpgradeExecutor {
     //网关对设备升级结果的上行消息0x06做出应答【写出站消息】
     public void receiveUpgradeResult(UpgradeResultMessage message) {
         log.debug("+++++++++++++++++>>>>>>>>>[UpgradeExecutor] upgrade result UpgradeResultMessage= {}", JSON.toJSONString(message));
-        UpgradeResultMessageAck messageAck = new UpgradeResultMessageAck(
+        PlatformCommonAck messageAck = new PlatformCommonAck(
                 message.imei(),
                 message.getTaskId(),
-                FotaProtocolConstants.MSG_UPGRADE_RESULT,
+                message.getMessageType(),
                 (byte) 0x00,
                 (byte) 0x00
         );
-        packetSender.sendToDevice(messageAck.imei(), messageAck);
+        packetSender.sendToDevice(message.imei(), messageAck);
 
         String runtimeKey = UPGRADE_RUNTIME_KEY_PREFIX + message.imei();
         Map<Object, Object> runtimeMap = redisTemplate.opsForHash().entries(runtimeKey);
@@ -282,8 +283,10 @@ public class UpgradeExecutor {
                         heartbeatMessage.imei(), taskId, firmwareId);
                 return;
             }
-            //TODO ==========断线续传都是当前runtime的packetNo的下一包开发，
-            // 默认客户端收到了packetNo对应的chunkData且已经写入文件
+            //TODO ==========断线续传都是当前runtime的packetNo的下一包进行下发，
+            // 默认客户端收到了packetNo对应的chunkData且已经写入文件。但是这样风险比较高，
+            // 最好是设备断线重连后主动上报一条消息【比方说：0x07消息类型】，该消息的作用是告知网关
+            // 该设备当前已经读到的packetNo,那么网关久基于设备告知的packetNo+1进行断点续传 完成后续的固件分包流程
             int nextPacketNo = 0;
             if (packetNo == 0) {
                 nextPacketNo = 1;
