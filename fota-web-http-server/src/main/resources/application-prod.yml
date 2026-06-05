@@ -40,11 +40,14 @@ mybatis-plus:
 gateway:
   http:
     url: ${GATEWAY_HTTP_URL}
+  route:
+    fallback-enabled: ${GATEWAY_ROUTE_FALLBACK_ENABLED:true}
 
 mock:
   device:
     http:
       url: ${MOCK_DEVICE_HTTP_URL:http://fota-mock-device-client:8082}
+      urls: ${MOCK_DEVICE_HTTP_URLS:}
 
 forest:
   backend: okhttp3

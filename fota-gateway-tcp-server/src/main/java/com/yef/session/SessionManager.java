@@ -1,11 +1,13 @@
 package com.yef.session;
 
 import com.yef.service.DeviceKeepAliveService;
+import com.yef.protocol.ChannelAttributes;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 /**
  * @description: 连接管理
@@ -48,7 +50,7 @@ public class SessionManager {
      * 如果是不同的 channel，说明终端很可能发生了重连或连接切换。此时 bind() 会让新连接接管该终端的 session，并关闭旧连接。
      * 关闭旧连接不一定是因为它在 TCP 层已经彻底不可用，而是因为在业务层我们只允许一个终端保留一条主连接，避免后续下发和状态维护发生混乱。
      */
-    public void bind(String imei, Long deviceId, Channel channel) {
+    public DeviceSession bind(String imei, Long deviceId, Channel channel) {
         if (imei == null || imei.isBlank()) {
             throw new IllegalArgumentException("imei cannot be blank");
         }
@@ -62,7 +64,7 @@ public class SessionManager {
             Channel oldChannel = oldSession.getChannel();
             if (oldChannel == channel && oldChannel.isActive()) {
                 oldSession.setLastActiveTime(System.currentTimeMillis());
-                return;
+                return oldSession;
             }
             // 2. 如果 oldSession 存在，但旧连接不是当前连接，则关闭旧连接
             if (oldSession.getChannel() != null && oldSession.getChannel() != channel) {
@@ -75,8 +77,15 @@ public class SessionManager {
 
         // 3. 建立新绑定
         long now = System.currentTimeMillis();
+        String sessionId = channel.attr(ChannelAttributes.SESSION_ID).get();
+        if (sessionId == null || sessionId.isBlank()) {
+            sessionId = UUID.randomUUID().toString().replace("-", "");
+            channel.attr(ChannelAttributes.SESSION_ID).set(sessionId);
+        }
+
         DeviceSession newSession = new DeviceSession();
         newSession.setImei(imei);
+        newSession.setSessionId(sessionId);
         newSession.setDeviceId(deviceId);
         newSession.setChannel(channel);
         newSession.setConnectTime(now);
@@ -84,6 +93,7 @@ public class SessionManager {
 
         sessionByImei.put(imei, newSession);
         sessionByChannelId.put(channel.id(), newSession);
+        return newSession;
 
     }
 

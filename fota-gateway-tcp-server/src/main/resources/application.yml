@@ -8,6 +8,15 @@ netty:
 gateway:
   demo-upgrade:
     enabled: true
+  instance:
+    id: ${GATEWAY_INSTANCE_ID:}
+    http-url: ${GATEWAY_INSTANCE_HTTP_URL:}
+    tcp-host: ${GATEWAY_INSTANCE_TCP_HOST:}
+    weight: ${GATEWAY_INSTANCE_WEIGHT:100}
+    ttl-seconds: ${GATEWAY_INSTANCE_TTL_SECONDS:30}
+    heartbeat-interval-ms: ${GATEWAY_INSTANCE_HEARTBEAT_INTERVAL_MS:10000}
+  device-online:
+    ttl-seconds: ${GATEWAY_DEVICE_ONLINE_TTL_SECONDS:240}
 spring:
   application:
     name: fota-gateway

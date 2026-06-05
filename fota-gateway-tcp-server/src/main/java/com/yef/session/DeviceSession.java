@@ -10,6 +10,11 @@ public class DeviceSession {
     private String imei;
 
     /**
+     * 当前 TCP 连接的业务会话 ID，用于多实例在线路由 fencing。
+     */
+    private String sessionId;
+
+    /**
      * 平台内部设备ID，后续由 Redis / DB 映射 imei -> deviceId。
      */
     private Long deviceId;
@@ -39,6 +44,14 @@ public class DeviceSession {
 
     public Long getDeviceId() {
         return deviceId;
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(String sessionId) {
+        this.sessionId = sessionId;
     }
 
     public void setDeviceId(Long deviceId) {
@@ -72,6 +85,7 @@ public class DeviceSession {
     @Override
     public String toString() {
         return "DeviceSession{imei='" + imei + "', deviceId=" + deviceId
+                + ", sessionId='" + sessionId + '\''
                 + ", channel=" + channel
                 + ", connectTime=" + connectTime
                 + ", lastActiveTime=" + lastActiveTime + "}";

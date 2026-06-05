@@ -1,0 +1,11 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="FOTA Gateway-1 Local" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.yef.FotaGatewayTcpServerApplication" />
+    <option name="VM_PARAMETERS" value="-Dserver.port=8081 -Dnetty.server.port=7611 -DGATEWAY_INSTANCE_ID=gateway-1 -DGATEWAY_INSTANCE_HTTP_URL=http://127.0.0.1:8081 -DGATEWAY_INSTANCE_TCP_HOST=127.0.0.1" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <module name="fota-gateway-tcp-server" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

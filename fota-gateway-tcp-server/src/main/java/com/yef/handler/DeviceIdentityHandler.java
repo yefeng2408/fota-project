@@ -2,8 +2,10 @@ package com.yef.handler;
 
 import com.yef.producer.DeviceUpgradeEventPushClient;
 import com.yef.protocol.ChannelAttributes;
+import com.yef.protocol.DeviceBootUpMessage;
 import com.yef.protocol.FotaMessage;
 import com.yef.protocol.HeartbeatMessage;
+import com.yef.registry.DeviceOnlineRegistry;
 import com.yef.req.DisconnectEventRequest;
 import com.yef.service.DeviceKeepAliveService;
 import com.yef.service.UpgradeExecutor;
@@ -26,15 +28,18 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
     private final DeviceKeepAliveService deviceKeepAliveService;
     private final DeviceUpgradeEventPushClient deviceUpgradeEventPushClient;
     private final StringRedisTemplate redisTemplate;
+    private final DeviceOnlineRegistry deviceOnlineRegistry;
 
     public DeviceIdentityHandler(SessionManager sessionManager,
                                  DeviceKeepAliveService deviceKeepAliveService,
                                  DeviceUpgradeEventPushClient deviceUpgradeEventPushClient,
-                                 StringRedisTemplate redisTemplate) {
+                                 StringRedisTemplate redisTemplate,
+                                 DeviceOnlineRegistry deviceOnlineRegistry) {
         this.sessionManager = sessionManager;
         this.deviceKeepAliveService = deviceKeepAliveService;
         this.deviceUpgradeEventPushClient = deviceUpgradeEventPushClient;
         this.redisTemplate = redisTemplate;
+        this.deviceOnlineRegistry = deviceOnlineRegistry;
     }
 
     @Override
@@ -55,23 +60,28 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
         String currentImei = ctx.channel().attr(ChannelAttributes.IMEI).get();
 
         Long deviceId = deviceKeepAliveService.getDeviceId(imei);
+        DeviceSession deviceSession;
         if (currentImei == null || !currentImei.equals(imei)) {
 
             ctx.channel().attr(ChannelAttributes.IMEI).set(imei);
             ctx.channel().attr(ChannelAttributes.DEVICE_ID).set(deviceId);
 
-            sessionManager.bind(imei, deviceId, ctx.channel());
+            deviceSession = sessionManager.bind(imei, deviceId, ctx.channel());
 
             //只在首次连接调用
             deviceKeepAliveService.onDeviceFirstConnect(deviceId);
+            registerOnlineRoute(ctx, msg, deviceSession);
 
         } else {
             sessionManager.touch(ctx.channel());
+            deviceSession = sessionManager.getByChannel(ctx.channel());
+            deviceOnlineRegistry.touch(deviceSession);
         }
 
         //心跳 = 在线证明
         if(msg instanceof HeartbeatMessage){
             deviceKeepAliveService.refreshHeartbeat(deviceId);
+            deviceOnlineRegistry.touch(deviceSession);
            // log.info("当前在线 session 数: {}", sessionManager.onlineSessionCount());
         }
 
@@ -84,20 +94,23 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.warn(">>>>>>>>>>>>>>>设备主动断开[DeviceIdentityHandler] close channel, imei={}", ctx.channel().attr(ChannelAttributes.IMEI).get());
+        String imei = ctx.channel().attr(ChannelAttributes.IMEI).get();
+        String sessionId = ctx.channel().attr(ChannelAttributes.SESSION_ID).get();
+        log.warn(">>>>>>>>>>>>>>>设备主动断开[DeviceIdentityHandler] close channel, imei={}", imei);
         DeviceSession deviceSession = sessionManager.getByChannel(ctx.channel());
 
         if (deviceSession != null) {
             sessionManager.remove(ctx.channel());
         }
+        deviceOnlineRegistry.removeIfSessionMatches(imei, sessionId);
         log.info("------->channelInactive|CURRENT_TASK_ID:{}", ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).get());
         //存在升级任务中的设备掉线，则推送一次设备掉线的状态事件
-        String runtimeKey = UpgradeExecutor.UPGRADE_RUNTIME_KEY_PREFIX + ctx.channel().attr(ChannelAttributes.IMEI).get();
+        String runtimeKey = UpgradeExecutor.UPGRADE_RUNTIME_KEY_PREFIX + imei;
         String status = String.valueOf(redisTemplate.opsForHash().get(runtimeKey, "status"));
         if ("UPGRADING".equals(status) || "UPGRADE_REQUESTED".equals(status)) {
             if (ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).get() != null) {
                 DisconnectEventRequest request = new DisconnectEventRequest();
-                request.setImei(ctx.channel().attr(ChannelAttributes.IMEI).get());
+                request.setImei(imei);
                 request.setTaskId(ctx.channel().attr(ChannelAttributes.CURRENT_TASK_ID).get());
                 request.setUpgradeStatus("DISCONNECT");
                 deviceUpgradeEventPushClient.pushDeviceDisconnectStatus(request);
@@ -106,5 +119,16 @@ public class DeviceIdentityHandler extends ChannelInboundHandlerAdapter {
             }
         }
         ctx.fireChannelInactive();
+    }
+
+    private void registerOnlineRoute(ChannelHandlerContext ctx, Object msg, DeviceSession deviceSession) {
+        String currentFirmwareVersion = "";
+        String deviceType = "";
+        if (msg instanceof DeviceBootUpMessage bootUpMessage) {
+            currentFirmwareVersion = bootUpMessage.firmwareVersion();
+            deviceType = bootUpMessage.deviceType();
+        }
+        String remoteAddress = ctx.channel().remoteAddress() == null ? "" : String.valueOf(ctx.channel().remoteAddress());
+        deviceOnlineRegistry.register(deviceSession, currentFirmwareVersion, deviceType, remoteAddress);
     }
 }

@@ -208,6 +208,9 @@ services:
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-fota-firmware}
 
       FOTA_GATEWAY_PORT: ${FOTA_GATEWAY_PORT:-8224}
+      GATEWAY_INSTANCE_ID: ${GATEWAY_INSTANCE_ID:-fota-gateway-tcp-server}
+      GATEWAY_INSTANCE_HTTP_URL: ${GATEWAY_INSTANCE_HTTP_URL:-http://fota-gateway-tcp-server:8081}
+      GATEWAY_INSTANCE_TCP_HOST: ${GATEWAY_INSTANCE_TCP_HOST:-fota-gateway-tcp-server}
     ports:
       - "${FOTA_GATEWAY_PORT:-8224}:${FOTA_GATEWAY_PORT:-8224}"
       - "${GATEWAY_HTTP_PORT:-8081}:8081"
