@@ -33,9 +33,6 @@ public class FirmwareCacheManager {
         return firmwareCache.get(firmwareId);
     }
 
-    public FirmwareCacheHolder putIfAbsent(Long firmwareId, FirmwareCacheHolder holder) {
-        return firmwareCache.putIfAbsent(firmwareId, holder);
-    }
 
     /**
      * 固件加载入口。
@@ -85,15 +82,6 @@ public class FirmwareCacheManager {
 
             return future;
         });
-    }
-
-    public boolean contains(Long firmwareId) {
-        return firmwareCache.containsKey(firmwareId);
-    }
-
-
-    public CompletableFuture<FirmwareCacheHolder> getLoadingFuture(Long firmwareId) {
-        return loadingFutureMap.get(firmwareId);
     }
 
     public int size() {

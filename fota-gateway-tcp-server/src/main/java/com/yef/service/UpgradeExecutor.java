@@ -3,6 +3,7 @@ package com.yef.service;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.yef.cache.FirmwareCacheHolder;
+import com.yef.cache.FirmwareCacheLoadService;
 import com.yef.cache.FirmwareCacheManager;
 import com.yef.cache.FirmwareCacheRefCountUtil;
 import com.yef.producer.DeviceUpgradeEventPushClient;
@@ -12,6 +13,10 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.yef.protocol.outMsg.DeviceBootUpMessageAck;
 import com.yef.protocol.outMsg.UpgradeResultMessageAck;
@@ -41,6 +46,7 @@ public class UpgradeExecutor {
     private final DeviceUpgradeEventPushClient deviceUpgradeEventPushClient;
     private final DeviceUpgradeLockService deviceUpgradeLockService;
     private final FirmwareCacheManager firmwareCacheManager;
+    private final FirmwareCacheLoadService firmwareCacheLoadService;
 
     /**
      * 网关分包下发过程中的 Redis runtime checkpoint 间隔。
@@ -53,12 +59,14 @@ public class UpgradeExecutor {
                            PacketSender packetSender,
                            DeviceUpgradeEventPushClient deviceUpgradeEventPushClient,
                            DeviceUpgradeLockService deviceUpgradeLockService,
-                           FirmwareCacheManager firmwareCacheManager) {
+                           FirmwareCacheManager firmwareCacheManager,
+                           FirmwareCacheLoadService firmwareCacheLoadService) {
         this.redisTemplate = redisTemplate;
         this.packetSender = packetSender;
         this.deviceUpgradeEventPushClient = deviceUpgradeEventPushClient;
         this.deviceUpgradeLockService = deviceUpgradeLockService;
         this.firmwareCacheManager = firmwareCacheManager;
+        this.firmwareCacheLoadService = firmwareCacheLoadService;
     }
 
     //网关对设备开机包的上行消息0x10做出应答【写出站消息】
@@ -268,12 +276,13 @@ public class UpgradeExecutor {
             }
 
             Long firmwareId = Long.valueOf(String.valueOf(runtimeHash.get("firmwareId")));
-            FirmwareCacheHolder firmwareCacheHolder = firmwareCacheManager.get(firmwareId);
+            FirmwareCacheHolder firmwareCacheHolder = getOrLoadFirmwareCacheHolderForResume(runtimeHash, firmwareId);
             if (firmwareCacheHolder == null) {
-                log.warn("breakpointResume 固件不存在，无法进行0x82分包下发过程！");
+                log.warn("breakpointResume 固件缓存加载失败，无法进行0x82分包下发过程, imei={}, taskId={}, firmwareId={}",
+                        heartbeatMessage.imei(), taskId, firmwareId);
                 return;
             }
-            //TODO ==========断线续传都是当前runtime的packetNo的下一包开发发，
+            //TODO ==========断线续传都是当前runtime的packetNo的下一包开发，
             // 默认客户端收到了packetNo对应的chunkData且已经写入文件
             int nextPacketNo = 0;
             if (packetNo == 0) {
@@ -343,6 +352,44 @@ public class UpgradeExecutor {
         }
 
 
+    }
+
+
+    private FirmwareCacheHolder getOrLoadFirmwareCacheHolderForResume(Map<Object, Object> runtimeHash, Long firmwareId) {
+        FirmwareCacheHolder holder = firmwareCacheManager.get(firmwareId);
+        if (holder != null && holder.getFirmwareFullBytes() != null) {
+            holder.setLastAccessAt(System.currentTimeMillis());
+            return holder;
+        }
+
+        Map<String, Object> runtimeMap = toStringObjectMap(runtimeHash);
+        try {
+            Future<FirmwareCacheHolder> future = firmwareCacheLoadService.loadFirmwarePackageToLocalCache(runtimeMap);
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("breakpointResume 固件缓存加载被中断, imei={}, taskId={}, firmwareId={}",
+                    runtimeMap.get("imei"), runtimeMap.get("taskId"), firmwareId);
+            return null;
+        } catch (ExecutionException e) {
+            log.warn("breakpointResume 固件缓存加载异常, imei={}, taskId={}, firmwareId={}, error={}",
+                    runtimeMap.get("imei"), runtimeMap.get("taskId"), firmwareId, e.getMessage());
+            return null;
+        } catch (TimeoutException e) {
+            log.warn("breakpointResume 固件缓存加载超时, imei={}, taskId={}, firmwareId={}",
+                    runtimeMap.get("imei"), runtimeMap.get("taskId"), firmwareId);
+            return null;
+        }
+    }
+
+    private Map<String, Object> toStringObjectMap(Map<Object, Object> runtimeHash) {
+        Map<String, Object> runtimeMap = new HashMap<>();
+        for (Map.Entry<Object, Object> entry : runtimeHash.entrySet()) {
+            if (entry.getKey() != null) {
+                runtimeMap.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return runtimeMap;
     }
 
 
@@ -544,4 +591,3 @@ public class UpgradeExecutor {
 
     }
 }
-
