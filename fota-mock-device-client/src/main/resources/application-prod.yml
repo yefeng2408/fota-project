@@ -32,6 +32,7 @@ netty:
   device-gateway-server:
     host: ${MOCK_DEVICE_GATEWAY_HOST}
     port: ${MOCK_DEVICE_GATEWAY_PORT}
+    endpoints: ${MOCK_DEVICE_GATEWAY_ENDPOINTS:}
 
 logging:
   level:

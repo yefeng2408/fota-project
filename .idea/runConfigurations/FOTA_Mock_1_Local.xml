@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="FOTA Mock-1 Local" type="Application" factoryName="Application">
     <option name="MAIN_CLASS_NAME" value="com.yef.FotaMockDeviceClientApplication" />
-    <option name="VM_PARAMETERS" value="-Dserver.port=8082 -Dnetty.device-gateway-server.host=127.0.0.1 -Dnetty.device-gateway-server.port=7611" />
+    <option name="VM_PARAMETERS" value="-Dserver.port=8082 -Dnetty.device-gateway-server.host=127.0.0.1 -Dnetty.device-gateway-server.port=7611 -DMOCK_DEVICE_GATEWAY_ENDPOINTS=127.0.0.1:7611,127.0.0.1:7612" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <module name="fota-mock-device-client" />
     <method v="2">

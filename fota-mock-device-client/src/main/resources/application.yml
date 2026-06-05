@@ -27,4 +27,4 @@ netty:
   device-gateway-server:
     host: 127.0.0.1
     port: 7611
-
+    endpoints: ${MOCK_DEVICE_GATEWAY_ENDPOINTS:}

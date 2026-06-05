@@ -44,8 +44,7 @@ public class MockDeviceClient implements SmartLifecycle {
 
     private static final Logger log = LoggerFactory.getLogger(MockDeviceClient.class);
 
-    private final String configuredHost;
-    private final int configuredPort;
+    private final List<GatewayEndpoint> gatewayEndpoints;
     private final JdbcTemplate jdbcTemplate;
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -60,12 +59,12 @@ public class MockDeviceClient implements SmartLifecycle {
     public MockDeviceClient(
             @Value("${netty.device-gateway-server.host:127.0.0.1}") String configuredHost,
             @Value("${netty.device-gateway-server.port:7611}") int configuredPort,
+            @Value("${netty.device-gateway-server.endpoints:}") String configuredEndpoints,
             JdbcTemplate jdbcTemplate,
             StringRedisTemplate stringRedisTemplate,
             MockDeviceDispatchHandler mockDeviceDispatchHandler) {
 
-        this.configuredHost = configuredHost;
-        this.configuredPort = configuredPort;
+        this.gatewayEndpoints = resolveGatewayEndpoints(configuredHost, configuredPort, configuredEndpoints);
         this.jdbcTemplate = jdbcTemplate;
         this.stringRedisTemplate = stringRedisTemplate;
         //共享的 业务进站handler
@@ -77,7 +76,7 @@ public class MockDeviceClient implements SmartLifecycle {
         if (running) {
             return;
         }
-        log.info("准备启动 MockDeviceClient 控制器，目标网关地址: {}:{}", configuredHost, configuredPort);
+        log.info("准备启动 MockDeviceClient 控制器，候选网关地址: {}", gatewayEndpoints);
         initializeBootstrapIfNecessary();
         this.running = true;
         log.info("MockDeviceClient 已就绪，等待平台按需触发模拟上线/下线");
@@ -245,11 +244,13 @@ public class MockDeviceClient implements SmartLifecycle {
     }
 
     private boolean connectDevice(MockDeviceProfile profile) {
+        //选择需要连接的网关实例
+        GatewayEndpoint endpoint = selectGatewayEndpoint();
         try {
             ChannelFuture future = bootstrap.clone()
                     //创建这个 Channel 时，把该设备 profile 绑定到这个 Channel 的 attribute 上
                     .attr(MockDeviceAttributes.DEVICE_PROFILE, profile)
-                    .connect(configuredHost, configuredPort)
+                    .connect(endpoint.host(), endpoint.port())
                     .sync();
             Channel channel = future.channel();
             deviceChannels.put(profile.imei(), channel);
@@ -257,16 +258,56 @@ public class MockDeviceClient implements SmartLifecycle {
                 deviceChannels.remove(profile.imei(), channel);
                 log.info("MockDevice 连接已关闭，imei={}", profile.imei());
             });
-            //log.info("MockDevice 已上线，imei={}，remoteAddress={}", profile.imei(), channel.remoteAddress());
+            log.info("MockDevice 已上线，imei={}，gateway={}:{}", profile.imei(), endpoint.host(), endpoint.port());
             return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.error("MockDevice 启动被中断，imei={}", profile.imei(), e);
+            log.error("MockDevice 启动被中断，imei={}，gateway={}:{}", profile.imei(), endpoint.host(), endpoint.port(), e);
             return false;
         } catch (Exception e) {
-            log.error("MockDevice 上线失败，imei={}", profile.imei(), e);
+            log.error("MockDevice 上线失败，imei={}，gateway={}:{}", profile.imei(), endpoint.host(), endpoint.port(), e);
             return false;
         }
+    }
+
+
+    private GatewayEndpoint selectGatewayEndpoint() {
+        if (gatewayEndpoints.size() == 1) {
+            return gatewayEndpoints.get(0);
+        }
+        return gatewayEndpoints.get(ThreadLocalRandom.current().nextInt(gatewayEndpoints.size()));
+    }
+
+    private List<GatewayEndpoint> resolveGatewayEndpoints(String configuredHost,
+                                                          int configuredPort,
+                                                          String configuredEndpoints) {
+        List<GatewayEndpoint> endpoints = new ArrayList<>();
+        if (configuredEndpoints != null && !configuredEndpoints.isBlank()) {
+            for (String item : configuredEndpoints.split(",")) {
+                GatewayEndpoint endpoint = parseGatewayEndpoint(item);
+                if (endpoint != null) {
+                    endpoints.add(endpoint);
+                }
+            }
+        }
+        if (endpoints.isEmpty()) {
+            endpoints.add(new GatewayEndpoint(configuredHost, configuredPort));
+        }
+        return List.copyOf(endpoints);
+    }
+
+    private GatewayEndpoint parseGatewayEndpoint(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim();
+        int separatorIndex = normalized.lastIndexOf(':');
+        if (separatorIndex <= 0 || separatorIndex == normalized.length() - 1) {
+            throw new IllegalArgumentException("invalid gateway endpoint: " + value + ", expected host:port");
+        }
+        String host = normalized.substring(0, separatorIndex).trim();
+        int port = Integer.parseInt(normalized.substring(separatorIndex + 1).trim());
+        return new GatewayEndpoint(host, port);
     }
 
     private void closeChannelQuietly(Channel channel, String imei) {
@@ -423,6 +464,13 @@ public class MockDeviceClient implements SmartLifecycle {
 
         private static String sanitizeDeviceType(String deviceType) {
             return deviceType == null || deviceType.isBlank() ? "MOCK_DEVICE" : deviceType;
+        }
+    }
+
+    public record GatewayEndpoint(String host, int port) {
+        @Override
+        public String toString() {
+            return host + ":" + port;
         }
     }
 
