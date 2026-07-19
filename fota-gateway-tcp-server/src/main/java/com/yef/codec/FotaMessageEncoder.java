@@ -12,6 +12,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * @description: 网关出站编码
  * @author: 叶丰
@@ -21,7 +23,7 @@ import org.springframework.stereotype.Component;
 @ChannelHandler.Sharable
 public class FotaMessageEncoder extends MessageToByteEncoder<FotaMessage> {
 
-    private static final java.util.concurrent.atomic.AtomicInteger SEQ = new java.util.concurrent.atomic.AtomicInteger(0);
+    private static final AtomicInteger SEQ = new AtomicInteger(0);
 
     @Override
     protected void encode(ChannelHandlerContext ctx, FotaMessage msg, ByteBuf out) {
