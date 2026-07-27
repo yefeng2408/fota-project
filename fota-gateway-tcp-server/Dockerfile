@@ -2,6 +2,7 @@ FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
-COPY fota-gateway-tcp-server/target/fota-gateway-tcp-server-1.0-SNAPSHOT.jar app.jar
+#COPY fota-gateway-tcp-server/target/fota-gateway-tcp-server-1.0-SNAPSHOT.jar app.jar
+COPY target/*.jar app.jar
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
