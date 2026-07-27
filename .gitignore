@@ -48,3 +48,18 @@ tmp/
 # MinIO
 docker/data/minio/*
 !docker/data/minio/.gitkeep
+
+### Java ###
+target/
+*.class
+
+### Vue ###
+fota-web-admin/node_modules/
+fota-web-admin/dist/
+
+### IDEA ###
+.idea/
+*.iml
+
+### mac ###
+.DS_Store
