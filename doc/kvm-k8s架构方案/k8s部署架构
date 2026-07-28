@@ -1,0 +1,254 @@
+Ubuntu 主机实际上是一台物理机
+
+Ubuntu Server (32GB RAM)
+│
+├── k8s-master
+│     CPU: 2核
+│     RAM: 4GB
+│     role: control-plane
+│
+├── k8s-worker-1
+│     CPU: 4核
+│     RAM: 8GB
+│
+└── k8s-worker-2
+      CPU: 4核
+      RAM: 8GB
+
+通过：
+kubeadm
+containerd
+kubelet
+kubeadm init/join
+搭建集群
+
+逻辑上：
+                kubectl
+                   |
+                   |
+             kube-apiserver
+                   |
+        ---------------------
+        |                   |
+   scheduler          controller-manager
+        |
+       etcd
+        |
+ -----------------------------
+ |             |              |
+node1        node2          node3
+
+master      worker1        worker2
+
+在一台Ubuntu物理机
+        |
+        |
+    三个虚拟节点
+但是 Kubernetes 看到的是三个 Node。
+
+总体架构：
+                    MacBook
+                       |
+                    kubectl
+                       |
+                    Tailscale
+                       |
+                 Ubuntu Server
+                    32GB RAM
+                       |
+                      KVM
+                       |
+        --------------------------------
+        |              |               |
+     master        worker1        worker2
+
+      etcd          FOTA           Agent
+      API           Gateway        SpringAI
+
+                     |
+             ----------------
+             |
+          StatefulSet
+
+       MySQL Redis RocketMQ Neo4j
+
+
+k8s架构：
+
+Kubernetes
+namespace:fota
+
+                 Ingress
+                    |
+              fota-web-service
+                    |
+          ----------------------
+          |                    |
+     fota-web pod1       fota-web pod2
+
+          fota-gateway-service
+                    |
+      --------------------------------
+      |              |               |
+ gateway-1      gateway-2       gateway-3
+
+                    |
+              Redis Registry
+
+=====================================================
+        Stateful Services
+
+        mysql-0
+        redis-0
+        rocketmq-name
+        rocketmq-broker
+        minio
+
+
+
+                Internet
+                     ▲
+                     │
+              家庭路由器
+                     ▲
+                     │
+           Ubuntu Host
+         192.168.0.104
+                     ▲
+                     │
+           NAT (iptables)
+                     ▲
+                     │
+        virbr0 (Bridge)
+           192.168.122.1
+          ╱      │       ╲
+         ╱       │        ╲
+    master   worker1   worker2
+
+
+
+
+学习路线：
+
+第一阶段
+
+搭集群：
+master
+worker1
+worker2
+
+我们分 6 个步骤完成：
+
+Step 1：准备 Ubuntu 宿主机环境
+
+安装：
+
+KVM
+libvirt
+virt-manager
+Step 2：创建三台虚拟机
+
+分别：
+
+节点	IP	配置
+master	192.168.122.10	2C 4G
+worker1	192.168.122.11	2C 8G
+worker2	192.168.122.12	2C 8G
+
+系统：
+
+Ubuntu Server 24.04
+
+Step 3：三台机器基础配置
+
+包括：
+
+hostname
+hosts
+时间同步
+swap关闭
+Step 4：安装容器运行时
+
+Kubernetes现在推荐：
+
+containerd
+Step 5：安装 kubeadm
+
+三台：
+
+安装：
+
+kubelet
+kubeadm
+kubectl
+Step 6：
+
+master:
+
+kubeadm init
+
+worker:
+
+kubeadm join
+
+最终：
+
+kubectl get nodes
+
+完成第一阶段。
+
+
+
+
+
+完成：
+kubectl get nodes
+
+能够看到：
+NAME
+master
+worker1
+worker2
+
+
+第二阶段
+
+部署测试：
+nginx deployment
+service
+ingress
+
+理解：
+Pod
+ReplicaSet
+Deployment
+Service
+
+
+第三阶段
+
+迁移FOTA：
+fota-web
+fota-gateway
+
+学习：
+ConfigMap
+Secret
+RollingUpdate
+HealthCheck
+ResourceLimit
+
+
+第四阶段
+
+高级玩法：
+网关：
+replicas=3
+
+模拟：
+500 devices
+3 gateway pods
+pod kill
+自动恢复
+
+

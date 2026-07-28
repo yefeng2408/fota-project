@@ -1,0 +1,19 @@
+apiVersion: v1
+
+kind: PersistentVolumeClaim
+
+metadata:
+  name: fota-nfs-pvc
+  namespace: fota
+
+
+spec:
+
+  accessModes:
+    - ReadWriteMany
+
+  storageClassName: ""
+
+  resources:
+    requests:
+      storage: 10Gi

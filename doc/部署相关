@@ -176,8 +176,6 @@ docker compose up -d rocketmq-broker
 docker logs -f fota-rocketmq-broker
 //注意：只需要创建 store 根目录，子目录让 RocketMQ 自己生成。
 
-//TODO LIST: 想做一个限流。针对“升级按钮”，一个用户在3分钟内只能发起一次设备升级请求
-// MQ消息重启机制
 
 
 

@@ -6,8 +6,6 @@
     <file url="file://$PROJECT_DIR$/fota-gateway-tcp-server/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/fota-gateway-tcp-server/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/fota-mock-device-client/src/main/java" charset="UTF-8" />
-    <file url="file://$PROJECT_DIR$/fota-mock-device-client/src/main/resources" charset="UTF-8" />
-    <file url="file://$PROJECT_DIR$/fota-web-http-server/fota-mock-device-client/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/fota-web-http-server/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/fota-web-http-server/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />

@@ -1,0 +1,38 @@
+创建k8s整体大致流程
+① 创建 Master VM
+↓
+② 安装 Ubuntu Server
+↓
+③ 创建 Worker1
+↓
+④ 创建 Worker2
+↓
+⑤ 三台机器网络互通
+↓
+⑥ 安装 containerd
+↓
+⑦ kubeadm init
+↓
+⑧ kubeadm join
+↓
+⑨ 安装 Calico
+↓
+⑩ kubectl get nodes
+
+网络知识：
+
+第一章：KVM 网络（已经完成 70%）
+        ↓
+第二章：Linux Network Namespace（重点）
+        ↓
+第三章：veth Pair（重点）
+        ↓
+第四章：Linux Bridge
+        ↓
+第五章：Docker 网络
+        ↓
+第六章：Pod 为什么会有自己的 IP
+        ↓
+第七章：Flannel / Calico 如何跨 Node 通信
+        ↓
+第八章：真正开始搭 Kubernetes

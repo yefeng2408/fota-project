@@ -124,7 +124,7 @@ services:
       options:
         max-size: "50m"
         max-file: "2"
-    image: fota-web-http-server:v1
+    image: fota-web:v1
     container_name: fota-web-http-server
     restart: unless-stopped
     depends_on:
@@ -173,7 +173,7 @@ services:
       options:
         max-size: "100m"
         max-file: "3"
-    image: fota-gateway-tcp-server:v1
+    image: fota-gateway:v1
     container_name: fota-gateway-tcp-server
     restart: unless-stopped
     depends_on:
@@ -224,7 +224,7 @@ services:
         max-size: "100m"
         max-file: "3"
     #profiles: ["mock"]
-    image: fota-mock-device-client:v1
+    image: fota-device:v1
     container_name: fota-mock-device-client
     restart: unless-stopped
     depends_on:
@@ -259,7 +259,7 @@ services:
       - fota-net
 
   nginx:
-    image: fota-web-admin-nginx:v1
+    image: fota-web-admin-nginx:v3
     container_name: fota-nginx
     restart: unless-stopped
     depends_on:
