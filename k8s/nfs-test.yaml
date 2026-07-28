@@ -12,6 +12,7 @@ spec:
       image: busybox
       command:
         - sleep
+        - -c
         - "3600"
 
       volumeMounts:
@@ -22,3 +23,6 @@ spec:
     - name: nfs-storage
       persistentVolumeClaim:
         claimName: fota-nfs-pvc
+
+#注意：volumes.name 与 volumeMounts.name 必须保持一致。
+#这里的nfs-storage 只是 Pod 内部起的名字。与fota-nfs-pvc 没有任何关系。
