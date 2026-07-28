@@ -11,12 +11,13 @@ spec:
     # 这里不会限制 NFS的使用大小。这里只是：Kubernetes 的资源描述。
     # 相当于告诉 Kubernetes：我这块盘，拿出来20G 给别人申请。以后可以：50G，100G，500G都可以
     storage: 20Gi
-    # 简称 RWX。意思是：多个 Po【注意：这里不是多个pvc！！！】 可以一起读写。以后：Redis、MySQL、MQ Broker...共享fota-nfs-pv这块存储位文件
+    # 简称 RWX。意思是：多个 Pod【注意：这里不是多个pvc！！！】 可以一起读写。以后：Redis、MySQL、MQ Broker...共享fota-nfs-pv这块存储位文件
   accessModes:
     - ReadWriteMany
   # PVC 删除。数据不会删。这也是生产环境推荐。
   persistentVolumeReclaimPolicy: Retain
-  #静态 pv  storageClassName: ""
+  #静态 pv
+  storageClassName: ""
 
   nfs:
     server: 192.168.122.1
