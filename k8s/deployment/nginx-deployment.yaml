@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: nginx-deployment
+  namespace: fota
+
+spec:
+  #始终保持3个pod存活
+  replicas: 3
+
+
+  selector:
+    matchLabels:
+      app: nginx
+  #以后如果需要创建新的 Pod，就按照template去创建pod
+  template:
+    metadata:
+      labels:
+        app: nginx
+
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+
+          ports:
+            - containerPort: 80
