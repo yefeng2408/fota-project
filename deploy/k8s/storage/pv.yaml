@@ -1,0 +1,36 @@
+apiVersion: v1
+# 这是一个 PV
+kind: PersistentVolume
+
+# 定义metadata。以后 kubectl get pv  看到就是：fota-nfs-pv
+metadata:
+  name: fota-nfs-pv
+
+spec:
+  capacity:
+    # 这里不会限制 NFS的使用大小。这里只是：Kubernetes 的资源描述。
+    # 相当于告诉 Kubernetes：我这块盘，拿出来20G 给别人申请。以后可以：50G，100G，500G都可以
+    storage: 20Gi
+   # 简称 RWX。RWX(ReadWriteMany)：允许多个 Pod 同时读写
+   # NFS 支持 RWX。
+   # 注意：支持 RWX 不代表所有应用都适合共享同一个目录。
+   # Redis、MySQL、RocketMQ 等数据库通常仍建议使用各自独立的 PV/PVC。
+   # 这是因为：
+   #    NFS 能做到共享读写（RWX）。
+   #    数据库是否应该共享目录是另外一回事。
+   # 以后我们部署 FOTA：
+   #    mysql-pv
+   #    redis-pv
+   #    rocketmq-pv
+   #    minio-pv
+  accessModes:
+    - ReadWriteMany
+  # PVC 删除。数据不会删。这也是生产环境推荐。
+  persistentVolumeReclaimPolicy: Retain
+  #静态 pv
+  storageClassName: ""
+
+  nfs:
+    server: 192.168.122.1
+    # showmount -e localhost 查看该位置
+    path: /srv/nfs/k8s
