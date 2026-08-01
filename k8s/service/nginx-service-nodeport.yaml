@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: nginx-nodeport
+  namespace: fota
+
+spec:
+  #不添些type，则使用默认的clusterIp
+  type: NodePort
+
+  selector:
+    #找所有 label 中 app=nginx 的 Pod
+    app: nginx
+
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30080
