@@ -113,7 +113,7 @@ public final class FotaProtocol {
 
 
     /**
-     *
+     * 0x06类型消息
      * @param imei
      * @param taskId
      * @param result 0成功 1失败
