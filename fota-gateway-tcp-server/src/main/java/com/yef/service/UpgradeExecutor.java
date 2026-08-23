@@ -84,7 +84,7 @@ public class UpgradeExecutor {
     }
 
 
-    //网关对设备升级结果的上行消息0x06做出应答【写出站消息】
+    //升级结束。网关对设备升级结果的上行消息0x06做出应答【写出站消息】
     public void receiveUpgradeResult(UpgradeResultMessage message) {
         log.debug("+++++++++++++++++>>>>>>>>>[UpgradeExecutor] upgrade result UpgradeResultMessage= {}", JSON.toJSONString(message));
         PlatformCommonAck messageAck = new PlatformCommonAck(
@@ -104,7 +104,11 @@ public class UpgradeExecutor {
 
         Map<String, String> runtimeHash = new HashMap<>();
         runtimeHash.put("endAt", String.valueOf(now));
-        runtimeHash.put("progress", "100");
+        if("SUCCESS".equals(finalStatus)){
+            runtimeHash.put("progress", "100");
+        }else {
+            runtimeHash.put("progress", String.valueOf(runtimeMap.get("progress")));
+        }
         runtimeHash.put("packetTime", String.valueOf(now));
         runtimeHash.put("lastPacketAt", String.valueOf(now));
         runtimeHash.put("status", finalStatus);
@@ -283,10 +287,6 @@ public class UpgradeExecutor {
                         heartbeatMessage.imei(), taskId, firmwareId);
                 return;
             }
-            //TODO ==========断线续传都是当前runtime的packetNo的下一包进行下发，
-            // 默认客户端收到了packetNo对应的chunkData且已经写入文件。但是这样风险比较高，
-            // 最好是设备断线重连后主动上报一条消息【比方说：0x07消息类型】，该消息的作用是告知网关
-            // 该设备当前已经读到的packetNo,那么网关久基于设备告知的packetNo+1进行断点续传 完成后续的固件分包流程
             int nextPacketNo = 0;
             if (packetNo == 0) {
                 nextPacketNo = 1;

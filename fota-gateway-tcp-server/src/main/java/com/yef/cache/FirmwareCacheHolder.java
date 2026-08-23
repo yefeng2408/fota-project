@@ -30,6 +30,7 @@ public class FirmwareCacheHolder {
 
     private String md5;
 
+    //设备固件引用计数
     private AtomicInteger refCount = new AtomicInteger(0);
 
     private volatile long createdAt;

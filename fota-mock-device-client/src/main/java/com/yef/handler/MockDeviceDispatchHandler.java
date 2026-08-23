@@ -155,10 +155,8 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
                        Map<Object, Object> mockRuntimeHash,
                        int totalPacket,
                        Path path) {
-
-        long taskId = packet.taskId();
-        /**对taskId、imei整体取模运算。保证同一个taskId落在同一个queue上。从而保证局部串行，整体并行。从而保证写固件临时文件是同一个线程*/
-        int shardIndex = Math.floorMod(Objects.hash(taskId, packet.imei()), SHARD_COUNT);
+        /**对taskId、imei整体取模运算，同一个imei (imei是设备的唯一的标识) 落在同一 shard。从而保证局部串行，整体并行。继而保证同一个 shard 在任意时刻最多只有一个执行线程*/
+        int shardIndex = Math.floorMod(Objects.hash(packet.imei()), SHARD_COUNT);
 
         ThreadPoolExecutor executor = shardExecutors[shardIndex];
         //队列中已经占用的元素容量。这里是ArrayBlockingQueue
@@ -167,19 +165,16 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         int remainingCapacity = executor.getQueue().remainingCapacity();
         //队列总的容量=200
         int capacity = queueSize + remainingCapacity;
-        double queueUsage = capacity == 0 ? 1.0 : (queueSize/ capacity);
+        double queueUsage = capacity == 0 ? 1.0 : ((double) queueSize / capacity);
 
         logQueueUsageIfNecessary(shardIndex, executor, queueSize, remainingCapacity, capacity, queueUsage);
         /**背压机制 若线程池等待队列中的任务挤压过大，则发消息给服务端。服务端收到设备侧BUSY类型的应答消息，则降低发送分包数据的速率*/
         if (queueUsage >= 0.8) {
-            //协议消息应该交给eventLoop去执行，而不是由来自线程池的线程对象去执行ctx.writeAndFlush
-            /*ctx.writeAndFlush(
+            //当前线程本来就是这个 Channel 的 EventLoop
+            ctx.writeAndFlush(
                     new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), AckType.BUSY)
-            );*/
+            );
 
-            ctx.executor().execute(() -> ctx.writeAndFlush(
-                    new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), AckType.BUSY)
-            ));
             log.info(">>>>>>>>>>>shardExecutors写本地固件异步线程池触发背压消息");
             return;
         }
@@ -187,7 +182,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         Runnable writeTask = () -> {
             try {
                 FotaProtocol.UpgradeResultDTO upgradeResult = doWriteChunk(packet, mockRuntimeHash, totalPacket, path);
-
+                // 回到Netty EventLoop处理协议响应。线程职责分工明确
                 ctx.executor().execute(() -> {
                     if (!ctx.channel().isActive()) {
                         log.warn("MockDevice 分包已写入本地文件，但 Channel 已断开，跳过 ACK 发送，imei={}，taskId={}，packetNo={}",
