@@ -75,3 +75,48 @@ jobs:
         run: |
           docker push "${REGISTRY}/fota-mock-device-client:${IMAGE_TAG}"
           docker push "${REGISTRY}/fota-mock-device-client:dev-latest"
+
+      # ================= fota-web-admin =================
+      #前端ci流程如下：
+      # ① 前端目录
+#      cd ~/actions-runner/_work/fota-project/fota-project/fota-web-admin
+#
+#      # ② 安装依赖
+#      npm ci
+#
+#      # ③ Vue/Vite 打包
+#      npm run build
+#
+#      # ④ 确认 dist 已生成
+#      ls -lh dist
+#
+#      # ⑤ 回项目根目录
+#      cd ..
+#
+#      # ⑥ 构建 Nginx 前端镜像
+#      docker build \
+#      -f docker/nginx/Dockerfile \
+#      -t 192.168.0.103:5000/fota-web-admin-nginx:test \
+#      .
+#
+#      # ⑦ 推送
+#      docker push 192.168.0.103:5000/fota-web-admin-nginx:test
+      - name: Build fota-web-admin
+        working-directory: ./fota-web-admin
+        run: |
+          npm ci
+          npm run build
+
+      - name: Docker build fota-web-admin
+        run: |
+          docker build \
+            -f docker/nginx/Dockerfile \
+            -t "${REGISTRY}/fota-web-admin-nginx:${IMAGE_TAG}" \
+            -t "${REGISTRY}/fota-web-admin-nginx:dev-latest" \
+            .
+
+      - name: Docker push fota-web-admin
+        run: |
+          docker push "${REGISTRY}/fota-web-admin-nginx:${IMAGE_TAG}"
+          docker push "${REGISTRY}/fota-web-admin-nginx:dev-latest"
+          
