@@ -1,16 +1,10 @@
 name: FOTA CI
-#验证：
-#  GitHub 仓库
-#  ↓
-#  checkout
-#  ↓
-#  Runner 工作目录
-#  ↓
-#  fota-project 源码
-#  ↓
-#  Maven 多模块构建
+
 on:
   workflow_dispatch:
+#私有docker镜像仓库
+env:
+  REGISTRY: 192.168.0.103:5000
 
 jobs:
   build:
@@ -37,3 +31,20 @@ jobs:
       - name: Maven build
         run: |
           mvn clean package -DskipTests
+
+      - name: Prepare image tag
+        run: |
+          echo "IMAGE_TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${GITHUB_SHA::7}"
+
+      - name: Docker build fota-web-http-server
+        run: |
+          docker build \
+            -t "${REGISTRY}/fota-web-http-server:${IMAGE_TAG}" \
+            -t "${REGISTRY}/fota-web-http-server:dev-latest" \
+            ./fota-web-http-server
+
+      - name: Docker push fota-web-http-server
+        run: |
+          docker push "${REGISTRY}/fota-web-http-server:${IMAGE_TAG}"
+          docker push "${REGISTRY}/fota-web-http-server:dev-latest"

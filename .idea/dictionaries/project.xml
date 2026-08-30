@@ -4,6 +4,7 @@
       <w>删除本次升级的会话key</w>
       <w>基于redis实现的分布式信号量</w>
       <w>模拟设备mcu写入flush耗时</w>
+      <w>私有docker镜像仓库</w>
     </words>
   </dictionary>
 </component>
