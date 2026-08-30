@@ -1,32 +1,39 @@
-name: FOTA CI Test
-
+name: FOTA CI
+#验证：
+#  GitHub 仓库
+#  ↓
+#  checkout
+#  ↓
+#  Runner 工作目录
+#  ↓
+#  fota-project 源码
+#  ↓
+#  Maven 多模块构建
 on:
-  # 表示这次先不绑定 push，而是在 GitHub 的 Actions 页面手动点：Run workflow
   workflow_dispatch:
 
 jobs:
-  test-runner:
-    # runs-on: self-hosted表示 GitHub Actions Job -> 寻找带 self-hosted 标签的 Runner -> yefeng-H410M-DS2V -> 家庭 Ubuntu 执行 shell
+  build:
     runs-on: self-hosted
-    # 而 hostname / whoami / pwd 这几个命令，是为了明确确认：这条 Job 确实是在你家 Ubuntu 上执行的，不是在 GitHub 云 Runner 上执行
+
     steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
       - name: Show runner info
         run: |
-          echo "===== FOTA Self-hosted Runner ====="
-          echo "hostname:"
+          echo "===== Runner Info ====="
           hostname
-
-          echo "user:"
           whoami
-
-          echo "pwd:"
           pwd
-
-          echo "java:"
           java -version
-
-          echo "maven:"
           mvn -version
-
-          echo "docker:"
           docker --version
+
+      - name: Show project files
+        run: |
+          ls -la
+
+      - name: Maven build
+        run: |
+          mvn clean package -DskipTests
