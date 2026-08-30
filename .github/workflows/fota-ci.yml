@@ -36,15 +36,42 @@ jobs:
         run: |
           echo "IMAGE_TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=${GITHUB_SHA::7}"
-
+      #=============== fota-web ======================
+      #docker build fota-web-http-server
       - name: Docker build fota-web-http-server
         run: |
           docker build \
             -t "${REGISTRY}/fota-web-http-server:${IMAGE_TAG}" \
             -t "${REGISTRY}/fota-web-http-server:dev-latest" \
             ./fota-web-http-server
-
+      #docker push fota-web-http-server
       - name: Docker push fota-web-http-server
         run: |
           docker push "${REGISTRY}/fota-web-http-server:${IMAGE_TAG}"
           docker push "${REGISTRY}/fota-web-http-server:dev-latest"
+          
+      #=============== fota-gateway ======================
+      - name: Docker build fota-gateway-tcp-server
+        run: |
+          docker build \
+            -t "${REGISTRY}/fota-gateway-tcp-server:${IMAGE_TAG}" \
+            -t "${REGISTRY}/fota-gateway-tcp-server:dev-latest" \
+            ./fota-gateway-tcp-server
+
+      - name: Docker push fota-gateway-tcp-server
+        run: |
+          docker push "${REGISTRY}/fota-gateway-tcp-server:${IMAGE_TAG}"
+          docker push "${REGISTRY}/fota-gateway-tcp-server:dev-latest"
+
+      #=============== fota-mock-device ======================
+      - name: Docker build fota-mock-device-client
+        run: |
+          docker build \
+            -t "${REGISTRY}/fota-mock-device-client:${IMAGE_TAG}" \
+            -t "${REGISTRY}/fota-mock-device-client:dev-latest" \
+            ./fota-mock-device-client
+
+      - name: Docker push fota-mock-device-client
+        run: |
+          docker push "${REGISTRY}/fota-mock-device-client:${IMAGE_TAG}"
+          docker push "${REGISTRY}/fota-mock-device-client:dev-latest"
