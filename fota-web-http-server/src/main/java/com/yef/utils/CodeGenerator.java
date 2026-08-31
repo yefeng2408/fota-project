@@ -7,6 +7,7 @@
 //
 //public class CodeGenerator {
 //
+//
 //    public static void main(String[] args) {
 //
 //        String url = "jdbc:mysql://localhost:3306/fota?useSSL=false&serverTimezone=UTC&characterEncoding=utf-8";
