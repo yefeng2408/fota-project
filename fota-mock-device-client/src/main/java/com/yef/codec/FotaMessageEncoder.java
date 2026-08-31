@@ -3,10 +3,17 @@ package com.yef.codec;
 import com.yef.protocol.FotaProtocol;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
 import java.util.concurrent.atomic.AtomicInteger;
 
+@Slf4j
+@Component
+@ChannelHandler.Sharable
 public class FotaMessageEncoder extends MessageToByteEncoder<FotaProtocol.Message> {
 
     private static final AtomicInteger SEQ = new AtomicInteger();

@@ -16,8 +16,8 @@ public class FirmwareFileHolder {
     // key = taskId 保证每个升级任务唯一的文件
     private final Map<Long, FileChannel> channelMap = new ConcurrentHashMap<>();
 
-    public FileChannel getOrCreateChannel(Long key, Path filePath) throws IOException {
-        return channelMap.computeIfAbsent(key, k -> {
+    public FileChannel getOrCreateChannel(Long taskId, Path filePath) throws IOException {
+        return channelMap.computeIfAbsent(taskId, k -> {
             try {
                 Path parent = filePath.getParent();
                 if (parent != null) {

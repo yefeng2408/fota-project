@@ -155,25 +155,26 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
                        Map<Object, Object> mockRuntimeHash,
                        int totalPacket,
                        Path path) {
-
-        long taskId = packet.taskId();
-        /**对taskId取模，保证同一个taskId落在同一个queue上。从而保证局部串行，整体并行。从而保证写固件临时文件是同一个线程*/
-        //int shardIndex = Math.floorMod(taskId, SHARD_COUNT);
-        int shardIndex = Math.floorMod(Objects.hash(taskId, packet.imei()), SHARD_COUNT);
+        /**对taskId、imei整体取模运算，同一个imei (imei是设备的唯一的标识) 落在同一 shard。从而保证局部串行，整体并行。继而保证同一个 shard 在任意时刻最多只有一个执行线程*/
+        int shardIndex = Math.floorMod(Objects.hash(packet.imei()), SHARD_COUNT);
 
         ThreadPoolExecutor executor = shardExecutors[shardIndex];
+        //队列中已经占用的元素容量。这里是ArrayBlockingQueue
         int queueSize = executor.getQueue().size();
+        //队列剩余容量
         int remainingCapacity = executor.getQueue().remainingCapacity();
+        //队列总的容量=200
         int capacity = queueSize + remainingCapacity;
-        double queueUsage = capacity == 0 ? 1.0 : queueSize * 1.0 / capacity;
+        double queueUsage = capacity == 0 ? 1.0 : ((double) queueSize / capacity);
 
         logQueueUsageIfNecessary(shardIndex, executor, queueSize, remainingCapacity, capacity, queueUsage);
-        /**背压机制 若线程池等待队列中的人物挤压过大。则发消息给服务端，服务端则降低发送分包数据的速率*/
+        /**背压机制 若线程池等待队列中的任务挤压过大，则发消息给服务端。服务端收到设备侧BUSY类型的应答消息，则降低发送分包数据的速率*/
         if (queueUsage >= 0.8) {
-            //协议消息应该交给eventLoop去执行，而不是由来自线程池的线程进行ctx.writeAndFlush
-            ctx.executor().execute(() -> ctx.writeAndFlush(
+            //当前线程本来就是这个 Channel 的 EventLoop
+            ctx.writeAndFlush(
                     new FotaProtocol.Ack(packet.imei(), packet.taskId(), packet.packetNo(), AckType.BUSY)
-            ));
+            );
+
             log.info(">>>>>>>>>>>shardExecutors写本地固件异步线程池触发背压消息");
             return;
         }
@@ -181,7 +182,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         Runnable writeTask = () -> {
             try {
                 FotaProtocol.UpgradeResultDTO upgradeResult = doWriteChunk(packet, mockRuntimeHash, totalPacket, path);
-
+                // 回到Netty EventLoop处理协议响应。线程职责分工明确
                 ctx.executor().execute(() -> {
                     if (!ctx.channel().isActive()) {
                         log.warn("MockDevice 分包已写入本地文件，但 Channel 已断开，跳过 ACK 发送，imei={}，taskId={}，packetNo={}",
@@ -232,7 +233,9 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-
+    /**
+     * 每隔3秒输出一次针对线程池监控日志
+     */
     private void logQueueUsageIfNecessary(int shardIndex,
                                           ThreadPoolExecutor executor,
                                           int queueSize,
@@ -346,16 +349,21 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
 
         FotaProtocol.UpgradeResultDTO result = buildUpgradeResult(packet, receiveResult);
         persistUpgradeResult(result);
+        //清除掉本地临时文件（固件包）
+        if(Files.deleteIfExists(path)){
+            log.info("设备：{} 升级完成,删除临时文件成功！",packet.imei());
+        }
         return result;
     }
 
     /**
-     * 完成固件接收：读取临时文件并校验 MD5。
+     * 完成固件接收：读取临时文件并校验MD5。
      */
     private FirmwareReceiveResult completeFirmwareReceive(FotaProtocol.UpgradePacketDTO packet,
                                                           Map<Object, Object> mockRuntimeHash,
                                                           Path path) throws IOException {
         byte[] sourceMD5 = HexUtils.fromHexString(String.valueOf(mockRuntimeHash.get("md5")));
+        //分包时间。也可以认为是业务上的ota升级时间
         int costTime = Math.toIntExact((System.currentTimeMillis()
                 - Long.parseLong(String.valueOf(mockRuntimeHash.get("startTime")))) / 1000);
 
@@ -365,7 +373,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
     }
 
     /**
-     * 将设备侧接收到的完整固件上传到设备侧 MinIO bucket。
+     * 将设备侧接收到的完整固件上传到设备侧的MinIO bucket。
      */
     private void uploadToMinio(Map<Object, Object> mockRuntimeHash, byte[] firmware) throws Exception {
         DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
@@ -555,6 +563,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         });
     }
 
+    //设备上发升级结果
     private void writeUpgradeResult(ChannelHandlerContext ctx, FotaProtocol.UpgradeResultDTO result) {
         if (!ctx.channel().isActive()) {
             log.warn("MockDevice 升级结果待上报，但 Channel 已断开，imei={}，taskId={}", result.imei(), result.taskId());
@@ -563,6 +572,7 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
 
         ctx.writeAndFlush(result).addListener(future -> {
             if (future.isSuccess()) {
+                //redis runtime 标记升级成功
                 markUpgradeResultSent(result);
             } else {
                 log.warn("MockDevice 升级结果上报失败，等待下次重连补偿，imei={}，taskId={}",
@@ -572,7 +582,6 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void handlePlatformAck(FotaProtocol.PlatformAckDTO ack) throws IOException {
-        log.info("===========>asda:handlePlatformAck={}", JSON.toJSONString(ack));
         if (ack.refMessageType() != FotaProtocol.UPGRADE_RESULT) {
             return;
         }
@@ -679,6 +688,12 @@ public class MockDeviceDispatchHandler extends ChannelInboundHandlerAdapter {
         return Paths.get(FIRMWARE_PATH + taskId + "/" + imei + ".bin");
     }
 
+    /**
+     * 固件升级完成时的封装对象
+     * @param firmware 设备侧接收到的所有chunk拼接成的固件包
+     * @param md5Matched md5计算结果
+     * @param costTime 本次分包耗时
+     */
     private record FirmwareReceiveResult(byte[] firmware, boolean md5Matched, int costTime) {
     }
 

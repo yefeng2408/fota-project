@@ -93,6 +93,8 @@ public class FirmwareCacheLoadService {
 
         return future.thenApply(holder -> {
             if (holder != null && holder.getFirmwareFullBytes() != null) {
+                //同一批升级任务中，每一个升级请求在调用loadFirmwarePackageToLocalCache方法成功获取到holder时，则对该固件的引用计数加1
+                //升级完成时，则对该引用计数减1
                 holder.getRefCount().incrementAndGet();
                 holder.setLastAccessAt(System.currentTimeMillis());
                 log.info("固件缓存加载完成/命中, firmwareId={}, imei={}, taskId={}, fileSize={}, refCount={}",

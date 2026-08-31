@@ -3,10 +3,16 @@ package com.yef.codec;
 import com.yef.protocol.FotaProtocol;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
 import java.util.List;
 
+@Slf4j
+@Component
+@ChannelHandler.Sharable
 public class FotaMessageDecoder extends MessageToMessageDecoder<FotaProtocol.Frame> {
 
     @Override

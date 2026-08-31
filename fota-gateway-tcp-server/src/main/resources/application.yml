@@ -6,8 +6,6 @@ netty:
     port: 7611
 
 gateway:
-  demo-upgrade:
-    enabled: true
   instance:
     id: ${GATEWAY_INSTANCE_ID:}
     http-url: ${GATEWAY_INSTANCE_HTTP_URL:}

@@ -18,7 +18,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.handler.timeout.IdleStateHandler;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -48,6 +47,9 @@ public class MockDeviceClient implements SmartLifecycle {
     private final JdbcTemplate jdbcTemplate;
     private final StringRedisTemplate stringRedisTemplate;
 
+    private final FotaFrameDecoder fotaFrameDecoder;
+    private final FotaMessageDecoder fotaMessageDecoder;
+    private final FotaMessageEncoder fotaMessageEncoder;
     private final MockDeviceDispatchHandler mockDeviceDispatchHandler;
 
     private volatile boolean running;
@@ -62,7 +64,14 @@ public class MockDeviceClient implements SmartLifecycle {
             @Value("${netty.device-gateway-server.endpoints:}") String configuredEndpoints,
             JdbcTemplate jdbcTemplate,
             StringRedisTemplate stringRedisTemplate,
+            FotaFrameDecoder fotaFrameDecoder,
+            FotaMessageDecoder fotaMessageDecoder,
+            FotaMessageEncoder fotaMessageEncoder,
             MockDeviceDispatchHandler mockDeviceDispatchHandler) {
+
+        this.fotaFrameDecoder = fotaFrameDecoder;
+        this.fotaMessageDecoder = fotaMessageDecoder;
+        this.fotaMessageEncoder = fotaMessageEncoder;
 
         this.gatewayEndpoints = resolveGatewayEndpoints(configuredHost, configuredPort, configuredEndpoints);
         this.jdbcTemplate = jdbcTemplate;
@@ -221,10 +230,11 @@ public class MockDeviceClient implements SmartLifecycle {
                     protected void initChannel(SocketChannel ch) {
                         MockDeviceProfile profile = ch.attr(MockDeviceAttributes.DEVICE_PROFILE).get();
                         ChannelPipeline pipeline = ch.pipeline();
+
+                         /*去除掉客户端的idleStateHandler，但保留服务端的idleStateHandler。【服务端的90s读空闲事件依赖于客户端的 MockDeviceConnectHandler channelActive建立连接后 startHeartbeatTask去定时发送心跳】
+                         为什么这么做？因为如果设备处于长时间的分包过程，则不会触发 IdleStateHandler 事件。
+                         所以 监听客户端的写事件没有意义*/
                         //如果连续 60 秒没有向通道写入数据，→ 触发写空闲
-                        //去除掉客户端的idleStateHandler，但保留服务端的idleStateHandler。
-                        // 服务端的90s读空闲事件依赖于客户端的 MockDeviceConnectHandler channelActive建立连接后 startHeartbeatTask去定时发送心跳
-                        // 为什么这么做？因为如果设备处于长时间的分包过程，则不会触发 IdleStateHandler 事件。
                         //pipeline.addLast("idleStateHandler", new IdleStateHandler(0, 60, 0, TimeUnit.SECONDS));
                         pipeline.addLast("lengthFieldFrameDecoder", new LengthFieldBasedFrameDecoder(
                                 FotaProtocol.MAX_FRAME_LENGTH,
@@ -232,9 +242,9 @@ public class MockDeviceClient implements SmartLifecycle {
                                 FotaProtocol.LENGTH_FIELD_LENGTH,
                                 FotaProtocol.LENGTH_ADJUSTMENT,
                                 FotaProtocol.INITIAL_BYTES_TO_STRIP));
-                        pipeline.addLast("fotaFrameDecoder", new FotaFrameDecoder());
-                        pipeline.addLast("fotaMessageDecoder", new FotaMessageDecoder());
-                        pipeline.addLast("fotaMessageEncoder", new FotaMessageEncoder());
+                        pipeline.addLast("fotaFrameDecoder", fotaFrameDecoder);
+                        pipeline.addLast("fotaMessageDecoder", fotaMessageDecoder);
+                        pipeline.addLast("fotaMessageEncoder", fotaMessageEncoder);
                         pipeline.addLast("mockDeviceConnectHandler", new MockDeviceConnectHandler(
                                 stringRedisTemplate,
                                 mockDeviceDispatchHandler,

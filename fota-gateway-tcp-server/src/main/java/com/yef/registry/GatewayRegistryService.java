@@ -27,8 +27,11 @@ public class GatewayRegistryService {
 
     private final StringRedisTemplate redisTemplate;
     private final SessionManager sessionManager;
+    //注入的value为空字符串
     private final String configuredInstanceId;
+    //注入的value为空字符串
     private final String configuredHttpUrl;
+    //注入的value为空字符串
     private final String configuredTcpHost;
     private final int serverPort;
     private final int tcpPort;
