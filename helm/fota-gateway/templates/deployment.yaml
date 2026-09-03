@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: {{ .Release.Name }}
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+
+    spec:
+      containers:
+        - name: fota-gateway
+
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.http.port }}
+              protocol: TCP
+
+            - name: tcp
+              containerPort: {{ .Values.service.tcp.port }}
+              protocol: TCP
+
+          env:
+            - name: GATEWAY_INSTANCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+
+            - name: GATEWAY_INSTANCE_HTTP_URL
+              value: "http://$(POD_IP):8081"
+
+            - name: GATEWAY_INSTANCE_TCP_HOST
+              value: "$(POD_IP)"
+
+            {{- toYaml .Values.env | nindent 12 }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

@@ -1,0 +1,12 @@
+dependencies:
+- name: mysql
+  repository: https://charts.bitnami.com/bitnami
+  version: 12.0.0
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 20.0.0
+- name: minio
+  repository: https://charts.bitnami.com/bitnami
+  version: 14.0.0
+digest: sha256:f531c480dc2eb15aff7e3581c3ae1106bde65ef001f2e2d3e033f7043037cb4f
+generated: "2026-08-05T07:13:17.816360445Z"

@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+
+metadata:
+  name: fota-web-admin
+  namespace: fota
+
+spec:
+  ingressClassName: nginx
+
+  rules:
+    - host: yefeng001.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fota-web-admin
+                port:
+                  number: 80

@@ -1,0 +1,18 @@
+replicaCount: 1
+
+image:
+  repository: 192.168.0.103:5000/fota-web-admin
+  tag: v3
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

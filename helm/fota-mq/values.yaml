@@ -1,0 +1,102 @@
+nameserver:
+  replicaCount: 1
+
+  image:
+    repository: apache/rocketmq
+    tag: "5.1.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 9876
+
+  javaOpts: "-Xms128m -Xmx128m -Xmn64m"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+
+broker:
+  replicaCount: 1
+
+  image:
+    repository: apache/rocketmq
+    tag: "5.1.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+
+    ports:
+      vip: 10909
+      broker: 10911
+      ha: 10912
+
+  javaOpts: "-Xms512m -Xmx512m -Xmn256m -XX:MaxDirectMemorySize=256m"
+
+  config:
+    brokerClusterName: DefaultCluster
+    brokerName: broker-a
+    brokerId: 0
+    deleteWhen: "04"
+    fileReservedTime: 48
+    brokerRole: ASYNC_MASTER
+    flushDiskType: ASYNC_FLUSH
+    listenPort: 10911
+    namesrvAddr: rocketmq-nameserver:9876
+    autoCreateTopicEnable: true
+    autoCreateSubscriptionGroup: true 
+    storePathRootDir: /home/rocketmq/store
+    storePathCommitLog: /home/rocketmq/store/commitlog
+    storePathConsumeQueue: /home/rocketmq/store/consumequeue
+    storePathIndex: /home/rocketmq/store/index
+    storeCheckpoint: /home/rocketmq/store/checkpoint
+    abortFile: /home/rocketmq/store/abort
+    enableScheduleMessage: false
+
+
+  persistence:
+    enabled: true
+    storageClass: nfs-client
+    size: 10Gi
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 768Mi
+    limits:
+      cpu: "1"
+      memory: 1536Mi
+
+
+dashboard:
+  enabled: true
+
+  replicaCount: 1
+
+  image:
+    repository: apacherocketmq/rocketmq-dashboard
+    tag: latest
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8082
+
+  javaOpts: "-Xms128m -Xmx256m"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+
+timezone: Asia/Shanghai

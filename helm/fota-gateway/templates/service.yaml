@@ -1,0 +1,46 @@
+# ================================
+# Gateway HTTP Service
+# fota-web / mock-device 等 K8s 内部服务访问
+# ================================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: fota-gateway-http
+
+spec:
+  type: {{ .Values.service.http.type }}
+
+  selector:
+    app: fota-gateway
+
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.service.http.port }}
+      targetPort: http
+
+
+---
+# ================================
+# Gateway TCP Service
+# 真实设备连接 Netty Gateway
+# ================================
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: fota-gateway-tcp
+
+spec:
+  type: {{ .Values.service.tcp.type }}
+
+  selector:
+    app: fota-gateway
+
+  ports:
+    - name: tcp
+      protocol: TCP
+      port: {{ .Values.service.tcp.port }}
+      targetPort: tcp
+      nodePort: {{ .Values.service.tcp.nodePort }}

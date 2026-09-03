@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: rocketmq-nameserver
+
+spec:
+  replicas: {{ .Values.nameserver.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: rocketmq-nameserver
+
+  template:
+    metadata:
+      labels:
+        app: rocketmq-nameserver
+
+    spec:
+      containers:
+        - name: nameserver
+
+          image: "{{ .Values.nameserver.image.repository }}:{{ .Values.nameserver.image.tag }}"
+
+          imagePullPolicy: {{ .Values.nameserver.image.pullPolicy }}
+
+          command:
+            - sh
+            - mqnamesrv
+
+          env:
+            - name: JAVA_OPT_EXT
+              value: {{ .Values.nameserver.javaOpts | quote }}
+
+            - name: TZ
+              value: {{ .Values.timezone | quote }}
+
+          ports:
+            - containerPort: {{ .Values.nameserver.service.port }}
+
+          resources:
+            {{- toYaml .Values.nameserver.resources | nindent 12 }}

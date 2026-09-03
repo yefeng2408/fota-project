@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: rocketmq-broker-config
+
+data:
+  broker.conf: |
+    brokerClusterName={{ .Values.broker.config.brokerClusterName }}
+    brokerName={{ .Values.broker.config.brokerName }}
+    brokerId={{ .Values.broker.config.brokerId }}
+    deleteWhen={{ .Values.broker.config.deleteWhen }}
+    fileReservedTime={{ .Values.broker.config.fileReservedTime }}
+    brokerRole={{ .Values.broker.config.brokerRole }}
+    flushDiskType={{ .Values.broker.config.flushDiskType }}
+    listenPort={{ .Values.broker.config.listenPort }}
+    namesrvAddr={{ .Values.broker.config.namesrvAddr }}
+    autoCreateTopicEnable={{ .Values.broker.config.autoCreateTopicEnable }}
+    autoCreateSubscriptionGroup={{ .Values.broker.config.autoCreateSubscriptionGroup }}
+    storePathRootDir={{ .Values.broker.config.storePathRootDir }}
+    storePathCommitLog={{ .Values.broker.config.storePathCommitLog }}
+    storePathConsumeQueue={{ .Values.broker.config.storePathConsumeQueue }}
+    storePathIndex={{ .Values.broker.config.storePathIndex }}
+    storeCheckpoint={{ .Values.broker.config.storeCheckpoint }}
+    abortFile={{ .Values.broker.config.abortFile }}
+    enableScheduleMessage={{ .Values.broker.config.enableScheduleMessage }}
+

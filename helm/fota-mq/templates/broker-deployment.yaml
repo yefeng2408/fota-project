@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: rocketmq-broker
+
+spec:
+  replicas: {{ .Values.broker.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: rocketmq-broker
+
+  template:
+    metadata:
+      labels:
+        app: rocketmq-broker
+
+    spec:
+      containers:
+        - name: broker
+
+          image: "{{ .Values.broker.image.repository }}:{{ .Values.broker.image.tag }}"
+          imagePullPolicy: {{ .Values.broker.image.pullPolicy }}
+
+          command:
+            - sh
+            - mqbroker
+            - -c
+            - /home/rocketmq/conf/broker.conf
+
+          env:
+            - name: NAMESRV_ADDR
+              value: "rocketmq-nameserver:9876"
+
+            - name: JAVA_OPT_EXT
+              value: {{ .Values.broker.javaOpts | quote }}
+
+            - name: TZ
+              value: {{ .Values.timezone | quote }}
+
+          ports:
+            - name: vip
+              containerPort: {{ .Values.broker.service.ports.vip }}
+
+            - name: broker
+              containerPort: {{ .Values.broker.service.ports.broker }}
+
+            - name: ha
+              containerPort: {{ .Values.broker.service.ports.ha }}
+
+          volumeMounts:
+            - name: broker-config
+              mountPath: /home/rocketmq/conf/broker.conf
+              subPath: broker.conf
+              readOnly: true
+
+          resources:
+            {{- toYaml .Values.broker.resources | nindent 12 }}
+
+      volumes:
+        - name: broker-config
+          configMap:
+            name: rocketmq-broker-config
