@@ -128,10 +128,46 @@ jobs:
       - name: Update Helm image tags
         run: |
           set -euo pipefail
-          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-platform/values.yaml
-          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-gateway/values.yaml
-          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-mock-device/values.yaml
-          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-web-admin/values.yaml  
+          python3 - <<'PY'
+            import os
+            from pathlib import Path
+            
+            image_tag = os.environ["IMAGE_TAG"]
+            
+            files = [
+            Path("helm/fota-platform/values.yaml"),
+            Path("helm/fota-gateway/values.yaml"),
+            Path("helm/fota-mock-device/values.yaml"),
+            Path("helm/fota-web-admin/values.yaml"),
+          ]
+          
+          for path in files:
+            lines = path.read_text().splitlines(keepends=True)
+            
+            in_image = False
+            changed = False
+            
+            for i, line in enumerate(lines):
+              if line.startswith("image:"):
+                in_image = True
+                continue
+              
+              if in_image and line and not line[0].isspace():
+                in_image = False
+              
+              if in_image and line.lstrip().startswith("tag:"):
+                indent = line[:len(line) - len(line.lstrip())]
+                newline = "\n" if line.endswith("\n") else ""
+                lines[i] = f"{indent}tag: {image_tag}{newline}"
+                      changed = True
+                      break
+          
+              if not changed:
+                  raise RuntimeError(f"image.tag not found: {path}")
+          
+              path.write_text("".join(lines))
+              print(f"{path}: image.tag -> {image_tag}")
+            PY
           
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -144,6 +180,8 @@ jobs:
           
           git diff --cached --quiet || \
             git commit -m "chore(helm): update image tags to ${IMAGE_TAG}"
+          
+          git remote set-url origin git@github.com:yefeng2408/fota-project.git
           
           git push origin HEAD:dev
 
