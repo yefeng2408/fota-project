@@ -1,5 +1,8 @@
 name: FOTA CI
 
+permissions:
+  contents: write
+  
 on:
   workflow_dispatch:
 
@@ -128,7 +131,21 @@ jobs:
           yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-platform/values.yaml
           yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-gateway/values.yaml
           yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-mock-device/values.yaml
-          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-web-admin/values.yaml          
+          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-web-admin/values.yaml  
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          git add \
+            helm/fota-platform/values.yaml \
+            helm/fota-gateway/values.yaml \
+            helm/fota-mock-device/values.yaml \
+            helm/fota-web-admin/values.yaml
+          
+          git diff --cached --quiet || \
+            git commit -m "chore(helm): update image tags to ${IMAGE_TAG}"
+          
+          git push origin HEAD:dev
 
       # ================= 10. Deploy to Kubernetes =================
       #
