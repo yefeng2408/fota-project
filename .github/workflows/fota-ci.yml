@@ -2,7 +2,7 @@ name: FOTA CI
 
 permissions:
   contents: write
-  
+
 on:
   workflow_dispatch:
 
@@ -36,6 +36,7 @@ jobs:
           node -v
           npm -v
           docker --version
+          python3 --version
 
       - name: Show project files
         run: |
@@ -123,66 +124,75 @@ jobs:
           docker push "${REGISTRY}/fota-web-admin-nginx:${IMAGE_TAG}"
           docker push "${REGISTRY}/fota-web-admin-nginx:dev-latest"
 
-
-      # ================= 9. 更新 Helm 镜像版本 ======================
+      # ================= 9. 更新 Helm 镜像版本 =================
+      #
+      # 将四个 Helm values.yaml 中 image.tag 更新为本次 Git SHA。
+      #
+      # Runner 已安装 Python 3，因此统一使用 python3。
+      #
+      # 修改完成后：
+      # 1. git add Helm values.yaml
+      # 2. 有变化才 commit
+      # 3. push 到 dev 分支
       - name: Update Helm image tags
         run: |
           set -euo pipefail
+
           python3 - <<'PY'
-            import os
-            from pathlib import Path
-            
-            image_tag = os.environ["IMAGE_TAG"]
-            
-            files = [
-            Path("helm/fota-platform/values.yaml"),
-            Path("helm/fota-gateway/values.yaml"),
-            Path("helm/fota-mock-device/values.yaml"),
-            Path("helm/fota-web-admin/values.yaml"),
+          import os
+          from pathlib import Path
+
+          image_tag = os.environ["IMAGE_TAG"]
+
+          files = [
+              Path("helm/fota-platform/values.yaml"),
+              Path("helm/fota-gateway/values.yaml"),
+              Path("helm/fota-mock-device/values.yaml"),
+              Path("helm/fota-web-admin/values.yaml"),
           ]
-          
+
           for path in files:
-            lines = path.read_text().splitlines(keepends=True)
-            
-            in_image = False
-            changed = False
-            
-            for i, line in enumerate(lines):
-              if line.startswith("image:"):
-                in_image = True
-                continue
-              
-              if in_image and line and not line[0].isspace():
-                in_image = False
-              
-              if in_image and line.lstrip().startswith("tag:"):
-                indent = line[:len(line) - len(line.lstrip())]
-                newline = "\n" if line.endswith("\n") else ""
-                lines[i] = f"{indent}tag: {image_tag}{newline}"
+              lines = path.read_text().splitlines(keepends=True)
+
+              in_image = False
+              changed = False
+
+              for i, line in enumerate(lines):
+                  if line.startswith("image:"):
+                      in_image = True
+                      continue
+
+                  if in_image and line and not line[0].isspace():
+                      in_image = False
+
+                  if in_image and line.lstrip().startswith("tag:"):
+                      indent = line[:len(line) - len(line.lstrip())]
+                      newline = "\n" if line.endswith("\n") else ""
+                      lines[i] = f"{indent}tag: {image_tag}{newline}"
                       changed = True
                       break
-          
+
               if not changed:
                   raise RuntimeError(f"image.tag not found: {path}")
-          
+
               path.write_text("".join(lines))
               print(f"{path}: image.tag -> {image_tag}")
-            PY
-          
+          PY
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          
+
           git add \
             helm/fota-platform/values.yaml \
             helm/fota-gateway/values.yaml \
             helm/fota-mock-device/values.yaml \
             helm/fota-web-admin/values.yaml
-          
+
           git diff --cached --quiet || \
             git commit -m "chore(helm): update image tags to ${IMAGE_TAG}"
-          
+
           git remote set-url origin git@github.com:yefeng2408/fota-project.git
-          
+
           git push origin HEAD:dev
 
       # ================= 10. Deploy to Kubernetes =================
@@ -308,8 +318,7 @@ jobs:
 
           # ================= 最终部署验收 =================
           #
-          # 把 namespace=fota 下 Deployment 实际使用的镜像
-          # 输出到 GitHub Actions 日志。
+          # 输出 namespace=fota 下 Deployment 实际使用的镜像。
           #
           # 正常情况下，四个业务 Deployment 都应该指向：
           # :${IMAGE_TAG}
