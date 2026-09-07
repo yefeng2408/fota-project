@@ -40,6 +40,7 @@ public class GatewayUpgradeController {
         return ApiResponse.ok();
     }
 
+
     /**
      * 网关接收平台下发的0x87取消升级指令
      *
