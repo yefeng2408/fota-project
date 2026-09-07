@@ -1,28 +1,20 @@
 replicaCount: 3
-
 image:
   repository: 192.168.0.103:5000/fota-gateway
-  tag: v1
+  tag: c58d250
   pullPolicy: IfNotPresent
-
-
 serviceAccount:
   create: false
   annotations: {}
   name: ""
-
-
 service:
   http:
     type: ClusterIP
     port: 8081
-
   tcp:
     type: NodePort
     port: 7611
     nodePort: 30611
-
-
 resources:
   limits:
     cpu: "1"
@@ -30,41 +22,27 @@ resources:
   requests:
     cpu: "300m"
     memory: 512Mi
-
-
 autoscaling:
   enabled: false
-
-
 env:
   - name: SPRING_PROFILES_ACTIVE
     value: prod
-
   - name: TZ
     value: Asia/Shanghai
-
   - name: JAVA_OPTS
     value: "-Xms512m -Xmx1024m"
-
   - name: SERVER_PORT
     value: "8081"
-
   - name: NETTY_SERVER_PORT
     value: "7611"
-
-
   - name: SPRING_REDIS_HOST
     value: fota-infra-redis-master
   - name: SPRING_REDIS_PORT
     value: "6379"
-
-
   - name: ROCKETMQ_NAME_SERVER
     value: rocketmq-nameserver:9876
   - name: ROCKETMQ_PRODUCER_GROUP
     value: fota-gateway-producer-group
-
-
   - name: MINIO_ENDPOINT
     value: http://fota-infra-minio:9000
   - name: MINIO_ACCESS_KEY
@@ -72,14 +50,10 @@ env:
   - name: MINIO_SECRET_KEY
     value: minioadmin123
   - name: MINIO_BUCKET_NAME
-    value: fota-firmware    
-
-
+    value: fota-firmware
   - name: SPRING_DATASOURCE_URL
     value: "jdbc:mysql://fota-infra-mysql:3306/fota_web_platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai"
   - name: SPRING_DATASOURCE_USERNAME
     value: root
   - name: SPRING_DATASOURCE_PASSWORD
     value: root123456
-
-
