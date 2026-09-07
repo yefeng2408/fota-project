@@ -120,7 +120,17 @@ jobs:
           docker push "${REGISTRY}/fota-web-admin-nginx:${IMAGE_TAG}"
           docker push "${REGISTRY}/fota-web-admin-nginx:dev-latest"
 
-      # ================= 9. Deploy to Kubernetes =================
+
+      # ================= 9. 更新 Helm 镜像版本 ======================
+      - name: Update Helm image tags
+        run: |
+          set -euo pipefail
+          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-platform/values.yaml
+          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-gateway/values.yaml
+          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-mock-device/values.yaml
+          yq -i '.image.tag = strenv(IMAGE_TAG)' helm/fota-web-admin/values.yaml          
+
+      # ================= 10. Deploy to Kubernetes =================
       #
       # 当前架构：
       #

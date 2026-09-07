@@ -73,3 +73,9 @@ fota-web-admin/dist/
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
+
+
+# Vim/editor backup files
+*~
+# Helm rendered manifests
+**/result.yaml
