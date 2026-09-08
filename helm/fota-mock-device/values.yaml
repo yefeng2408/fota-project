@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  repository: 192.168.0.103:5000/fota-device
+  repository: 192.168.0.103:5000/fota-mock-device-client
   tag: c58d250
   pullPolicy: IfNotPresent
 service:
