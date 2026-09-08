@@ -191,8 +191,7 @@ jobs:
           git diff --cached --quiet || \
             git commit -m "chore(helm): update image tags to ${IMAGE_TAG}"
 
-          git remote set-url origin git@github.com:yefeng2408/fota-project.git
-
+          git remote set-url origin https://github.com/yefeng2408/fota-project.git
           git push origin HEAD:dev
 
       # ================= 10. Deploy to Kubernetes =================
