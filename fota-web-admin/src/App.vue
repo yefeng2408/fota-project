@@ -69,11 +69,13 @@
       </section>
     </main>
   </div>
+  <SiteFooter />
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import SiteFooter from './components/SiteFooter.vue'
 
 const route = useRoute()
 const router = useRouter()

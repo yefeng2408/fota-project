@@ -1,0 +1,76 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: fota-web
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/fota_web_platform?useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: yefeng
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+# 对象存储服务
+minio:
+  endpoint: http://127.0.0.1:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket-name: fota-firmware
+  device-bucket-name: device-firmware
+
+#Mybatis 驼峰
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+#网关暴露的接口服务。平台用于调用网关接口下发指令给网关，再由网关下发给设备
+gateway:
+  http:
+    url: http://127.0.0.1:8081
+  route:
+    fallback-enabled: true
+
+mock:
+  device:
+    http:
+      url: http://127.0.0.1:8082
+      urls: ${MOCK_DEVICE_HTTP_URLS:}
+
+forest:
+  backend: okhttp3
+  max-connections: 100
+  max-route-connections: 50
+  timeout:
+    connect: 5000
+    read: 20000
+
+  variables:
+    baseUrl: ${gateway.http.url}
+
+logging:
+  level:
+    root: info
+
+fota:
+  upgrade:
+    max-waiting-devices: 5000 # 等待升级状态的设备数最多为200个。
+    max-active-devices: 1000 # 允许同时并发升级的设备个数
+    dispatch-batch-size: 500 #每次调度最多放多少设备进入升级，类似于线程池的每次 submit 数量
+
+  jwt:
+    secret: fota-web-http-server-secret-key-change-me-123456
+    expire-hours: 12
+  file-storage:
+    path: /user/fireware
+
+rocketmq:
+  name-server: localhost:9876
+  consumer:
+    group: fota-web-upgrade-event-consumer-group
+  topic:
+    upgrade-event: FOTA_UPGRADE_EVENT_TOPIC

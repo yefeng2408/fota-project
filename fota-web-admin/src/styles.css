@@ -22,13 +22,17 @@ body {
 }
 
 #app {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .shell {
+  flex: 1;
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: 0;
   transition: grid-template-columns 0.24s ease;
 }
 
@@ -162,6 +166,8 @@ body {
 }
 
 .main {
+  display: flex;
+  flex-direction: column;
   padding: 28px;
   min-width: 0;
   transition: padding 0.24s ease;
@@ -199,12 +205,13 @@ body {
 }
 
 .content-card {
+  flex: 1;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 28px;
   padding: 24px;
   backdrop-filter: blur(16px);
-  min-height: calc(100vh - 132px);
+  min-height: 0;
   min-width: 0;
   overflow: hidden;
 }
@@ -256,7 +263,8 @@ body {
 }
 
 .login-shell {
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
   display: grid;
   place-items: center;
   padding: 24px;
