@@ -1,7 +1,7 @@
 replicaCount: 3
 image:
   repository: 192.168.0.103:5000/fota-gateway-tcp-server
-  tag: f002c79
+  tag: 44956c2
   pullPolicy: IfNotPresent
 serviceAccount:
   create: false
