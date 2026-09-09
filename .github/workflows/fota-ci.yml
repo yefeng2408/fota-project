@@ -4,6 +4,11 @@ permissions:
   contents: write
 
 on:
+  push:
+    branches:
+      - test
+    paths-ignore:
+      - 'helm/**'
   workflow_dispatch:
 
 # ================= 全局环境变量 =================
@@ -147,9 +152,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "===== Sync latest dev before updating Helm tags ====="
-          git fetch origin dev
-          git rebase origin/dev
+          echo "===== Sync latest test before updating Helm tags ====="
+          git fetch origin test
+          git rebase origin/test
 
           python3 - <<'PY'
           import os
@@ -208,12 +213,12 @@ jobs:
 
           git commit -m "chore(helm): update image tags to ${IMAGE_TAG}"
 
-          echo "===== Sync latest dev again before push ====="
-          git fetch origin dev
-          git rebase origin/dev
+          echo "===== Sync latest test again before push ====="
+          git fetch origin test
+          git rebase origin/test
 
           git remote set-url origin https://github.com/yefeng2408/fota-project.git
-          git push origin HEAD:dev
+          git push origin HEAD:test
 
       # ================= 10. Deploy to Kubernetes =================
       #
