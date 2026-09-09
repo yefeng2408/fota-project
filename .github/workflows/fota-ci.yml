@@ -13,12 +13,8 @@ on:
 
 # ================= 全局环境变量 =================
 # REGISTRY：家庭 Ubuntu 主机上的 Docker 私有镜像仓库
-# K8S_MASTER：k8s-master 的 Tailscale IP
-# K8S_USER：SSH 登录 k8s-master 的 Linux 用户
 env:
   REGISTRY: 192.168.0.103:5000
-  K8S_MASTER: 100.87.149.123
-  K8S_USER: feng
 
 jobs:
   build:
@@ -71,39 +67,39 @@ jobs:
         run: |
           docker build \
             -t "${REGISTRY}/fota-web-http-server:${IMAGE_TAG}" \
-            -t "${REGISTRY}/fota-web-http-server:dev-latest" \
+            -t "${REGISTRY}/fota-web-http-server:test-latest" \
             ./fota-web-http-server
 
       - name: Docker push fota-web-http-server
         run: |
           docker push "${REGISTRY}/fota-web-http-server:${IMAGE_TAG}"
-          docker push "${REGISTRY}/fota-web-http-server:dev-latest"
+          docker push "${REGISTRY}/fota-web-http-server:test-latest"
 
       # ================= 6. fota-gateway-tcp-server =================
       - name: Docker build fota-gateway-tcp-server
         run: |
           docker build \
             -t "${REGISTRY}/fota-gateway-tcp-server:${IMAGE_TAG}" \
-            -t "${REGISTRY}/fota-gateway-tcp-server:dev-latest" \
+            -t "${REGISTRY}/fota-gateway-tcp-server:test-latest" \
             ./fota-gateway-tcp-server
 
       - name: Docker push fota-gateway-tcp-server
         run: |
           docker push "${REGISTRY}/fota-gateway-tcp-server:${IMAGE_TAG}"
-          docker push "${REGISTRY}/fota-gateway-tcp-server:dev-latest"
+          docker push "${REGISTRY}/fota-gateway-tcp-server:test-latest"
 
       # ================= 7. fota-mock-device-client =================
       - name: Docker build fota-mock-device-client
         run: |
           docker build \
             -t "${REGISTRY}/fota-mock-device-client:${IMAGE_TAG}" \
-            -t "${REGISTRY}/fota-mock-device-client:dev-latest" \
+            -t "${REGISTRY}/fota-mock-device-client:test-latest" \
             ./fota-mock-device-client
 
       - name: Docker push fota-mock-device-client
         run: |
           docker push "${REGISTRY}/fota-mock-device-client:${IMAGE_TAG}"
-          docker push "${REGISTRY}/fota-mock-device-client:dev-latest"
+          docker push "${REGISTRY}/fota-mock-device-client:test-latest"
 
       # ================= 8. fota-web-admin =================
       # 前端构建流程：
@@ -126,22 +122,22 @@ jobs:
           docker build \
             -f docker/nginx/Dockerfile \
             -t "${REGISTRY}/fota-web-admin-nginx:${IMAGE_TAG}" \
-            -t "${REGISTRY}/fota-web-admin-nginx:dev-latest" \
+            -t "${REGISTRY}/fota-web-admin-nginx:test-latest" \
             .
 
       - name: Docker push fota-web-admin
         run: |
           docker push "${REGISTRY}/fota-web-admin-nginx:${IMAGE_TAG}"
-          docker push "${REGISTRY}/fota-web-admin-nginx:dev-latest"
+          docker push "${REGISTRY}/fota-web-admin-nginx:test-latest"
 
       # ================= 9. 更新 Helm 镜像版本 =================
       #
-      # 当前采用“源码与 GitOps 配置同仓库、同 dev 分支”的过渡方案：
+      # 当前采用“源码与 GitOps 配置同仓库、同 test 分支”的过渡方案：
       # CI 构建并推送镜像后，将四个 Helm values.yaml 的 image.tag 更新为本次 Git SHA，
       # 再由 Argo CD 读取 Git 中的期望状态完成部署。
       #
       # 为避免开发者提交和 github-actions[bot] 提交同时更新 dev 导致 non-fast-forward：
-      # 1. 修改 Helm 前 fetch + rebase 到最新 origin/dev
+      # 1. 修改 Helm 前 fetch + rebase 到最新 origin/test
       # 2. commit 后 push 前再次 fetch + rebase，缩小并发窗口
       # 3. 若远端也修改了同一 values.yaml，则 rebase 冲突并让 CI 失败，禁止自动覆盖
       #
@@ -219,141 +215,3 @@ jobs:
 
           git remote set-url origin https://github.com/yefeng2408/fota-project.git
           git push origin HEAD:test
-
-      # ================= 10. Deploy to Kubernetes =================
-      #
-      # 当前架构：
-      #
-      # GitHub Actions
-      #       ↓
-      # Ubuntu Self-hosted Runner
-      #       ↓
-      # Docker build / push
-      #       ↓
-      # SSH over Tailscale
-      #       ↓
-      # k8s-master
-      #       ↓
-      # Helm upgrade
-      #       ↓
-      # Kubernetes Deployment
-      #
-      # Runner 本机不安装 helm / kubectl。
-      # 通过 SSH 登录 k8s-master，由 master 节点执行 Helm。
-      #
-      # SSH 私钥：
-      # /home/yefeng/.ssh/fota_ci_k8s
-      #
-      # 私钥只保存在 Runner 主机，禁止提交到 GitHub。
-      #
-      # 部署策略：
-      # 1. 四个业务服务统一使用本次 Git SHA 对应的 IMAGE_TAG
-      # 2. --reuse-values 保留已有 Helm Release 配置
-      # 3. --set-string 只覆盖 image.repository / image.tag
-      # 4. --atomic 单个 Release 升级失败时自动回滚
-      # 5. rollout status 确认 Deployment 真正完成滚动升级
-      # 6. set -euo pipefail 保证任意命令失败时 CI 立即失败
-      - name: Deploy to Kubernetes
-        run: |
-          set -euo pipefail
-
-          echo "======================================"
-          echo "Start Kubernetes deployment"
-          echo "IMAGE_TAG=${IMAGE_TAG}"
-          echo "K8S_MASTER=${K8S_MASTER}"
-          echo "======================================"
-
-          ssh \
-            -i "$HOME/.ssh/fota_ci_k8s" \
-            -o BatchMode=yes \
-            -o StrictHostKeyChecking=yes \
-            "${K8S_USER}@${K8S_MASTER}" \
-            "IMAGE_TAG='${IMAGE_TAG}' bash -s" <<'REMOTE'
-
-          set -euo pipefail
-
-          echo "======================================"
-          echo "Remote host: $(hostname)"
-          echo "Deploy FOTA version: ${IMAGE_TAG}"
-          echo "======================================"
-
-          # ==================================================
-          # 通用 Helm 部署函数
-          #
-          # 参数：
-          # $1 RELEASE      Helm Release 名称
-          # $2 CHART        k8s-master 本地 Helm Chart 路径
-          # $3 REPOSITORY   Docker Registry 镜像仓库
-          # $4 DEPLOYMENT   Kubernetes Deployment 名称
-          # ==================================================
-          deploy() {
-            RELEASE="$1"
-            CHART="$2"
-            REPOSITORY="$3"
-            DEPLOYMENT="$4"
-
-            echo
-            echo "======================================"
-            echo "Deploying release: ${RELEASE}"
-            echo "Chart: ${CHART}"
-            echo "Image: ${REPOSITORY}:${IMAGE_TAG}"
-            echo "======================================"
-
-            helm upgrade --install "${RELEASE}" "${CHART}" \
-              -n fota \
-              --reuse-values \
-              --set-string image.repository="${REPOSITORY}" \
-              --set-string image.tag="${IMAGE_TAG}" \
-              --atomic \
-              --timeout 180s
-
-            kubectl rollout status \
-              "deployment/${DEPLOYMENT}" \
-              -n fota \
-              --timeout=120s
-          }
-
-          # ================= fota-web-http-server =================
-          deploy \
-            fota-platform \
-            /home/feng/k8s/helm/fota-platform \
-            192.168.0.103:5000/fota-web-http-server \
-            fota-platform
-
-          # ================= fota-gateway-tcp-server =================
-          deploy \
-            fota-gateway \
-            /home/feng/k8s/helm/fota-gateway \
-            192.168.0.103:5000/fota-gateway-tcp-server \
-            fota-gateway
-
-          # ================= fota-mock-device-client =================
-          deploy \
-            fota-mock-device \
-            /home/feng/k8s/helm/fota-mock-device \
-            192.168.0.103:5000/fota-mock-device-client \
-            fota-mock-device
-
-          # ================= fota-web-admin-nginx =================
-          deploy \
-            fota-web-admin \
-            /home/feng/k8s/helm/fota-web-admin \
-            192.168.0.103:5000/fota-web-admin-nginx \
-            fota-web-admin
-
-          # ================= 最终部署验收 =================
-          #
-          # 输出 namespace=fota 下 Deployment 实际使用的镜像。
-          #
-          # 正常情况下，四个业务 Deployment 都应该指向：
-          # :${IMAGE_TAG}
-          echo
-          echo "======================================"
-          echo "All business services deployed"
-          echo "IMAGE_TAG=${IMAGE_TAG}"
-          echo "======================================"
-
-          kubectl get deploy -n fota \
-            -o custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image
-
-          REMOTE
