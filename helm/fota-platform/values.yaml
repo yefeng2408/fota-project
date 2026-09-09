@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   repository: 192.168.0.103:5000/fota-web-http-server
-  tag: 1e72d91
+  tag: f002c79
   pullPolicy: IfNotPresent
 serviceAccount:
   create: false
