@@ -131,17 +131,25 @@ jobs:
 
       # ================= 9. 更新 Helm 镜像版本 =================
       #
-      # 将四个 Helm values.yaml 中 image.tag 更新为本次 Git SHA。
+      # 当前采用“源码与 GitOps 配置同仓库、同 dev 分支”的过渡方案：
+      # CI 构建并推送镜像后，将四个 Helm values.yaml 的 image.tag 更新为本次 Git SHA，
+      # 再由 Argo CD 读取 Git 中的期望状态完成部署。
       #
-      # Runner 已安装 Python 3，因此统一使用 python3。
+      # 为避免开发者提交和 github-actions[bot] 提交同时更新 dev 导致 non-fast-forward：
+      # 1. 修改 Helm 前 fetch + rebase 到最新 origin/dev
+      # 2. commit 后 push 前再次 fetch + rebase，缩小并发窗口
+      # 3. 若远端也修改了同一 values.yaml，则 rebase 冲突并让 CI 失败，禁止自动覆盖
       #
-      # 修改完成后：
-      # 1. git add Helm values.yaml
-      # 2. 有变化才 commit
-      # 3. push 到 dev 分支
+      # 长期建议：将 Helm/GitOps 配置迁移到独立 config repo（或独立 GitOps 分支），
+      # 源码 CI 只负责 build/push 镜像，配置仓库单独记录 image.tag，
+      # 彻底消除 bot commit 与源码 commit 竞争。
       - name: Update Helm image tags
         run: |
           set -euo pipefail
+
+          echo "===== Sync latest dev before updating Helm tags ====="
+          git fetch origin dev
+          git rebase origin/dev
 
           python3 - <<'PY'
           import os
@@ -193,8 +201,16 @@ jobs:
             helm/fota-mock-device/values.yaml \
             helm/fota-web-admin/values.yaml
 
-          git diff --cached --quiet || \
-            git commit -m "chore(helm): update image tags to ${IMAGE_TAG}"
+          if git diff --cached --quiet; then
+            echo "Helm image tags are already up to date; nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "chore(helm): update image tags to ${IMAGE_TAG}"
+
+          echo "===== Sync latest dev again before push ====="
+          git fetch origin dev
+          git rebase origin/dev
 
           git remote set-url origin https://github.com/yefeng2408/fota-project.git
           git push origin HEAD:dev
