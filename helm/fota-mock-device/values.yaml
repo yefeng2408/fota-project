@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   repository: 192.168.0.103:5000/fota-mock-device-client
-  tag: 0f63820
+  tag: d39c8b8
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
