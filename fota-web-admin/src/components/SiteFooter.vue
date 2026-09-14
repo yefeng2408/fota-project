@@ -9,7 +9,7 @@
 <style scoped>
 .site-footer {
   flex-shrink: 0;
-  padding: 16px 24px;
+  padding: 8px 24px;
   border-top: 1px solid var(--line);
   background: var(--panel);
   text-align: center;

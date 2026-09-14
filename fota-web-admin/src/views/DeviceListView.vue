@@ -1,6 +1,6 @@
 <template>
   <div class="split-layout device-list-layout">
-    <div class="block-card">
+    <div class="block-card device-groups-panel">
       <div class="table-toolbar">
         <strong>设备分组树</strong>
       </div>
@@ -39,7 +39,7 @@
       </el-tree>
     </div>
 
-    <div class="block-card">
+    <div class="block-card device-results-panel">
       <div class="table-toolbar">
         <div class="toolbar-left">
           <el-input v-model="query.keyword" placeholder="按 IMEI/设备名搜索" clearable style="width: 180px" />
@@ -70,7 +70,7 @@
       </div>
 
       <div class="device-table-scroll">
-        <el-table :data="tableData.records" class="device-table">
+        <el-table :data="tableData.records" class="device-table" height="100%">
           <el-table-column prop="imei" label="IMEI" width="100" />
           <el-table-column label="设备名称" min-width="80" width="120" show-overflow-tooltip>
             <template #default="{ row }">
@@ -1021,6 +1021,66 @@ onBeforeUnmount(() => {
 
 .device-list-layout {
   grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.device-results-panel .table-toolbar,
+.device-results-panel .toolbar-left {
+  flex-wrap: wrap;
+}
+
+.device-results-panel .toolbar-left > * {
+  flex-shrink: 0;
+}
+
+.device-results-panel .toolbar-left {
+  flex: 1 1 300px;
+}
+
+.device-results-panel .toolbar-left .el-button {
+  margin-left: 0;
+}
+
+@media (min-width: 961px) {
+  .device-list-layout {
+    height: 100%;
+    min-height: 320px;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .device-groups-panel {
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .device-results-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .device-results-panel .table-toolbar,
+  .device-results-panel .el-pagination {
+    flex-shrink: 0;
+  }
+
+  .device-table-scroll {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 960px) {
+  .device-list-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .device-table {
+    height: auto !important;
+  }
+
+  .device-results-panel .el-pagination {
+    overflow-x: auto;
+  }
 }
 
 .device-table {
