@@ -4,6 +4,8 @@ kind: Ingress
 metadata:
   name: fota-web-admin
   namespace: fota
+  annotations:
+      nginx.ingress.kubernetes.io/proxy-body-size: "200m"
 
 spec:
   ingressClassName: nginx
