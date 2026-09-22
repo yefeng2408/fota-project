@@ -32,6 +32,7 @@ body {
   flex: 1;
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
   transition: grid-template-columns 0.24s ease;
 }
@@ -41,6 +42,8 @@ body {
 }
 
 .sidebar {
+  grid-column: 1;
+  grid-row: 1 / 3;
   position: relative;
   background: var(--sidebar);
   color: #fff;
@@ -166,6 +169,8 @@ body {
 }
 
 .main {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   padding: 28px;
@@ -187,15 +192,6 @@ body {
   min-width: 0;
 }
 
-.release-notice {
-  margin: 8px 0 0;
-  color: brown;
-  font-size: 13px;
-  line-height: 1.6;
-  max-height: 4.8em;
-  overflow-y: auto;
-}
-
 .page-title {
   font-size: 34px;
   font-weight: 800;
@@ -211,15 +207,6 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.user-chip {
-  display: inline-flex;
-  align-items: center;
-  height: 40px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: rgba(16, 35, 63, 0.08);
 }
 
 .content-card {
@@ -322,7 +309,7 @@ body {
 
   .shell {
     overflow: hidden;
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .sidebar {
@@ -365,4 +352,40 @@ body {
   .login-card {
     grid-template-columns: 1fr;
   }
+}
+
+/* 设备页只保留一层工作区，给树和表格留出有效空间。 */
+.devices-shell .content-card {
+  padding: 0;
+  border-radius: 14px;
+  background: #fff;
+  backdrop-filter: none;
+}
+
+.devices-shell .page-title { font-size: 26px; }
+.devices-shell .page-subtitle { margin-top: 6px; font-size: 13px; }
+.devices-shell .topbar { margin-bottom: 18px; }
+
+.nav-menu .el-sub-menu.is-active { background: transparent; }
+.nav-menu .el-menu-item.is-active { background: rgba(244, 201, 93, 0.16); }
+
+@media (min-width: 961px) {
+  .devices-shell:not(.sidebar-collapsed) { grid-template-columns: 228px minmax(0, 1fr); }
+  .devices-shell .brand-title { font-size: 19px; }
+  .devices-shell .brand { gap: 10px; }
+  .devices-shell .sidebar { padding-inline: 14px; }
+}
+
+@media (max-width: 600px) {
+  .devices-shell .main { padding: 16px 12px; }
+}
+
+.workspace-footer {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .main, .workspace-footer { grid-column: 1; }
 }
