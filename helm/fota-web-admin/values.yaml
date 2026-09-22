@@ -1,7 +1,7 @@
 replicaCount: 1
 image:
   repository: 192.168.0.103:5000/fota-web-admin-nginx
-  tag: 678cbf1
+  tag: e5e3256
   pullPolicy: IfNotPresent
 service:
   type: ClusterIP
