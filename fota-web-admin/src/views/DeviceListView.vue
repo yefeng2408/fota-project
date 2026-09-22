@@ -1,13 +1,24 @@
 <template>
   <div class="split-layout device-list-layout">
     <div class="block-card device-groups-panel">
-      <div class="table-toolbar">
-        <strong>设备分组树</strong>
+      <div class="groups-heading">
+        <strong>设备分组</strong>
+        <router-link to="/device-groups">管理分组</router-link>
       </div>
+      <el-input v-model="groupKeyword" placeholder="搜索分组" aria-label="搜索分组" clearable :prefix-icon="Search" />
+      <button class="all-devices" :class="{ 'is-active': !query.deviceGroupId }" @click="showAllDevices">
+        <el-icon><Grid /></el-icon><span>全部设备</span>
+      </button>
+      <p class="group-help">点击分组筛选 · 勾选分组执行批量操作</p>
       <el-tree
         ref="groupTreeRef"
         :data="groupTree"
+        class="device-group-tree"
         node-key="id"
+        highlight-current
+        :current-node-key="query.deviceGroupId"
+        :filter-node-method="filterGroup"
+        empty-text="暂无匹配分组"
         default-expand-all
         show-checkbox
         check-strictly
@@ -17,19 +28,14 @@
       >
         <template #default="{ data }">
           <div class="group-tree-node">
-            <span>{{ data.label }} ({{ data.deviceCount || 0 }})</span>
-            <el-tag
-              v-if="selectedBatchGroup && selectedBatchGroup.id === data.id"
-              size="small"
-              type="warning"
-              effect="plain"
-            >
-              批量目标
-            </el-tag>
+            <el-icon class="group-folder"><Folder /></el-icon>
+            <span class="group-label" :title="data.label">{{ data.label }}</span>
+            <span class="group-count">{{ data.deviceCount || 0 }}</span>
             <el-button
               link
               type="danger"
               class="group-delete-btn"
+              :aria-label="`删除分组 ${data.label}`"
               @click.stop="removeGroup(data)"
             >
               删除
@@ -40,38 +46,44 @@
     </div>
 
     <div class="block-card device-results-panel">
-      <div class="table-toolbar">
-        <div class="toolbar-left">
-          <el-input v-model="query.keyword" placeholder="按 IMEI/设备名搜索" clearable style="width: 180px" />
-          <el-button @click="loadDevices">查询</el-button>
-          <el-tooltip
-            content="自动跳过不满足升级条件的设备，如未绑定固件、或当前正处于升级中的设备。"
-            placement="top"
-          >
-            <span class="toolbar-button-wrapper">
-              <el-button type="warning" :disabled="!canBatchUpgradeSelectedGroup" @click="openBatchUpgradeDialog">
-                批量升级
-              </el-button>
-            </span>
-          </el-tooltip>
-          <el-button type="success" plain :disabled="!selectedBatchGroup" @click="simulateGroupOnline">
-            模拟上线
-          </el-button>
-          <el-button type="info" plain :disabled="!selectedBatchGroup" @click="simulateGroupOffline">
-            模拟下线
-          </el-button>
-          <el-button type="primary" plain @click="openImportDialog">
-            批量添加
-          </el-button>
+      <div class="table-toolbar search-toolbar">
+        <form class="toolbar-left" @submit.prevent="searchDevices">
+          <el-input v-model="query.keyword" placeholder="按 IMEI / 设备名称搜索" aria-label="搜索设备" clearable :prefix-icon="Search" @clear="searchDevices" />
+          <el-button native-type="submit">查询</el-button>
+        </form>
+        <div class="device-toolbar-actions">
+          <div class="batch-actions" role="group" aria-label="分组批量操作">
+            <el-tooltip
+              content="自动跳过不满足升级条件的设备，如未绑定固件、或当前正处于升级中的设备。"
+              placement="top"
+            >
+              <span class="toolbar-button-wrapper">
+                <el-button type="warning" :disabled="!canBatchUpgradeSelectedGroup" @click="openBatchUpgradeDialog">
+                  批量升级
+                </el-button>
+              </span>
+            </el-tooltip>
+            <el-button type="success" plain :disabled="!selectedBatchGroup" @click="simulateGroupOnline">
+              模拟上线
+            </el-button>
+            <el-button type="info" plain :disabled="!selectedBatchGroup" @click="simulateGroupOffline">
+              模拟下线
+            </el-button>
+          </div>
+          <div class="toolbar-right" role="group" aria-label="添加设备">
+            <el-button @click="openImportDialog">批量添加</el-button>
+            <el-button type="primary" :icon="Plus" @click="openDialog()">新增设备</el-button>
+          </div>
         </div>
-        <div class="toolbar-right">
-          <el-button type="primary" @click="openDialog()">新增设备</el-button>
-        </div>
+      </div>
+      <div class="batch-context" :class="{ 'has-target': selectedBatchGroup }">
+        <span class="batch-context-label">批量操作对象</span>
+        <span class="batch-target" :title="selectedBatchGroup?.label">{{ selectedBatchGroup ? selectedBatchGroup.label : '请先勾选左侧分组' }}</span>
       </div>
 
       <div class="device-table-scroll">
         <el-table :data="tableData.records" class="device-table" height="100%">
-          <el-table-column prop="imei" label="IMEI" width="100" />
+          <el-table-column prop="imei" label="IMEI" width="90" />
           <el-table-column label="设备名称" min-width="80" width="120" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="device-name-cell">
@@ -84,7 +96,7 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="deviceType" label="设备类型" width="100" />
+          <el-table-column prop="deviceType" label="设备类型" width="80" />
           <el-table-column prop="deviceGroupName" label="设备分组" min-width="100" width="110" show-overflow-tooltip />
           <el-table-column label="当前/目标版本" width="130" min-width="100">
             <template #default="{ row }">
@@ -95,7 +107,7 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="固件绑定" width="90">
+          <el-table-column label="固件绑定" width="85">
             <template #default="{ row }">
               <el-tag size="small" :type="isFirmwareBound(row) ? 'success' : 'info'">
                 {{ isFirmwareBound(row) ? '已绑定' : '未绑定' }}
@@ -115,12 +127,12 @@
             </template>
           </el-table-column>
 
-<el-table-column label="升级进度" width="160">
+<el-table-column label="升级进度" width="120">
   <template #default="{ row }">
     <div class="progress-cell">
         <el-progress
           :percentage="normalizeProgress(row.progress)"
-          :stroke-width="12"
+          :stroke-width="8"
           :show-text="true"
           :status="progressBarStatus(row)"
           :striped="row.deviceUpgradeStatus === 'UPGRADING'"
@@ -185,14 +197,19 @@
         </el-table>
       </div>
 
-      <el-pagination
-        style="margin-top: 16px"
-        layout="total, prev, pager, next"
+      <div class="device-pagination">
+        <span class="result-total">共 {{ tableData.total }} 台设备</span>
+        <el-pagination
+        layout="sizes, prev, pager, next"
+        :page-sizes="[10, 20, 50, 100]"
+        :pager-count="5"
+        @size-change="changePageSize"
         :current-page="query.current"
         :page-size="query.pageSize"
         :total="tableData.total"
         @current-change="changePage"
       />
+      </div>
     </div>
   </div>
 
@@ -379,9 +396,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../api/request'
+import { Folder, Grid, Plus, Search } from '@element-plus/icons-vue'
 
 const groupTreeRef = ref(null)
 const groupTree = ref([])
+const groupKeyword = ref('')
 const firmwareOptions = ref([])
 const dialogVisible = ref(false)
 const batchDialogVisible = ref(false)
@@ -392,7 +411,7 @@ const selectedBatchGroup = ref(null)
 const importUploadRef = ref(null)
 const importFile = ref(null)
 const tableData = reactive({ total: 0, records: [] })
-const query = reactive({ current: 1, pageSize: 6, keyword: '', deviceGroupId: null })
+const query = reactive({ current: 1, pageSize: 10, keyword: '', deviceGroupId: null })
 const batchUpgradeForm = reactive({ firmwareId: null, remark: '' })
 const importForm = reactive({
   deviceGroupId: null,
@@ -548,6 +567,8 @@ function collectGroupIds(node) {
 async function loadGroups() {
   const data = await request.get('/api/device-groups/tree')
   groupTree.value = data
+  await nextTick()
+  groupTreeRef.value?.filter(groupKeyword.value)
   if (!selectedBatchGroup.value?.id) {
     return
   }
@@ -616,6 +637,30 @@ const canBatchUpgradeSelectedGroup = computed(() => {
 
 function handleImeiInput(value) {
   form.imei = String(value || '').replace(/\D/g, '').slice(0, 8)
+}
+
+function filterGroup(value, data) {
+  return !value || String(data.label || '').toLowerCase().includes(value.trim().toLowerCase())
+}
+
+watch(groupKeyword, (value) => groupTreeRef.value?.filter(value))
+
+function searchDevices() {
+  query.current = 1
+  loadDevices()
+}
+
+function changePageSize(size) {
+  query.pageSize = size
+  searchDevices()
+}
+
+function showAllDevices() {
+  query.deviceGroupId = null
+  selectedBatchGroup.value = null
+  groupTreeRef.value?.setCheckedKeys([])
+  groupTreeRef.value?.setCurrentKey(null)
+  searchDevices()
 }
 
 function handleGroupClick(node) {
@@ -1014,73 +1059,73 @@ onBeforeUnmount(() => {
   margin-top: 4px;
 }
 
-.device-table-scroll {
-  overflow-x: hidden;
-  width: 100%;
-}
-
 .device-list-layout {
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 246px minmax(0, 1fr);
+  gap: 0;
+  height: 100%;
+  min-height: 420px;
 }
 
-.device-results-panel .table-toolbar,
-.device-results-panel .toolbar-left {
-  flex-wrap: wrap;
+.device-groups-panel,
+.device-results-panel {
+  border: 0;
+  border-radius: 0;
+  padding: 18px;
 }
 
-.device-results-panel .toolbar-left > * {
-  flex-shrink: 0;
+.device-groups-panel {
+  background: #f8fafc;
+  border-right: 1px solid #e8edf3;
+  overflow: auto;
 }
 
-.device-results-panel .toolbar-left {
-  flex: 1 1 300px;
+.groups-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.groups-heading a { font-size: 12px; color: #409eff; text-decoration: none; }
+.group-help { font-size: 11px; color: #8591a3; line-height: 1.6; margin: 12px 0 8px; }
+.all-devices { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 14px; padding: 11px 12px; border: 0; border-radius: 6px; background: transparent; color: #506078; cursor: pointer; text-align: left; font: inherit; font-size: 14px; }
+.all-devices.is-active { background: #eaf3ff; color: #2879dc; font-weight: 600; }
+.device-group-tree { background: transparent; --el-tree-node-hover-bg-color: #edf2f8; }
+.device-group-tree :deep(.el-tree-node__content) { height: auto; min-height: 42px; border-radius: 6px; padding-block: 6px; }
+.device-group-tree :deep(.el-tree-node.is-current > .el-tree-node__content) { background: #eaf3ff; color: #2879dc; }
+.device-group-tree :deep(.el-tree-node__expand-icon) { padding: 4px; }
+.device-group-tree :deep(.el-checkbox) { margin-right: 6px; }
+.group-folder { color: #8da2bc; flex-shrink: 0; }
+.group-label { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }
+.group-count { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: #e9eef5; color: #718098; flex-shrink: 0; }
+
+.device-results-panel { display: flex; flex-direction: column; min-height: 0; }
+.search-toolbar { flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 10px; }
+.search-toolbar .toolbar-left { flex: 1 1 240px; gap: 8px; min-width: 0; max-width: 380px; }
+.search-toolbar .el-input { flex: 1; min-width: 140px; }
+.search-toolbar .toolbar-right { gap: 8px; border-left: 1px solid #e4e9f0; padding-left: 16px; }
+.device-toolbar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; }
+.device-results-panel .el-button + .el-button { margin-left: 0; }
+.batch-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.batch-context { display: flex; align-items: baseline; gap: 10px; padding: 0 0 12px; font-size: 12px; line-height: 20px; }
+.batch-context-label { color: #8a95a6; flex-shrink: 0; }
+.batch-target { color: #748198; overflow-wrap: anywhere; min-width: 0; }
+.batch-context.has-target .batch-target { color: #2879dc; font-weight: 500; }
+@media (max-width: 600px) {
+  .search-toolbar .toolbar-left { max-width: none; flex-basis: 100%; }
+  .search-toolbar .toolbar-right { padding-left: 0; border-left: 0; }
 }
+.device-table-scroll { flex: 1; min-height: 180px; width: 100%; overflow: hidden; }
+.device-table :deep(th.el-table__cell) { background: #f8fafc; color: #526078; font-weight: 600; }
+.device-table :deep(td.el-table__cell) { padding-block: 10px; }
+.device-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; flex-wrap: wrap; }
+.result-total { font-size: 12px; color: #748198; }
+.search-toolbar, .batch-context, .device-pagination { flex-shrink: 0; }
 
-.device-results-panel .toolbar-left .el-button {
-  margin-left: 0;
-}
-
-@media (min-width: 961px) {
-  .device-list-layout {
-    height: 100%;
-    min-height: 320px;
-    grid-template-rows: minmax(0, 1fr);
-  }
-
-  .device-groups-panel {
-    min-height: 0;
-    overflow: auto;
-  }
-
-  .device-results-panel {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .device-results-panel .table-toolbar,
-  .device-results-panel .el-pagination {
-    flex-shrink: 0;
-  }
-
-  .device-table-scroll {
-    flex: 1;
-    min-height: 0;
-  }
+@media (max-width: 1100px) and (min-width: 961px) {
+  .device-list-layout { grid-template-columns: 220px minmax(0, 1fr); }
+  .device-groups-panel, .device-results-panel { padding: 14px; }
 }
 
 @media (max-width: 960px) {
-  .device-list-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .device-table {
-    height: auto !important;
-  }
-
-  .device-results-panel .el-pagination {
-    overflow-x: auto;
-  }
+  .device-list-layout { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .device-groups-panel { border-right: 0; border-bottom: 1px solid #e8edf3; max-height: 300px; }
+  .device-table-scroll { flex: none; height: 480px; }
+  .device-pagination .el-pagination { max-width: 100%; overflow-x: auto; }
 }
 
 .device-table {
@@ -1089,7 +1134,7 @@ onBeforeUnmount(() => {
 }
 
 .progress-cell {
-  min-width: 120px;
+  min-width: 90px;
 }
 
 .device-name-cell {
@@ -1121,20 +1166,19 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.group-tree-node > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .group-delete-btn {
-  margin-left: auto;
-  opacity: 0;
-  transition: opacity 0.18s ease;
+  display: none;
+  margin-left: 0;
+  font-size: 12px;
 }
 
-.group-tree-node:hover .group-delete-btn {
-  opacity: 1;
+.group-tree-node:hover .group-delete-btn,
+.group-tree-node:focus-within .group-delete-btn {
+  display: inline-flex;
+}
+
+@media (hover: none) {
+  .group-delete-btn { display: inline-flex; }
 }
 
 .toolbar-button-wrapper {

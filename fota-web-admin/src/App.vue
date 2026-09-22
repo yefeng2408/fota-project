@@ -1,6 +1,6 @@
 <template>
   <router-view v-if="isLoginPage" />
-  <div v-else :class="['shell', { 'sidebar-collapsed': isSidebarCollapsed }]">
+  <div v-else :class="['shell', { 'sidebar-collapsed': isSidebarCollapsed, 'devices-shell': route.path === '/devices' }]">
     <aside class="sidebar">
       <button
         :aria-label="isSidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
@@ -54,13 +54,9 @@
       <header class="topbar">
         <div class="topbar-heading">
           <div class="page-title">{{ pageTitle }}</div>
-          <h5 class="release-notice">当前版本已经接入断点续传功能。
-            流程如下：设备处于升级中，点击“模拟下线” 则推送“升级掉线”状态。此时设备暂停升级。若再次点击“模拟上线”，则设备恢复正常升级流程。
-            注意：如果设备断开连接时间超过5分钟，再次上线则无法进入断点续传状态。批量升级调度器最大同时可升级设备数为500，等候区为5000。
-          </h5>
+          <div v-if="route.path === '/devices'" class="page-subtitle">按分组管理设备，查看在线状态与升级进度</div>
         </div>
         <div class="topbar-right">
-          <span class="user-chip">{{ currentUser?.username || '未登录' }}</span>
           <el-button type="danger" plain @click="logout">退出登录</el-button>
         </div>
       </header>
@@ -68,8 +64,9 @@
         <router-view />
       </section>
     </main>
+    <SiteFooter class="workspace-footer" />
   </div>
-  <SiteFooter />
+  <SiteFooter v-if="isLoginPage" />
 </template>
 
 <script setup>
@@ -98,11 +95,6 @@ const titleMap = {
 const isLoginPage = computed(() => route.path === '/login')
 const pageTitle = computed(() => titleMap[route.path] || 'FOTA 管理后台')
 const isSidebarCollapsed = ref(localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1')
-
-const currentUser = computed(() => {
-  const raw = localStorage.getItem('fota_user')
-  return raw ? JSON.parse(raw) : null
-})
 
 function toggleSidebar() {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
