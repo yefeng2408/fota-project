@@ -15,7 +15,7 @@ FOTA 设备固件升级平台是一套面向 IoT/终端设备的远程固件升�
 - 固件本地缓存：gateway 从 MinIO 加载固件后缓存到 JVM 内存，同一 firmwareId 并发加载时只会有一个线程访问 MinIO。
 - RocketMQ 异步事件回传：gateway 只生产升级状态事件，web 服务消费事件后更新数据库并通过 WebSocket 推送前端。
 - 模拟设备服务：mock-device 可按需模拟设备上线/下线、接收分包、异步写入固件、触发背压、模拟断点续传。
-- Docker Compose 部署：包含 MySQL、Redis、MinIO、RocketMQ、web 服务、gateway 服务、mock-device 服务和 Nginx。
+- 部署：采用家里的ubuntu主机32g+512gb（KVM 3台虚拟机节点组建k8s集群，master节点安装了github action以及 argoUI服务）+腾讯云4core 4g，并且采用tailscale组网，腾讯云负责公网入口，家庭k8s负责内存计算以及存储。这样的部署方案总比购买完整的大内存的云服务器要实惠很多
 
 ## 技术栈
 
