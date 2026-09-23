@@ -21,7 +21,7 @@
             <span><el-icon><Connection /></el-icon></span>
           </div>
         </div>
-        <div class="hero-features"><span>设备分组</span><i></i><span>批量升级</span><i></i><span>进度追踪</span></div>
+        <div class="hero-features"><span>批量升级</span><i></i><span>断点续传</span><i></i><span>进度追踪</span></div>
       </section>
       <section class="login-form" aria-labelledby="login-title">
         <div class="form-heading">
