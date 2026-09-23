@@ -21,7 +21,7 @@
             <span><el-icon><Connection /></el-icon></span>
           </div>
         </div>
-        <div class="hero-features"><span>设备分组</span><i></i><span>批量升级</span><i></i><span>进度追踪</span></div>
+        <div class="hero-features"><span>批量升级</span><i></i><span>断点续传</span><i></i><span>进度追踪</span></div>
       </section>
       <section class="login-form" aria-labelledby="login-title">
         <div class="form-heading">
@@ -83,33 +83,39 @@ async function handleLogin() {
 <style scoped>
 .login-shell {
   flex: 1;
-  display: grid;
-  place-items: center;
-  padding: 48px 24px;
-  background: radial-gradient(ellipse at 10% 15%, #e2eaf5 0, transparent 50%), radial-gradient(ellipse at 95% 85%, #e7edf6 0, transparent 45%), #f4f7fb;
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  min-width: 0;
+  background: #fff;
 }
 .login-card {
+  flex: 1;
   display: grid;
-  grid-template-columns: 1.08fr 1fr;
-  width: min(1040px, 100%);
-  border: 1px solid #e4eaf2;
-  border-radius: 22px;
-  overflow: hidden;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
   background: #fff;
-  box-shadow: 0 24px 70px -28px #243c6440;
+  box-shadow: none;
 }
 .login-hero {
-  position: relative;
-  overflow: hidden;
-  padding: 38px 42px 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 48px clamp(32px, 5vw, 96px);
   color: #fff;
   background: radial-gradient(ellipse at 100% 70%, #315985 0, transparent 65%), #1c3456;
 }
+.login-hero > * { width: 100%; max-width: 540px; }
 .login-brand { display: flex; align-items: center; gap: 12px; font-size: 17px; font-weight: 600; }
 .login-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: #f6d878; color: #1c3456; font-size: 15px; font-weight: 800; }
-.hero-copy { margin-top: 48px; }
+.hero-copy { margin-top: clamp(36px, 6vh, 72px); }
 .hero-eyebrow { color: #a7bdd8; letter-spacing: 2.4px; font-size: 10px; }
-.hero-copy h1 { margin: 14px 0 16px; font-size: clamp(27px, 2.5vw, 35px); line-height: 1.5; letter-spacing: 1px; font-weight: 600; }
+.hero-copy h1 { margin: 14px 0 16px; font-size: clamp(30px, 3vw, 46px); line-height: 1.5; letter-spacing: 1px; font-weight: 600; }
 .hero-copy h1 > span { color: #f6d878; }
 .hero-copy p { color: #bccde2; font-size: 13px; line-height: 1.8; margin: 0; }
 .device-network { position: relative; height: 180px; margin: 24px 0 18px; }
@@ -123,7 +129,8 @@ async function handleLogin() {
 .network-devices > span { display: grid; place-items: center; width: 46px; height: 42px; border: 1px solid #6c88a7; border-radius: 9px; background: #2d4c70; font-size: 22px; color: #c9d9ec; }
 .hero-features { display: flex; align-items: center; justify-content: center; gap: 16px; color: #b9cbe1; font-size: 12px; }
 .hero-features i { width: 3px; height: 3px; background: #7894b5; border-radius: 50%; }
-.login-form { display: flex; flex-direction: column; justify-content: center; padding: 56px 48px 30px; min-width: 0; background: #fff; }
+.login-form { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px clamp(32px, 5vw, 96px); min-width: 0; background: #fff; }
+.login-form > * { width: 100%; max-width: 440px; }
 .form-eyebrow { color: #73829a; font-size: 12px; letter-spacing: 2px; }
 .form-heading h2 { margin: 12px 0 10px; font-size: 30px; font-weight: 650; color: #172e50; }
 .form-heading p { color: #8390a3; font-size: 14px; margin: 0 0 34px; }
@@ -139,7 +146,8 @@ async function handleLogin() {
 .form-footer a:hover { color: #2d65ae; }
 .form-footer a:focus-visible { outline: 2px solid #2d65ae; outline-offset: 4px; }
 @media (max-width: 820px) {
-  .login-card { grid-template-columns: 1fr; max-width: 480px; }
+  .login-card { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .login-hero > * { max-width: 440px; }
   .login-hero { padding: 24px 30px; }
   .hero-copy { margin-top: 22px; }
   .hero-copy h1 { font-size: 26px; margin-bottom: 8px; }
@@ -149,7 +157,6 @@ async function handleLogin() {
   .form-footer { margin-top: 28px; }
 }
 @media (max-width: 480px) {
-  .login-shell { padding: 20px 14px; }
   .login-hero, .login-form { padding-inline: 24px; }
   .hero-copy h1 { font-size: 23px; letter-spacing: 0; }
   .hero-copy p { font-size: 12px; }
