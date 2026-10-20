@@ -5,8 +5,8 @@
         <div class="login-brand"><span class="login-mark">FP</span><span>FOTA 管理平台</span></div>
         <div class="hero-copy">
           <span class="hero-eyebrow">FIRMWARE OVER THE AIR</span>
-          <h1 id="platform-title">连接每一台设备<br>掌控每一次升级<span>。</span></h1>
-          <p>从设备接入到固件发布，让远程升级有序进行。</p>
+          <h1 id="platform-title">连接每一台设备<br>掌控每一次升级</h1>
+          <p>从设备接入到固件发布，让远程升级有序进行</p>
         </div>
         <div class="device-network" aria-hidden="true">
           <div class="network-grid"></div>

@@ -82,9 +82,10 @@
       </div>
 
       <div class="device-table-scroll">
-        <el-table :data="tableData.records" class="device-table" height="100%">
-          <el-table-column prop="imei" label="IMEI" width="90" />
-          <el-table-column label="设备名称" min-width="80" width="120" show-overflow-tooltip>
+        <!-- 数据列用最小宽度分配剩余空间，操作列保持固定宽度。 -->
+        <el-table :data="tableData.records" class="device-table" height="100%" :fit="true">
+          <el-table-column prop="imei" label="IMEI" min-width="90" />
+          <el-table-column label="设备名称" min-width="120" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="device-name-cell">
                 <span
@@ -96,9 +97,9 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="deviceType" label="设备类型" width="80" />
-          <el-table-column prop="deviceGroupName" label="设备分组" min-width="100" width="110" show-overflow-tooltip />
-          <el-table-column label="当前/目标版本" width="130" min-width="100">
+          <el-table-column prop="deviceType" label="设备类型" min-width="80" />
+          <el-table-column prop="deviceGroupName" label="设备分组" min-width="110" show-overflow-tooltip />
+          <el-table-column label="当前/目标版本" min-width="130">
             <template #default="{ row }">
               <span class="version-flow" :title="`${row.currentFirmwareVersion || '-'} → ${row.targetFirmwareVersion || '无'}`">
                 <span>{{ row.currentFirmwareVersion || '-' }}</span>
@@ -107,7 +108,7 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="固件绑定" width="85">
+          <el-table-column label="固件绑定" min-width="85">
             <template #default="{ row }">
               <el-tag size="small" :type="isFirmwareBound(row) ? 'success' : 'info'">
                 {{ isFirmwareBound(row) ? '已绑定' : '未绑定' }}
@@ -115,7 +116,7 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="升级状态" width="110">
+          <el-table-column label="升级状态" min-width="110">
             <template #default="{ row }">
               <el-tag
                 size="small"
@@ -127,7 +128,7 @@
             </template>
           </el-table-column>
 
-<el-table-column label="升级进度" width="120">
+<el-table-column label="升级进度" min-width="120">
   <template #default="{ row }">
     <div class="progress-cell">
         <el-progress
